@@ -227,7 +227,16 @@ void MM_Title_MenuUpdate(void)
 
 		// make main menu disappear
 		RECTMENU_Hide(&D230.menuMainMenu);
-	}
+		break;
+
+#ifdef CTR_NATIVE
+	// mods menu
+	case 6:
+		MM_Mods_Init();
+		sdata->ptrDesiredMenu = &D230.menuMods;
+		break;
+#endif
+}
 
 END_FUNCTION:
 

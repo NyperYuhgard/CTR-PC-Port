@@ -3,8 +3,12 @@
 // NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 230 0x800b42b0-0x800b4334.
 void MM_ResetAllMenus(void)
 {
-	for (int i = 0; i < 9; i++)
+	for (int i = 0; i < (int)(sizeof(D230.arrayMenuPtrs) / sizeof(D230.arrayMenuPtrs[0])); i++)
 	{
+#ifdef CTR_NATIVE
+		if (i == 9 && D230.menuMods.funcPtr == NULL)
+			break;
+#endif
 		struct RectMenu *menu = D230.arrayMenuPtrs[i];
 
 // NOTE(aalhendi): Retail resets one menu per array slot; native walks chained

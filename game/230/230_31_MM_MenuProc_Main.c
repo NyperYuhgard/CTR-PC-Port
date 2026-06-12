@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_mods.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800acff4-0x800ad448.
 void MM_MenuProc_Main(struct RectMenu *mainMenu)
@@ -211,4 +212,14 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 
 		return;
 	}
+
+#ifdef CTR_NATIVE
+	// Mods
+	if (choose == 0x014)
+	{
+		D230.MM_State = 2;
+		D230.desiredMenuIndex = 6;
+		return;
+	}
+#endif
 }

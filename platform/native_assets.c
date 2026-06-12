@@ -4,6 +4,7 @@
 #include <psx/types.h>
 
 #include <platform/native_path.h>
+#include <platform/native_mods.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -116,9 +117,26 @@ int NativeAssets_BuildPath(const char *relativePath, char *dst, size_t dstSize)
 	return NativeAssets_BuildPathStr8(NativeStr8_FromCString(relativePath), dst, dstSize);
 }
 
+int NativeAssets_BuildPathFromBase(const char *relativePath, char *dst, size_t dstSize)
+{
+	if (!s_nativeAssetsInitialized && !NativeAssets_Init("."))
+		return 0;
+
+	return NativePath_Join(dst, dstSize, NativeStr8_FromCString(s_nativeAssetsBaseDir), NativeStr8_FromCString(relativePath));
+}
+
 FILE *NativeAssets_OpenStr8(NativeStr8 relativePath, const char *mode)
 {
 	char path[NATIVE_ASSETS_PATH_MAX];
+	FILE *file;
+	char relCStr[NATIVE_ASSETS_PATH_MAX];
+
+	if (!NativeStr8_CopyToCString(relCStr, sizeof(relCStr), relativePath))
+		return NULL;
+
+	file = NativeMods_OpenFile(relCStr, mode);
+	if (file)
+		return file;
 
 	if (!NativeAssets_BuildPathStr8(relativePath, path, sizeof(path)))
 		return NULL;

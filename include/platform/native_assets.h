@@ -14,5 +14,6 @@ int NativeAssets_BuildPath(const char *relativePath, char *dst, size_t dstSize);
 FILE *NativeAssets_OpenStr8(NativeStr8 relativePath, const char *mode);
 FILE *NativeAssets_Open(const char *relativePath, const char *mode);
 int NativeAssets_Validate(void);
+int NativeAssets_BuildPathFromBase(const char *relativePath, char *dst, size_t dstSize);
 
 #endif

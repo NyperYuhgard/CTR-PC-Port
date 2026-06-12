@@ -67,6 +67,9 @@ set(SDL_SNDIO_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_X11_XSCRNSAVER OFF CACHE BOOL "" FORCE)
 add_subdirectory(externals/SDL)
 
+# Lua
+add_subdirectory(externals/lua)
+
 # CTR Native
 add_executable(ctr_native main.c)
 target_include_directories(ctr_native PRIVATE ${GAME_INCLUDES})
@@ -78,7 +81,7 @@ target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_BUILD_ID}\"
 )
 target_compile_options(ctr_native PRIVATE -O2)
-target_link_libraries(ctr_native SDL3::SDL3)
+target_link_libraries(ctr_native SDL3::SDL3 lua)
 if(WIN32)
     target_link_options(ctr_native PRIVATE -static -static-libgcc -Wl,--image-base,0x400000 -Wl,--disable-dynamicbase -Wl,--disable-reloc-section)
 else()

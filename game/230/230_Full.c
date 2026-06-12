@@ -54,6 +54,9 @@
 #include "230_74_MM_JumpTo_TrackSelect.c"
 #include "230_75_MM_JumpTo_Characters.c"
 #include "230_76_MM_JumpTo_Scrapbook.c"
+#ifdef CTR_NATIVE
+#include "230_86_MM_Mods_Menu.c"
+#endif
 
 // NOTE(aalhendi): Native track previews use platform/native_str.c; the retail
 // PsyQ STR/MDEC stream helpers remain PSX-only until full FMV playback exists.

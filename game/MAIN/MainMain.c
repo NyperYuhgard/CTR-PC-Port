@@ -5,6 +5,9 @@
 #include <platform/native_replay_scheduler.h>
 #include <platform/native_savestate.h>
 #endif
+#ifdef CTR_NATIVE
+#include <platform/native_mods.h>
+#endif
 
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 static struct NativePerfFrameInfo MainPerf_FrameInfo(struct GameTracker *gGT)
@@ -615,6 +618,9 @@ void StateZero()
 	// English=1
 	// PAL SCES02105 calls it multiple times
 	LOAD_LangFile((int)sdata->ptrBigfile1, 1);
+#ifdef CTR_NATIVE
+	NativeMods_OnLanguageLoaded(sdata->lngStrings, sdata->numLngStrings);
+#endif
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;
 

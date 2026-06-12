@@ -33,6 +33,7 @@
 #include "platform/native_perf.h"
 #include "platform/native_replay_scheduler.h"
 #include "platform/native_savestate.h"
+#include "platform/native_mods.h"
 
 #ifndef __GNUC__
 #define _Static_assert(x)
@@ -91,6 +92,7 @@ typedef enum
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
+#include "platform/native_mods.c"
 
 #ifndef CC
 #if __GNUC__
@@ -200,6 +202,11 @@ int main(int argc, char *argv[])
 
 	if (!NativeAssets_Validate())
 		return NativeConsole_Return(1);
+
+	if (!NativeMods_Init())
+		fprintf(stderr, "[CTR Native] Failed to initialize mod system.\n");
+	else
+		NativeMods_ScanMods();
 
 #if defined(CTR_INTERNAL)
 	if (NativeReplayScheduler_PrepareReportFromArgs(argc, argv) != 0)

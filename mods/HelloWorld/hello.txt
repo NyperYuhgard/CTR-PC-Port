@@ -1,0 +1,10 @@
+¡Hola desde un archivo!
+Este archivo es leído por el mod Hello World.
+Puedes crear archivos en la carpeta del mod para almacenar datos.
+
+El sistema de archivos del mod permite:
+- Leer archivos desde la carpeta del mod
+- Escribir archivos en la carpeta del mod
+- Reemplazar archivos del juego
+
+¡Prueba escribiendo tu propio archivo!

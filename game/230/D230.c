@@ -22,7 +22,10 @@ struct OverlayDATA_230 D230 = {
             {0x4E, 1, 3, 2, 2},
             {0x4F, 2, 4, 3, 3},
             {0x50, 3, 5, 4, 4},
-            {0x51, 4, 5, 5, 5},
+            {0x51, 4, 6, 5, 5},
+#ifdef CTR_NATIVE
+            {0x014, 5, 6, 6, 6},
+#endif
             {-1},
         },
 
@@ -34,7 +37,10 @@ struct OverlayDATA_230 D230 = {
             {0x4F, 2, 4, 3, 3},
             {0x50, 3, 5, 4, 4},
             {0x51, 4, 6, 5, 5},
-            {0x234, 5, 6, 6, 6},
+            {0x234, 5, 7, 6, 6},
+#ifdef CTR_NATIVE
+            {0x014, 6, 7, 7, 7},
+#endif
             {-1},
         },
 
@@ -210,8 +216,23 @@ struct OverlayDATA_230 D230 = {
             .funcPtr = MM_Scrapbook_PlayMovie,
         },
 
+#ifdef CTR_NATIVE
+    .menuMods =
+        {
+            .stringIndexTitle = 0x014,
+            .posX_curr = 0x180,
+            .posY_curr = 0x6c,
+            .state = 0x28,
+            .funcPtr = MM_Mods_MenuProc,
+        },
+#endif
+
     .arrayMenuPtrs = {&D230.menuMainMenu, &D230.menuPlayers1P2P, &D230.menuPlayers2P3P4P, &D230.menuAdventure, &D230.menuCharacterSelect, &D230.menuTrackSelect,
-                      &D230.menuCupSelect, &D230.menuBattleWeapons, &D230.menuHighScores},
+                      &D230.menuCupSelect, &D230.menuBattleWeapons, &D230.menuHighScores,
+#ifdef CTR_NATIVE
+                      &D230.menuMods,
+#endif
+    },
 
     .titleInstances = {{0x68, 0x4e, 0xe6, 0}, {0x66, 0x0, 0xe6, 1}, {0x67, 0x14, 0xe6, 0}, {0x69, 0x4e, 0xe6, 0}, {0x6a, 0x8c, 0xe6, 0}, {0x6b, 0xd7, 0xe6, 0}},
 

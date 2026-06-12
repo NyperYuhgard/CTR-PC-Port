@@ -165,7 +165,9 @@ struct OverlayDATA_230
 	// 800b44e4 - UsaRetail
 	// 800b4c4c - EurRetail
 	// 800b7f68 - JpnRetail
-#if BUILD == EurRetail
+#if defined(CTR_NATIVE)
+	struct MenuRow rowsMainMenuBasic[8];
+#elif BUILD == EurRetail
 	struct MenuRow rowsMainMenuBasic[8];
 #else
 	struct MenuRow rowsMainMenuBasic[7];
@@ -175,7 +177,9 @@ struct OverlayDATA_230
 	// 800b4510 - UsaRetail
 	// 800b4c7c - EurRetail
 	// 800b7f94 - JpnRetail
-#if BUILD == EurRetail
+#if defined(CTR_NATIVE)
+	struct MenuRow rowsMainMenuWithScrapbook[10];
+#elif BUILD == EurRetail
 	struct MenuRow rowsMainMenuWithScrapbook[9];
 	char padding800b4cb2[2];
 #else
@@ -304,11 +308,16 @@ struct OverlayDATA_230
 	// 800b8234 - JpnRetail
 	struct RectMenu menuScrapbook;
 
+#ifdef CTR_NATIVE
+	// 800b47b0+sizeof - UsaRetail
+	struct RectMenu menuMods;
+#endif
+
 	// 800b47dc - UsaRetail
 	// 800b4fb4 - EurRetail
 	// 800b8260 - JpnRetail
 	// array of menu pointers
-#if BUILD == EurRetail
+#if defined(CTR_NATIVE) || BUILD == EurRetail
 	struct RectMenu *arrayMenuPtrs[10];
 #else
 	struct RectMenu *arrayMenuPtrs[9];
@@ -1028,6 +1037,10 @@ struct OverlayDATA_230
 	char s_RingBuf[8];
 
 	// 800b5a64 MM_Video_DecDCToutCallbackFunc
+
+#ifdef CTR_NATIVE
+	int boolShowMods;
+#endif
 };
 
 // starts at 800b67ac
