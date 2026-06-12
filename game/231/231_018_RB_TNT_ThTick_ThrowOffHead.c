@@ -1,0 +1,58 @@
+#include <common.h>
+// In air, after spamming L1 or R1,
+// will explode on impact with ground
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ad310-0x800ad44c.
+void RB_TNT_ThTick_ThrowOffHead(struct Thread *t)
+{
+	struct GameTracker *gGT = sdata->gGT;
+	struct Instance *inst;
+	struct MineWeapon *mw;
+
+	inst = t->inst;
+
+	//  object (tnt)
+	mw = t->object;
+
+	// do NOT use parenthesis
+	inst->matrix.t[1] += (mw->velocity[1] * gGT->elapsedTimeMS) >> 5;
+
+#if defined(CTR_NATIVE)
+	// NOTE(aalhendi): Retail reads through driverTarget blindly here. Boss-thrown TNT can have
+	// no target, and native cannot mirror PS1 low-memory null reads.
+	if ((mw->stopFallAtY == 0x3fff) && (mw->driverTarget != NULL))
+#else
+	if (mw->stopFallAtY == 0x3fff)
+#endif
+		mw->stopFallAtY = mw->driverTarget->instSelf->matrix.t[1];
+
+	if (inst->matrix.t[1] <= mw->stopFallAtY)
+	{
+		// plays tnt explosion sound 3D
+		PlaySound3D(0x3d, inst);
+
+		RB_Blowup_Init(inst);
+
+		// Set scale (x, y, z) to zero
+		inst->scale[0] = 0;
+		inst->scale[1] = 0;
+		inst->scale[2] = 0;
+
+		// make invisible
+		inst->flags |= 0x80;
+
+		// this thread is now dead
+		t->flags |= 0x800;
+
+#if defined(CTR_NATIVE)
+		// NOTE(aalhendi) Retail writes through driverTarget blindly; boss-thrown TNT has no
+		// driver-owned instTntRecv slot to clear.
+		if (mw->driverTarget != NULL)
+#endif
+			mw->driverTarget->instTntRecv = 0;
+	}
+
+	// decrease velocity (artificial gravity)
+	mw->velocity[1] -= ((gGT->elapsedTimeMS << 2) >> 5);
+	if (mw->velocity[1] < -0x60)
+		mw->velocity[1] = -0x60;
+}

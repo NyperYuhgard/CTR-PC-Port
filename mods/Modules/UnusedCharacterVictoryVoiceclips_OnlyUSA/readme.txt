@@ -1,0 +1,1 @@
+Restores the character voicelines when finishing a race in 1st, 2nd, and 3rd place. This is only for Sep3 and USA, because those are the only builds that did not remove the unused voicelines from the disc. Made by Niko.

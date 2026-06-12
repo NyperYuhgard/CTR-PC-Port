@@ -1,0 +1,32 @@
+#include <common.h>
+
+// NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 230 0x800ad7a4-0x800ad828.
+void MM_MenuProc_Difficulty(struct RectMenu *menu)
+{
+	s16 row;
+
+	row = menu->rowSelected;
+
+	// if uninitialized
+	if (row == -1)
+	{
+		menu->ptrPrevBox_InHierarchy->state &= ~(ONLY_DRAW_TITLE | DRAW_NEXT_MENU_IN_HIERARCHY);
+	}
+
+	else
+	{
+		// if you are on a valid row
+		if ((row >= 0) && (row < 3))
+		{
+			// set difficulty to value, from array of fixed difficulty values
+			sdata->gGT->arcadeDifficulty = D230.cupDifficultySpeed[row];
+
+			D230.MM_State = 2;
+			D230.desiredMenuIndex = 2;
+
+			menu->state |= 4;
+			return;
+		}
+	}
+	return;
+}

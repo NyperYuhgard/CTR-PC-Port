@@ -1,0 +1,13 @@
+CompileFlags:
+  Add:
+    - -std=c99
+    - -m32
+    - -DCTR_NATIVE
+    - -DUSE_EXTENDED_PRIM_POINTERS=0
+    - -DUSE_PCDRV
+    - -DCTR_INTERNAL
+    - -Iinclude
+    - -Iexternals/PsyCross/include
+    - -Iexternals/PsyCross
+    - -Iexternals/SDL/include
+    - -Iexternals/openal-soft/include
