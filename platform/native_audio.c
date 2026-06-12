@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef s32 b32;
-
 #define NATIVE_AUDIO_SAMPLE_RATE            44100
 #define NATIVE_AUDIO_CHANNELS               2
 #define NATIVE_AUDIO_SPU_VOICE_COUNT        24

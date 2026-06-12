@@ -29,8 +29,7 @@ void UI_DrawLapCount(s16 posX, int posY, int param_3, struct Driver *d)
 	// 1P or 2P
 	if (numPlyrCurrGame < 3)
 	{
-		// LAP
-		DecalFont_DrawLine(sdata->lngStrings[0x60 / 4], posX, posY, FONT_SMALL, (JUSTIFY_RIGHT | PERIWINKLE));
+		DecalFont_DrawLine(sdata->lngStrings[LNG_LAP], posX, posY, FONT_SMALL, (JUSTIFY_RIGHT | PERIWINKLE));
 
 		sprintf(&message[0], &sdata->s_intDividing[0], currLap, numLaps);
 		str = &message[0];

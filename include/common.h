@@ -45,6 +45,7 @@
 
 #include <namespace_Level.h>
 #include <namespace_List.h>
+#include <namespace_Lng.h>
 
 // should not be here
 #include <namespace_JitPool.h>

@@ -279,7 +279,8 @@ void MainFreeze_ConfigSetupEntry(void)
 			data.rwd[gamepadID].deadZone = data.raceConfig_DeadZone[(s16)sdata->WheelConfigOption].hi1;
 		}
 
-		DecalFont_DrawMultiLine(sdata->lngStrings[0x223], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG, JUSTIFY_CENTER);
+		DecalFont_DrawMultiLine(sdata->lngStrings[LNG_SELECT_DEAD_ZONE_AND_PRESS_BUTTON], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG,
+		                        JUSTIFY_CENTER);
 		DecalFont_DrawLine(sdata->lngStrings[data.raceConfig_DeadZone[(s16)sdata->WheelConfigOption].lngIndex], 0x100, sdata->posY_Arrows[posIndex], FONT_BIG,
 		                   JUSTIFY_CENTER);
 		MainFreeze_ConfigDrawArrows(0x100, sdata->posY_Arrows[posIndex], sdata->lngStrings[data.raceConfig_DeadZone[(s16)sdata->WheelConfigOption].lngIndex]);
@@ -289,7 +290,8 @@ void MainFreeze_ConfigSetupEntry(void)
 	{
 		if (sdata->raceWheelConfigPageIndex == 0)
 		{
-			DecalFont_DrawMultiLine(sdata->lngStrings[0x222], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG, JUSTIFY_CENTER);
+			DecalFont_DrawMultiLine(sdata->lngStrings[LNG_CENTER_THE_CONTROLLER_AND_PRESS_BUTTON], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG,
+			                        JUSTIFY_CENTER);
 
 			if ((sdata->buttonTapPerPlayer[gamepadID] & (BTN_CIRCLE | BTN_CROSS_one)) != 0)
 			{
@@ -337,7 +339,7 @@ void MainFreeze_ConfigSetupEntry(void)
 		}
 
 		sdata->unk_RaceWheelConfig[0] = data.raceConfig_Range[(s16)sdata->raceWheelConfigOptionIndex].lo16;
-		DecalFont_DrawMultiLine(sdata->lngStrings[0x228], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG, JUSTIFY_CENTER);
+		DecalFont_DrawMultiLine(sdata->lngStrings[LNG_SELECT_RANGE_AND_PRESS_BUTTON], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG, JUSTIFY_CENTER);
 		DecalFont_DrawLine(sdata->lngStrings[data.raceConfig_Range[(s16)sdata->raceWheelConfigOptionIndex].lngIndex], 0x100, sdata->posY_Arrows[posIndex],
 		                   FONT_BIG, JUSTIFY_CENTER);
 		MainFreeze_ConfigDrawArrows(0x100, sdata->posY_Arrows[posIndex],
@@ -592,8 +594,7 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 			volumeSliderTriangleLeftMargin = lineWidth;
 	}
 
-	// "OPTIONS"
-	DecalFont_DrawLine(sdata->lngStrings[324], 256, 26 + (menuRowsNegativePadding / 2), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+	DecalFont_DrawLine(sdata->lngStrings[LNG_OPTIONS_TITLE], 256, 26 + (menuRowsNegativePadding / 2), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
 	int volumeSliderWidth = 380 - (30 + volumeSliderTriangleLeftMargin);
 
@@ -642,8 +643,7 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 		DecalFont_DrawLine(sdata->lngStrings[data.Options_StringIDs_Audio[i]], 76, 50 + (menuRowsNegativePadding / 2) + (i * 10), FONT_SMALL, ORANGE);
 	}
 
-	// "MODE:"
-	DecalFont_DrawLine(sdata->lngStrings[332], 76, 80 + (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_MODE], 76, 80 + (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
 
 	// 333: MONO
 	// 334: STEREO
@@ -654,14 +654,13 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 
 	if (gamepad->numGamepads != 0)
 	{
-		// "DUAL SHOCK:"
-		DecalFont_DrawLine(sdata->lngStrings[330], 76, 90 + (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_DUAL_SHOCK], 76, 90 + (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
 
 		int lineWidth_controller1A = DecalFont_GetLineWidth(sdata->lngStrings[data.Options_StringIDs_Gamepads[2]], FONT_SMALL);
 
 		// width can change depending on language
-		int lineWidth_vibrateOff = DecalFont_GetLineWidth(sdata->lngStrings[326], FONT_SMALL);
-		int lineWidth_vibrateOn = DecalFont_GetLineWidth(sdata->lngStrings[325], FONT_SMALL);
+		int lineWidth_vibrateOff = DecalFont_GetLineWidth(sdata->lngStrings[LNG_VIBRATE_OFF], FONT_SMALL);
+		int lineWidth_vibrateOn = DecalFont_GetLineWidth(sdata->lngStrings[LNG_VIBRATE_ON], FONT_SMALL);
 		if (lineWidth_vibrateOn < lineWidth_vibrateOff)
 			lineWidth_vibrateOn = lineWidth_vibrateOff;
 
@@ -704,8 +703,7 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 
 	if (gamepad->numAnalogs != 0)
 	{
-		// "CONFIGURE ANALOG:"
-		DecalFont_DrawLine(sdata->lngStrings[336], 76, 90 + (menuRowsNegativePadding / 2) + analogRowPosY, FONT_SMALL, ORANGE);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_CONFIGURE_ANALOG], 76, 90 + (menuRowsNegativePadding / 2) + analogRowPosY, FONT_SMALL, ORANGE);
 
 		for (int i = 0; i < gamepad->numAnalogs; i++)
 		{
@@ -714,8 +712,7 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 		}
 	}
 
-	// "EXIT"
-	DecalFont_DrawLine(sdata->lngStrings[331], 76, 140 - (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_OPTIONS_EXIT], 76, 140 - (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
 
 	RECT cursor = {.x = 74,
 	               .y = data.Options_HighlightBar[menu->rowSelected].posY + (menuRowsNegativePadding / 2) + 20,

@@ -313,7 +313,7 @@ void AH_Pause_Draw(int pageID, int posX)
 
 		// be careful, might overflow in languages
 		// other than english, where "TOTAL" is longer
-		sprintf((char *)&count[0], "%s %d", sdata->lngStrings[0xc4], bitIndex);
+		sprintf((char *)&count[0], "%s %d", sdata->lngStrings[LNG_TOTAL], bitIndex);
 
 		DecalFont_DrawLine((char *)count, posX + 0x100, 0x6e, FONT_BIG, 0xffff8000);
 	}

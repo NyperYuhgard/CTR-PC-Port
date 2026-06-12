@@ -131,8 +131,7 @@ void UI_CupStandings_InputAndDraw(void)
 	// title text
 	DecalFont_DrawLine(sdata->lngStrings[index], local_58[0], local_58[1] - 0x11, 1, 0xffff8000);
 
-	// STANDINGS
-	DecalFont_DrawLine(sdata->lngStrings[0xCA], local_58[0], local_58[1], 1, 0xffff8000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_STANDINGS], local_58[0], local_58[1], 1, 0xffff8000);
 
 	// 24 characters, in case of other
 	// languages with longer text
@@ -141,8 +140,7 @@ void UI_CupStandings_InputAndDraw(void)
 	// TRACK 1/4, 2/4, 3/4, 4/4
 	sprintf(text, "%s %ld/4",
 
-	        // TRACK
-	        sdata->lngStrings[0x175],
+	        sdata->lngStrings[LNG_TRACK],
 
 	        // Track Index (0, 1, 2, 3) + 1
 	        gGT->cup.trackIndex + 1);
@@ -355,8 +353,7 @@ void UI_CupStandings_InputAndDraw(void)
 		        // If you are not in overall Cup standings
 		        ((sdata->menuReadyToPass & 8) == 0)) &&
 		    (
-		        // PRESS * TO CONTINUE
-		        DecalFont_DrawLine(sdata->lngStrings[0xC9], 0x100, 0xbe, 1, 0xffff8000),
+		        DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, 1, 0xffff8000),
 
 		        // If you press Cross or Circle
 		        (sdata->AnyPlayerTap & 0x50) != 0))

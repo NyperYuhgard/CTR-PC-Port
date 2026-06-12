@@ -469,8 +469,7 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 						uVar14 = (JUSTIFY_CENTER | PERIWINKLE);
 					}
 
-					// "GHOST DATA EXISTS"
-					DecalFont_DrawLine(sdata->lngStrings[0x6B], (iVar11 + 8 + 0x78), (iVar9 + 0x76), FONT_SMALL, uVar14);
+					DecalFont_DrawLine(sdata->lngStrings[LNG_GHOST_DATA_EXISTS], (iVar11 + 8 + 0x78), (iVar9 + 0x76), FONT_SMALL, uVar14);
 				}
 			}
 			q.x = r.x + 6;
@@ -520,12 +519,10 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 			// If the lap selection menu is closed
 			if (D230.trackSel_boolOpenLapBox == 0)
 			{
-				// "SELECT"
-				DecalFont_DrawLine(sdata->lngStrings[0x69], (D230.transitionMeta_trackSel[3].currX + 0x18c), (D230.transitionMeta_trackSel[3].currY + (u32)p.y),
-				                   FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+				DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_LEVEL_SELECT], (D230.transitionMeta_trackSel[3].currX + 0x18c),
+				                   (D230.transitionMeta_trackSel[3].currY + (u32)p.y), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
-				// "LEVEL"
-				DecalFont_DrawLine(sdata->lngStrings[0x6a], (D230.transitionMeta_trackSel[3].currX + 0x18c),
+				DecalFont_DrawLine(sdata->lngStrings[LNG_LEVEL], (D230.transitionMeta_trackSel[3].currX + 0x18c),
 				                   (D230.transitionMeta_trackSel[3].currY + (u32)p.y + 0x10), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 			}
 

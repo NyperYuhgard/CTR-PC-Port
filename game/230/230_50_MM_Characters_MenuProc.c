@@ -133,12 +133,10 @@ void MM_Characters_MenuProc(struct RectMenu *unused)
 		if (D230.isRosterExpanded)
 			goto dontDrawSelectCharacter;
 
-		// SELECT
-		DecalFont_DrawLine(sdata->lngStrings[96], posX + 0x9c, posY + 0x14, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+		DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CHARACTER_SELECT], posX + 0x9c, posY + 0x14, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 		characterSelectType = FONT_BIG;
 
-		// CHARACTER
-		characterSelectString = sdata->lngStrings[97];
+		characterSelectString = sdata->lngStrings[LNG_CHARACTER];
 
 		posX = posX + 0x9c;
 		posY = posY + 0x26;
@@ -151,12 +149,10 @@ void MM_Characters_MenuProc(struct RectMenu *unused)
 		if (sdata->gameProgress.unlocks[0] & 0x800)
 			goto dontDrawSelectCharacter;
 
-		// SELECT
-		DecalFont_DrawLine(sdata->lngStrings[96], posX + 0xfc, posY + 8, FONT_CREDITS, (JUSTIFY_CENTER | ORANGE));
+		DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CHARACTER_SELECT], posX + 0xfc, posY + 8, FONT_CREDITS, (JUSTIFY_CENTER | ORANGE));
 		characterSelectType = FONT_CREDITS;
 
-		// CHARACTER
-		characterSelectString = sdata->lngStrings[97];
+		characterSelectString = sdata->lngStrings[LNG_CHARACTER];
 
 		posX = posX + 0xfc;
 		posY = posY + 0x18;
@@ -168,8 +164,7 @@ void MM_Characters_MenuProc(struct RectMenu *unused)
 	case 5:
 		characterSelectType = FONT_BIG;
 
-		// SELECT CHARACTER
-		characterSelectString = sdata->lngStrings[95];
+		characterSelectString = sdata->lngStrings[LNG_SELECT_CHARACTER];
 
 		posX = posX + 0xfc;
 		posY = posY + 10;

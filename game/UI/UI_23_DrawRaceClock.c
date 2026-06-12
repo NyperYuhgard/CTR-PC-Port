@@ -318,8 +318,7 @@ void UI_DrawRaceClock(u16 paramX, u16 paramY, u32 flags, struct Driver *driver)
 					                   (int)(((u32)textPosY - ((char)gGT->numLaps - numLaps) * (int)*lapTextHeight) * 0x10000) >> 0x10, lapFontType,
 					                   (JUSTIFY_RIGHT | RED));
 
-					// LAP
-					DecalFont_DrawLine(sdata->lngStrings[0x18], (int)(((u32)textPosX - (u32)data.font_charPixWidth[lapFontType])),
+					DecalFont_DrawLine(sdata->lngStrings[LNG_LAP], (int)(((u32)textPosX - (u32)data.font_charPixWidth[lapFontType])),
 					                   (int)(((u32)textPosY - ((char)gGT->numLaps - numLaps) * (int)*lapTextHeight) * 0x10000) >> 0x10, lapFontType,
 					                   (JUSTIFY_RIGHT | RED));
 

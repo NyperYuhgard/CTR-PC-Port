@@ -168,8 +168,7 @@ void UI_RenderFrame_Racing()
 					if ((gGT->elapsedEventTime & 0x80) != 0)
 					{
 						DecalFont_DrawLine(
-						    // "WRONG WAY!"
-						    sdata->lngStrings[0x1D],
+						    sdata->lngStrings[LNG_WRONG_WAY],
 
 						    // midpointX
 						    pb->rect.x + (pb->rect.w >> 1),
@@ -703,15 +702,14 @@ void UI_RenderFrame_Racing()
 					sprintf((char *)&string[0], &sdata->s_999[0]);
 				}
 
-				// "Turbos"
-				i = DecalFont_GetLineWidth(sdata->lngStrings[0x24B], 1);
+				i = DecalFont_GetLineWidth(sdata->lngStrings[LNG_TURBOS], 1);
 
 				// Draw the string
 				DecalFont_DrawLine((char *)&string[0], (int)(((u32)turboCount_Pos[0] - i) * 0x10000) >> 0x10, (int)turboCount_Pos[1], FONT_BIG,
 				                   (JUSTIFY_RIGHT | ORANGE_RED));
 
 
-				sprintf((char *)&string[0], &sdata->s_str[0], sdata->lngStrings[0x24B]);
+				sprintf((char *)&string[0], &sdata->s_str[0], sdata->lngStrings[LNG_TURBOS]);
 
 				// Draw the string
 				DecalFont_DrawLine((char *)&string[0], (int)(s16)turboCount_Pos[0], (int)turboCount_Pos[1], FONT_BIG, (JUSTIFY_RIGHT | ORANGE));
@@ -849,15 +847,13 @@ void UI_RenderFrame_Racing()
 				    // (winner of battle wont use this function)
 				    ((gameMode1 & BATTLE_MODE) == 0))
 				{
-					// FINISHED!
-					pbVar6 = sdata->lngStrings[0x1E];
+					pbVar6 = sdata->lngStrings[LNG_FINISHED];
 				}
 
 				// If you came in last place, or you're in battle
 				else
 				{
-					// LOSER!
-					pbVar6 = sdata->lngStrings[0x143];
+					pbVar6 = sdata->lngStrings[LNG_LOSER];
 				}
 
 				DecalFont_DrawLine(pbVar6,

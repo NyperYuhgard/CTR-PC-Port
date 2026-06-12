@@ -61,7 +61,7 @@ struct OverlayDATA_230 D230 = {
 
     .menuPlayers1P2P =
         {
-            .stringIndexTitle = 0x53,
+            .stringIndexTitle = LNG_PLAYERS,
 
             .state = 9,
             .rows = &D230.rowsPlayers1P2P[0],
@@ -78,7 +78,7 @@ struct OverlayDATA_230 D230 = {
 
     .menuPlayers2P3P4P =
         {
-            .stringIndexTitle = 0x53,
+            .stringIndexTitle = LNG_PLAYERS,
 
             .state = 9,
             .rows = &D230.rowsPlayers2P3P4P[0],
@@ -95,7 +95,7 @@ struct OverlayDATA_230 D230 = {
 
     .menuDifficulty =
         {
-            .stringIndexTitle = 0x159,
+            .stringIndexTitle = LNG_DIFFICULTY,
 
             .state = 1,
             .rows = &D230.rowsDifficulty[0],
@@ -111,7 +111,7 @@ struct OverlayDATA_230 D230 = {
 
     .menuRaceType =
         {
-            .stringIndexTitle = 0x15D,
+            .stringIndexTitle = LNG_RACE_TYPE,
 
             .state = 1,
             .rows = &D230.rowsRaceType[0],
@@ -615,7 +615,7 @@ struct OverlayDATA_230 D230 = {
 
     .menuLapSel =
         {
-            .stringIndexTitle = 0x9a,
+            .stringIndexTitle = LNG_LAPS,
 
             .posX_curr = 0x18C,
             .posY_curr = 0x7c,

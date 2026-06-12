@@ -46,8 +46,7 @@ void MM_HighScore_Draw(u16 trackIndex, u32 rowIndex, u32 posX, u32 posY)
 
 	u32 iconColor = D230.highscore_iconColor;
 
-	// "BEST TRACK TIMES"
-	MM_HighScore_Text3D(sdata->lngStrings[0xb3], D230.transitionMeta_HighScores[1].currX + offsetX + 0x20,
+	MM_HighScore_Text3D(sdata->lngStrings[LNG_BEST_TRACK_TIMES], D230.transitionMeta_HighScores[1].currX + offsetX + 0x20,
 	                    D230.transitionMeta_HighScores[1].currY + offsetY + 0x2b, FONT_SMALL, 0);
 
 	// first entry: Time Trial or Relic
@@ -84,8 +83,7 @@ void MM_HighScore_Draw(u16 trackIndex, u32 rowIndex, u32 posX, u32 posY)
 		gGT->levelID = prevLevelID;
 		GAMEPROG_GetPtrHighScoreTrack();
 
-		// "BEST LAP TIME:"
-		MM_HighScore_Text3D(sdata->lngStrings[0xb4], D230.transitionMeta_HighScores[7].currX + offsetX + 0x124,
+		MM_HighScore_Text3D(sdata->lngStrings[LNG_BEST_LAP_TIME], D230.transitionMeta_HighScores[7].currX + offsetX + 0x124,
 		                    D230.transitionMeta_HighScores[7].currY + offsetY + 0x2b, FONT_SMALL, 0);
 
 		// Character Name

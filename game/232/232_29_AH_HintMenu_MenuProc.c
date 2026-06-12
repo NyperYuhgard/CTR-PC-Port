@@ -88,8 +88,7 @@ void AH_HintMenu_MenuProc(struct RectMenu *menu)
 		// height of multiLine
 		iVar11 = DecalFont_DrawMultiLine(sdata->lngStrings[lngIndex + 1], 0x96, 0x3f, 0x14e, 2, 0);
 
-		// "EXIT"
-		char *strExit = sdata->lngStrings[0x17a];
+		char *strExit = sdata->lngStrings[LNG_HINT_EXIT];
 
 		DecalFont_DrawLine(strExit, 0x100, iVar11 + 0x4f, 1, 0xffff8000);
 

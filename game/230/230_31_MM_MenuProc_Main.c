@@ -23,8 +23,7 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 		    // main menu, "title" exists, and timer >= 230
 		    (D230.MM_State == 1) && (D230.titleObj != NULL) && (229 < D230.timerInTitle))
 		{
-			// "TM" trademark string
-			DecalFont_DrawLineOT(sdata->lngStrings[0x244], 0x10e, 0x9c, FONT_SMALL, ORANGE, &gGT->backBuffer->otMem.startPlusFour[3]);
+			DecalFont_DrawLineOT(sdata->lngStrings[LNG_TM], 0x10e, 0x9c, FONT_SMALL, ORANGE, &gGT->backBuffer->otMem.startPlusFour[3]);
 		}
 
 		if ((D230.menuMainMenu.state & DRAW_NEXT_MENU_IN_HIERARCHY) == 0)

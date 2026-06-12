@@ -1,173 +1,129 @@
 #include <common.h>
 
-const s16 hub[8] = {
-    3,  // 1st battle map, Nitro Court, 	is for Hub 4 (3+1), Citadel City
-    1,  // 2nd battle map, Rampage Ruins, 	is for Hub 2 (1+1), Lost Ruins
-    -1, // 3rd battle map, Parking Lot, 	is not used in any hub
-    0,  // 4th battle map, Skull Rock, 		is for Hub 1 (0+1), N Sane Beach
-    -1, // 5th battle map, North Bowl,		is not used in any hub
-    2,  // 6th battle map, Rocky Road		is for Hub 3 (2+1), Glacier Park
-    -1, // 7th battle map, Lab Basement		is not used in any hub
-
-    0, // Needed for 4-byte alignment
+enum CrystalChallengeEndMenuConstants
+{
+	CC_FIRST_PURPLE_TOKEN_BIT = 0x6f,
+	CC_FLY_IN_FRAMES = 0x14,
+	CC_SCREEN_DEPTH = 0x200,
+	CC_TOKEN_GROW_LIMIT = 0x2001,
+	CC_TOKEN_GROW_STEP = 0x200,
 };
 
-extern struct MenuRow rows221[3];
+global_variable const s16 s_battleTrackRewardOffset[LAB_BASEMENT - NITRO_COURT + 1] = {
+    [NITRO_COURT - NITRO_COURT] = 3,     // Citadel City
+    [RAMPAGE_RUINS - NITRO_COURT] = 1,   // Lost Ruins
+    [PARKING_LOT - NITRO_COURT] = -1,    // not used in any hub
+    [SKULL_ROCK - NITRO_COURT] = 0,      // N. Sanity Beach
+    [THE_NORTH_BOWL - NITRO_COURT] = -1, // not used in any hub
+    [ROCKY_ROAD - NITRO_COURT] = 2,      // Glacier Park
+    [LAB_BASEMENT - NITRO_COURT] = -1,   // not used in any hub
+};
+
 extern struct RectMenu menu221;
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009f710-0x8009fbec.
 void CC_EndEvent_DrawMenu()
 {
-	struct GameTracker *gGT;
-	struct Driver *driver;
+	struct GameTracker *gGT = sdata->gGT;
+	s32 levelID = gGT->levelID;
+	struct Driver *driver = gGT->drivers[0];
 	s16 posXY[2];
-	int lngIndex;
-	int boolLose;
-	struct AdvProgress *adv;
-	struct Instance *tokenInst;
-	int growVal;
-	int bitIndex;
-	int levelID;
-	int elapsedFrames;
-	int color;
-
-	gGT = sdata->gGT;
-	levelID = gGT->levelID;
-	driver = gGT->drivers[0];
+	s32 tokenRewardOffset;
 
 	// "Dingo Bingo" $sp exploit, for 101% speedruns.
 	// Dingo Canyon gives different item depending on
 	// camera, Blizz Bluff gives Skull Rock token, and
 	// Dragon Mines gives purple gem
 	if (levelID == DINGO_CANYON)
-		bitIndex = gGT->pushBuffer[0].pos[2];
+		tokenRewardOffset = gGT->pushBuffer[0].pos[2];
 	else if (levelID == DRAGON_MINES)
-		bitIndex = 0;
+		tokenRewardOffset = 0;
 	else if (levelID == BLIZZARD_BLUFF)
-		bitIndex = -1;
+		tokenRewardOffset = -1;
 
 	// default logic
 	else
-		bitIndex = hub[gGT->levelID - NITRO_COURT]; // 0x12
+		tokenRewardOffset = s_battleTrackRewardOffset[levelID - NITRO_COURT];
 
-	// first purple token at 0x6f
-	bitIndex += 0x6f;
+	s32 tokenRewardBit = tokenRewardOffset + CC_FIRST_PURPLE_TOKEN_BIT;
+	struct AdvProgress *adv = &sdata->advProgress;
+	b32 didLose = driver->numCrystals < gGT->numCrystalsInLEV;
+	s32 elapsedFrames = sdata->framesSinceRaceEnded;
 
-	adv = &sdata->advProgress;
-	boolLose = driver->numCrystals < gGT->numCrystalsInLEV;
-
-	elapsedFrames = sdata->framesSinceRaceEnded;
-
-	// count frames if hasn't been 30 seconds
-	if (elapsedFrames < 900)
+	if (elapsedFrames < CTR_SECONDS_TO_FRAMES(30))
 		elapsedFrames++;
 
 	sdata->framesSinceRaceEnded = elapsedFrames;
+	sdata->ptrHudCrystal->flags |= HIDE_MODEL;
 
-	// hide hud crystal
-	sdata->ptrHudCrystal->flags |= 0x80;
+	// fly in from left
+	UI_Lerp2D_Linear(&posXY[0], -0x64, 0x18, 0x100, 0x18, elapsedFrames, CC_FLY_IN_FRAMES);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_TIME_REMAINING], posXY[0], posXY[1], FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+	UI_DrawLimitClock(posXY[0] - 0x33, posXY[1] + 0x11, FONT_BIG);
 
-	// Fly from Left,
-	// TimeRemaining, and Clock
-	{
-		// fly in from left
-		UI_Lerp2D_Linear(&posXY[0], -0x64, 0x18, // startX, startY,
-		                 0x100, 0x18,            // endX, endY
-		                 elapsedFrames, 0x14);
+	// fly in from right
+	UI_Lerp2D_Linear(&posXY[0], 0x264, 0x56, 0xcd, 0x56, elapsedFrames, CC_FLY_IN_FRAMES);
 
-		// TIME REMAINING
-		DecalFont_DrawLine(sdata->lngStrings[0x16D], posXY[0], posXY[1], FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+	// Crystal count
+	sdata->ptrMenuCrystal->matrix.t[0] = UI_ConvertX_2(posXY[0], CC_SCREEN_DEPTH);
+	sdata->ptrMenuCrystal->matrix.t[1] = UI_ConvertY_2(posXY[1], CC_SCREEN_DEPTH);
+	UI_DrawNumCrystal(posXY[0] + 0xf, posXY[1] - 0x10, driver);
 
-		UI_DrawLimitClock(posXY[0] - 0x33, posXY[1] + 0x11, FONT_BIG);
-	}
+	s32 resultStringIndex = LNG_YOU_WIN;
+	if (didLose)
+		resultStringIndex = LNG_TRY_AGAIN;
 
-	// Fly from Right,
-	// YouWin/TryAgain, and Crystal Count
-	{
-		// fly in from right
-		UI_Lerp2D_Linear(&posXY[0], 0x264, 0x56, // startX, startY,
-		                 0xcd, 0x56,             // endX, endY
-		                 elapsedFrames, 0x14);
-
-		sdata->ptrMenuCrystal->matrix.t[0] = UI_ConvertX_2(posXY[0], 0x200);
-		sdata->ptrMenuCrystal->matrix.t[1] = UI_ConvertY_2(posXY[1], 0x200);
-
-		UI_DrawNumCrystal(posXY[0] + 0xf, posXY[1] - 0x10, driver);
-
-		lngIndex = 0x16b; // YOU WIN
-		if (boolLose != 0)
-			lngIndex = 0x16c; // TRY AGAIN
-
-		// YOU WIN, or TRY AGAIN
-		DecalFont_DrawLine(sdata->lngStrings[lngIndex], posXY[0] + 0x33, posXY[1] + 8, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
-	}
+	// YOU WIN, or TRY AGAIN
+	DecalFont_DrawLine(sdata->lngStrings[resultStringIndex], posXY[0] + 0x33, posXY[1] + 8, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
 	// if a token is not newly-unlocked
-	if (
-
-	    (boolLose != 0) || (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0))
+	if (didLose || (CHECK_ADV_BIT(adv->rewards, tokenRewardBit) != 0))
 	{
 		// If you pressed X/O to continue, quit function
 		if ((sdata->menuReadyToPass & 1) != 0)
 			return;
 
-		// PRESS * TO CONTINUE
-		DecalFont_DrawLine(sdata->lngStrings[0xC9], 0x100, 0xbe, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+		DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
-		// if still waiting to press X/O, quit function
 		if ((sdata->AnyPlayerTap & (BTN_CROSS | BTN_CIRCLE)) == 0)
 			return;
 
-		// if first frame of pressing X/O,
-		// open the Retry/ExitToMap menu
 		RECTMENU_ClearInput();
-		RECTMENU_Show(&menu221);
+		RECTMENU_Show(&menu221); // Retry / Exit To Map menu
 		sdata->menuReadyToPass |= 1;
 		return;
 	}
 
 	// == if a token is newly-unlocked ==
 
-	tokenInst = sdata->ptrToken;
-
-	color = (JUSTIFY_CENTER | ORANGE);
+	struct Instance *token = sdata->ptrToken;
+	s32 color = (JUSTIFY_CENTER | ORANGE);
 	if (gGT->timer == 0)
 		color = (JUSTIFY_CENTER | WHITE);
 
-	UI_Lerp2D_Linear(&posXY[0], -0x64, 0xA2, // startX, startY,
-	                 0x100, 0xA2,            // endX, endY
-	                 elapsedFrames, 0x14);
+	UI_Lerp2D_Linear(&posXY[0], -0x64, 0xA2, 0x100, 0xA2, elapsedFrames, CC_FLY_IN_FRAMES);
 
-	// CTR TOKEN AWARDED
-	DecalFont_DrawLine(sdata->lngStrings[0x16F], posXY[0], posXY[1], FONT_BIG, color);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_CTR_TOKEN_AWARDED], posXY[0], posXY[1], FONT_BIG, color);
+	token->flags &= ~(HIDE_MODEL);
+	token->matrix.t[0] = UI_ConvertX_2(posXY[0], CC_SCREEN_DEPTH);
+	token->matrix.t[1] = UI_ConvertY_2(0xA2 - 0x18, CC_SCREEN_DEPTH);
 
-	// make token visible
-	tokenInst->flags &= ~(HIDE_MODEL);
-
-	tokenInst->matrix.t[0] = UI_ConvertX_2(posXY[0], 0x200);
-	tokenInst->matrix.t[1] = UI_ConvertY_2(0xA2 - 0x18, 0x200);
-
-	// grow token after first second
-	if (elapsedFrames > 30)
+	if (elapsedFrames > CTR_SECONDS_TO_FRAMES(1))
 	{
-		if (tokenInst->scale[0] < 0x2001)
+		if (token->scale[0] < CC_TOKEN_GROW_LIMIT)
 		{
-			growVal = tokenInst->scale[0] + 0x200;
-			tokenInst->scale[0] = growVal;
-			tokenInst->scale[1] = growVal;
-			tokenInst->scale[2] = growVal;
+			token->scale[0] += CC_TOKEN_GROW_STEP;
+			token->scale[1] += CC_TOKEN_GROW_STEP;
+			token->scale[2] += CC_TOKEN_GROW_STEP;
 		}
 	}
-
-	// play unlock sound after exactly 1 second
-	else if (elapsedFrames == 30)
+	else if (elapsedFrames == CTR_SECONDS_TO_FRAMES(1))
 	{
 		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009fa24-0x8009fa2c for crystal token unlock SFX.
 		OtherFX_Play(0x67, 1);
 	}
 
-	// PRESS * TO CONTINUE
-	DecalFont_DrawLine(sdata->lngStrings[0xC9], 0x100, 0xbe, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+	DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
 	// if still waiting to press X/O, quit function
 	if ((sdata->AnyPlayerTap & (BTN_CROSS | BTN_CIRCLE)) == 0)
@@ -176,19 +132,13 @@ void CC_EndEvent_DrawMenu()
 	// if pressed X/O,
 	// unlock token and leave level
 
-	// reset
 	RECTMENU_ClearInput();
 	sdata->framesSinceRaceEnded = 0;
 
-	// loading flags
 	sdata->Loading.OnBegin.AddBitsConfig0 |= ADVENTURE_ARENA;
 	sdata->Loading.OnBegin.RemBitsConfig0 |= CRYSTAL_CHALLENGE;
-
-	// unlock token
-	UNLOCK_ADV_BIT(adv->rewards, bitIndex);
-
-	// go back to adv hub
-	MainRaceTrack_RequestLoad(gGT->prevLEV);
+	UNLOCK_ADV_BIT(adv->rewards, tokenRewardBit);
+	MainRaceTrack_RequestLoad(gGT->prevLEV); // NOTE(aalhendi): Adv hub.
 
 	return;
 }
@@ -196,7 +146,7 @@ void CC_EndEvent_DrawMenu()
 struct MenuRow rows221[3] = {
     // Retry
     {
-        .stringIndex = 4,
+        .stringIndex = LNG_RETRY,
         .rowOnPressUp = 0,
         .rowOnPressDown = 1,
         .rowOnPressLeft = 0,
@@ -205,7 +155,7 @@ struct MenuRow rows221[3] = {
 
     // Exit to map
     {
-        .stringIndex = 0xd,
+        .stringIndex = LNG_EXIT_TO_MAP,
         .rowOnPressUp = 0,
         .rowOnPressDown = 1,
         .rowOnPressLeft = 1,

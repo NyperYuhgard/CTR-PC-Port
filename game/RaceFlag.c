@@ -271,8 +271,7 @@ void RaceFlag_DrawLoadingString(void)
 	char local_30;
 	char local_2f;
 
-	// LOADING...
-	pbVar7 = sdata->lngStrings[0x231];
+	pbVar7 = sdata->lngStrings[LNG_LOADING];
 
 	// pointer to OT mem
 	uVar11 = (u32 *)gGT->pushBuffer_UI.ptrOT;

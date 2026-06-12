@@ -128,8 +128,7 @@ void VB_EndEvent_DrawMenu(void)
 	// "Versus" or "Battle"
 	DecalFont_DrawLine(sdata->lngStrings[iVar10], pos[0], pos[1], 1, 0xffff8000);
 
-	// STANDINGS
-	DecalFont_DrawLine(sdata->lngStrings[0xCA], pos[0], (pos[1] + 0x11), 1, 0xffff8000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_STANDINGS], pos[0], (pos[1] + 0x11), 1, 0xffff8000);
 
 	iVar10 = uStack96;
 	iVar11 = 0;
@@ -368,7 +367,7 @@ void VB_EndEvent_DrawMenu(void)
 struct MenuRow rowsVS[5] = {
     // Retry
     {
-        .stringIndex = 4,
+        .stringIndex = LNG_RETRY,
         .rowOnPressUp = 0,
         .rowOnPressDown = 1,
         .rowOnPressLeft = 0,
@@ -376,7 +375,7 @@ struct MenuRow rowsVS[5] = {
     },
     // Change Level
     {
-        .stringIndex = 6,
+        .stringIndex = LNG_CHANGE_LEVEL,
         .rowOnPressUp = 0,
         .rowOnPressDown = 2,
         .rowOnPressLeft = 1,
@@ -384,7 +383,7 @@ struct MenuRow rowsVS[5] = {
     },
     // Change Character
     {
-        .stringIndex = 5,
+        .stringIndex = LNG_CHANGE_CHARACTER,
         .rowOnPressUp = 1,
         .rowOnPressDown = 3,
         .rowOnPressLeft = 2,
@@ -392,7 +391,7 @@ struct MenuRow rowsVS[5] = {
     },
     // Quit
     {
-        .stringIndex = 3,
+        .stringIndex = LNG_QUIT,
         .rowOnPressUp = 2,
         .rowOnPressDown = 3,
         .rowOnPressLeft = 3,
@@ -422,7 +421,7 @@ struct RectMenu menuVS = {
 struct MenuRow rowsBattle[6] = {
     // Retry
     {
-        .stringIndex = 4,
+        .stringIndex = LNG_RETRY,
         .rowOnPressUp = 0,
         .rowOnPressDown = 1,
         .rowOnPressLeft = 0,
@@ -430,7 +429,7 @@ struct MenuRow rowsBattle[6] = {
     },
     // Change Level
     {
-        .stringIndex = 6,
+        .stringIndex = LNG_CHANGE_LEVEL,
         .rowOnPressUp = 0,
         .rowOnPressDown = 2,
         .rowOnPressLeft = 1,
@@ -438,7 +437,7 @@ struct MenuRow rowsBattle[6] = {
     },
     // Change Setup
     {
-        .stringIndex = 10,
+        .stringIndex = LNG_CHANGE_SETUP,
         .rowOnPressUp = 1,
         .rowOnPressDown = 3,
         .rowOnPressLeft = 2,
@@ -446,7 +445,7 @@ struct MenuRow rowsBattle[6] = {
     },
     // Change Character
     {
-        .stringIndex = 5,
+        .stringIndex = LNG_CHANGE_CHARACTER,
         .rowOnPressUp = 2,
         .rowOnPressDown = 4,
         .rowOnPressLeft = 3,
@@ -454,7 +453,7 @@ struct MenuRow rowsBattle[6] = {
     },
     // Quit
     {
-        .stringIndex = 3,
+        .stringIndex = LNG_QUIT,
         .rowOnPressUp = 3,
         .rowOnPressDown = 4,
         .rowOnPressLeft = 4,

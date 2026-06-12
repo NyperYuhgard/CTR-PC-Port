@@ -140,7 +140,7 @@ void SelectProfile_DrawAdvProfile(struct AdvProgress *adv, int posX, int posY, s
 
 	if (adv->characterID < 0)
 	{
-		DecalFont_DrawLine(sdata->lngStrings[0xb5], posX + 0x6c, posY + 0x17, FONT_BIG, emptyColor | 0xffff8000);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_EMPTY], posX + 0x6c, posY + 0x17, FONT_BIG, emptyColor | 0xffff8000);
 	}
 	else
 	{
@@ -396,7 +396,7 @@ void SelectProfile_DrawGhostProfile(struct GhostProfile *profile, int posX, int 
 
 	if (isUnavailable != 0)
 	{
-		DecalFont_DrawLine(sdata->lngStrings[0x6d], posX + 0x64, posY + 0x11, FONT_SMALL, 0xffff8016);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_NOT_AVAILABLE], posX + 0x64, posY + 0x11, FONT_SMALL, 0xffff8016);
 		CTR_Box_DrawClearBox(&innerRect, (Color *)&sdata->redColor, ADD_DECAL, gGT->backBuffer->otMem.startPlusFour);
 	}
 
@@ -758,7 +758,7 @@ static void SelectProfile_DrawGhostRows(struct RectMenu *menu, int rowCount, int
 		lineGap = 0x10;
 		yBase = 0x12;
 		if (sdata->memcardAction != 1)
-			DecalFont_DrawMultiLine(sdata->lngStrings[0xcf], 0x100, 0xbe, 0x1ce, FONT_SMALL, color | 0xffff8000);
+			DecalFont_DrawMultiLine(sdata->lngStrings[LNG_INSERT_ANY_MEMORY_CARD_WITH_GHOST_DATA_IN], 0x100, 0xbe, 0x1ce, FONT_SMALL, color | 0xffff8000);
 	}
 	else
 	{
@@ -833,7 +833,7 @@ static void SelectProfile_DrawAdvRows(struct RectMenu *menu, int color)
 
 	if ((sdata->memcardAction == 1) && (sdata->boolMemcardDataValid != 0))
 	{
-		DecalFont_DrawLine(sdata->lngStrings[0xd0], 0x100, 0xc3, FONT_SMALL, JUSTIFY_CENTER | RED);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_DATA_ON_MEMORY_CARD_IS_OUT_OF_DATE], 0x100, 0xc3, FONT_SMALL, JUSTIFY_CENTER | RED);
 	}
 }
 
@@ -1158,7 +1158,7 @@ static void SelectProfile_DrawAll(struct RectMenu *menu, int rowCount, int saved
 		    (*SelectProfile_AllProfiles_ActionDone() == 0) && (*SelectProfile_AllProfiles_TimerSaveComplete() != 0))
 		{
 			int saveColor = ((sdata->frameCounter & 4) == 0) ? (JUSTIFY_CENTER | ORANGE) : (JUSTIFY_CENTER | WHITE);
-			DecalFont_DrawLine(sdata->lngStrings[0x13d], 0x108, 0x64, FONT_BIG, saveColor);
+			DecalFont_DrawLine(sdata->lngStrings[LNG_SAVE_COMPLETED], 0x108, 0x64, FONT_BIG, saveColor);
 		}
 		else
 		{

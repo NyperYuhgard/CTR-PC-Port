@@ -72,7 +72,7 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 		if ((gGT->gameMode2 & CUP_NEW_WIN) != 0)
 			goto check_skip_button;
 
-		DecalFont_DrawLine(sdata->lngStrings[0xc9], 0x100, 0xbe, FONT_BIG, JUSTIFY_CENTER | ORANGE);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 	}
 
 	if (((gGT->gameMode2 & CUP_NEW_WIN) == 0) && sdata->ptrActiveMenu == NULL)

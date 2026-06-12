@@ -535,11 +535,9 @@ void MM_Battle_MenuProc(struct RectMenu *unused)
 
 	struct TransitionMeta *tmbattle = &D230.transitionMeta_battle[0];
 
-	// "SETUP BATTLE"
-	DecalFont_DrawLine(sdata->lngStrings[0x90], tmbattle[9].currX + 0x100, tmbattle[9].currY + 10, 1, 0xffff8000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_SETUP_BATTLE], tmbattle[9].currX + 0x100, tmbattle[9].currY + 10, 1, 0xffff8000);
 
-	// "TYPE:"
-	DecalFont_DrawLine(sdata->lngStrings[0x91], tmbattle[1].currX + 0x8c + 0, tmbattle[1].currY + 0x24, 1, 0x4000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_TYPE], tmbattle[1].currX + 0x8c + 0, tmbattle[1].currY + 0x24, 1, 0x4000);
 
 	D230.menuBattleType.state &= ~(0x100 | SHOW_ONLY_HIGHLIT_ROW);
 
@@ -560,8 +558,7 @@ void MM_Battle_MenuProc(struct RectMenu *unused)
 	RECTMENU_GetHeight(&D230.menuBattleType, &local_38, 0);
 	sVar6 = local_38 + 0x20;
 
-	// "LENGTH:"
-	DecalFont_DrawLine(sdata->lngStrings[0x95], tmbattle[3].currX + 0x8c + 0, tmbattle[3].currY + sVar6 + 4, 1, 0x4000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_LENGTH], tmbattle[3].currX + 0x8c + 0, tmbattle[3].currY + sVar6 + 4, 1, 0x4000);
 
 	if (D230.menuBattleType.rowSelected == 1)
 	{
@@ -638,8 +635,7 @@ LAB_800b25f0:
 
 	iVar8 = 0x9f;
 
-	// "TEAMS:"
-	DecalFont_DrawLine(sdata->lngStrings[0x98], tmbattle[5].currX + 0x8c + 0, tmbattle[5].currY + sVar20 + 10, 1, 0x4000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_TEAMS], tmbattle[5].currX + 0x8c + 0, tmbattle[5].currY + sVar20 + 10, 1, 0x4000);
 
 	i = 4;
 
@@ -734,8 +730,7 @@ LAB_800b25f0:
 	// Draw 2D Menu rectangle background
 	RECTMENU_DrawInnerRect(&local_40, 0, ot);
 
-	// "WEAPONS:"
-	DecalFont_DrawLine(sdata->lngStrings[0x99], tmbattle[7].currX + 0x8c + 0, tmbattle[7].currY + sVar20 + 0x44, 1, 0x4000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_WEAPONS], tmbattle[7].currX + 0x8c + 0, tmbattle[7].currY + sVar20 + 0x44, 1, 0x4000);
 
 	// make flashing color for error message
 

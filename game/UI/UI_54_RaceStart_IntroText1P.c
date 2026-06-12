@@ -159,8 +159,7 @@ LAB_80055930:
 			// Track 1/4, 2/4, 3/4, 4/4 in cup
 			sprintf(trackText, "%s %ld/4",
 
-			        // TRACK
-			        sdata->lngStrings[0x175],
+			        sdata->lngStrings[LNG_TRACK],
 
 			        // Track Index (0, 1, 2, 3) + 1
 			        (gGT->cup.trackIndex) + 1);

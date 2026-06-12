@@ -32,8 +32,7 @@ void UI_RenderFrame_CrystChall(void)
 	// Draw weapon and number of wumpa fruit in HUD
 	UI_Weapon_DrawSelf(hudStructPtr[0].x, hudStructPtr[0].y, hudStructPtr[0].scale, player);
 
-	// TIME
-	DecalFont_DrawLine(sdata->lngStrings[0x12], 0x14, 8, FONT_SMALL, ORANGE);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_TIME], 0x14, 8, FONT_SMALL, ORANGE);
 
 	// "TIME" and the actual time are printed at the same
 	// X-coordinate, so we know 0x14 is the X, which only

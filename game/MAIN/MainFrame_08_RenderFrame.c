@@ -262,8 +262,7 @@ void DrawUnpluggedMsg(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
 		window.h += 8;
 	}
 
-	// PLEASE CONNECT A CONTROLLER
-	DecalFont_DrawLine(sdata->lngStrings[0xac / 4], 0x100, posY + window.h, FONT_SMALL, (JUSTIFY_CENTER | ORANGE));
+	DecalFont_DrawLine(sdata->lngStrings[LNG_PLEASE_INSERT_A_CONTROLLER], 0x100, posY + window.h, FONT_SMALL, (JUSTIFY_CENTER | ORANGE));
 
 	// add for each line
 	window.h += 8;
@@ -338,7 +337,7 @@ void DrawFinalLap(struct GameTracker *gGT)
 
 		// need to specify OT, or else "FINAL LAP" will draw on top of character icons,
 		// and by doing this, "FINAL LAP" draws under the character icons instead
-		DecalFont_DrawLineOT(sdata->lngStrings[0x8cc / 4], resultPos[0], resultPos[1], FONT_BIG, (JUSTIFY_CENTER | ORANGE), pb->ptrOT);
+		DecalFont_DrawLineOT(sdata->lngStrings[LNG_FINAL_LAP], resultPos[0], resultPos[1], FONT_BIG, (JUSTIFY_CENTER | ORANGE), pb->ptrOT);
 
 		sdata->finalLapTextTimer[i]--;
 	}

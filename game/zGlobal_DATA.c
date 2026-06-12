@@ -4262,7 +4262,7 @@ struct Data
 
             .menuQuit =
                 {
-                    .stringIndexTitle = 3,
+                    .stringIndexTitle = LNG_QUIT,
                     .posX_curr = 0x100,
                     .posY_curr = 0x6c,
                     .unk1 = 0,
@@ -4415,7 +4415,7 @@ struct Data
 
             .menuAdvRace =
                 {
-                    .stringIndexTitle = 0, // PAUSED
+                    .stringIndexTitle = LNG_PAUSED, // PAUSED
                     .posX_curr = 0x100,
                     .posY_curr = 0x6c,
                     .unk1 = 0,
@@ -4435,7 +4435,7 @@ struct Data
 
             .menuAdvCup =
                 {
-                    .stringIndexTitle = 0, // PAUSED
+                    .stringIndexTitle = LNG_PAUSED, // PAUSED
                     .posX_curr = 0x100,
                     .posY_curr = 0x6c,
                     .unk1 = 0,
@@ -4459,7 +4459,7 @@ struct Data
 
             .menuBattle =
                 {
-                    .stringIndexTitle = 0, // PAUSED
+                    .stringIndexTitle = LNG_PAUSED, // PAUSED
                     .posX_curr = 0x100,
                     .posY_curr = 0x6c,
                     .unk1 = 0,
@@ -4479,7 +4479,7 @@ struct Data
 
             .menuArcadeCup =
                 {
-                    .stringIndexTitle = 0, // PAUSED
+                    .stringIndexTitle = LNG_PAUSED, // PAUSED
                     .posX_curr = 0x100,
                     .posY_curr = 0x6c,
                     .unk1 = 0,
@@ -4502,7 +4502,7 @@ struct Data
 
             .menuArcadeRace =
                 {
-                    .stringIndexTitle = 0, // PAUSED
+                    .stringIndexTitle = LNG_PAUSED, // PAUSED
                     .posX_curr = 0x100,
                     .posY_curr = 0x6c,
                     .unk1 = 0,
@@ -4811,7 +4811,7 @@ struct Data
 
             .menuSaveGame =
                 {
-                    .stringIndexTitle = 0x235,
+                    .stringIndexTitle = LNG_SAVE_GAME,
                     .posX_curr = 0x100,
                     .posY_curr = 0x96,
                     .unk1 = 0,
@@ -4944,7 +4944,7 @@ struct Data
 
             .menuOverwriteAdv =
                 {
-                    .stringIndexTitle = 0xD1, // overwrite?
+                    .stringIndexTitle = LNG_OVERWRITE, // overwrite?
                     .posX_curr = 0x100,
                     .posY_curr = 0x86,
                     .unk1 = 0,
@@ -4956,7 +4956,7 @@ struct Data
 
             .menuOverwriteGhost =
                 {
-                    .stringIndexTitle = 0xD1, // overwrite?
+                    .stringIndexTitle = LNG_OVERWRITE, // overwrite?
                     .posX_curr = 0x100,
                     .posY_curr = 0x82,
                     .unk1 = 0,

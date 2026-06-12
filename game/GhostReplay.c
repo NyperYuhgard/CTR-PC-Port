@@ -24,9 +24,7 @@ void GhostReplay_ThTick(struct Thread *t)
 	tape = d->ghostTape;
 	inst = d->instSelf;
 
-	inst->scale[0] = 0xccc;
-	inst->scale[1] = 0xccc;
-	inst->scale[2] = 0xccc;
+	CTR_SET_VEC3(inst->scale, 0xccc, 0xccc, 0xccc);
 
 	// 6-second timer != 0, and ghost made by human
 	if ((sdata->ghostOverflowTextTimer != 0) && (d->ghostID == 0))
@@ -37,10 +35,8 @@ void GhostReplay_ThTick(struct Thread *t)
 			color = 0xFFFF8003;
 		}
 
-		// GHOST DATA OVERFLOW
-		// CAN NOT SAVE GHOST DATA
-		DecalFont_DrawLine(sdata->lngStrings[361], 0x100, 0x28, 2, color);
-		DecalFont_DrawLine(sdata->lngStrings[362], 0x100, 0x32, 2, color);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_GHOST_DATA_OVERFLOW], 0x100, 0x28, 2, color);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_CAN_NOT_SAVE_GHOST_DATA], 0x100, 0x32, 2, color);
 
 		sdata->ghostOverflowTextTimer--;
 	}

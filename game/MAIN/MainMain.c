@@ -386,8 +386,7 @@ u32 main(void)
 					uVar12 = 100;
 				}
 
-				// "DEMO MODE\rPRESS ANY BUTTON TO EXIT"
-				DecalFont_DrawMultiLine(sdata->lngStrings[0x8c0 / 4], 0x100, uVar12, 0x200, 2, 0xffff8000);
+				DecalFont_DrawMultiLine(sdata->lngStrings[LNG_DEMO_MODE_PRESS_ANY_BUTTON_TO_EXIT], 0x100, uVar12, 0x200, 2, 0xffff8000);
 			}
 
 			if ((gGT->gameMode1 & LOADING) == 0)

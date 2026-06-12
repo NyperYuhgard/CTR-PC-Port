@@ -58,7 +58,7 @@ struct OverlayDATA_232
             // 800b4e50
             .menuTokenRelic =
                 {
-                    .stringIndexTitle = 0xb6,
+                    .stringIndexTitle = LNG_CHOOSE_RACE_TYPE,
                     .posX_curr = 0x100,
                     .posY_curr = 0x6c,
                     .unk1 = 0,

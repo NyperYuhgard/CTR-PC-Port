@@ -142,8 +142,7 @@ s16 SubmitName_DrawMenu(u16 string)
 		}
 	}
 
-	// PLEASE ENTER YOUR NAME
-	DecalFont_DrawLine(sdata->lngStrings[318], 256, 44, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+	DecalFont_DrawLine(sdata->lngStrings[LNG_PLEASE_ENTER_YOUR_NAME], 256, 44, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
 	// player name
 	DecalFont_DrawLine(gGT->currNameEntered,
@@ -181,7 +180,7 @@ s16 SubmitName_DrawMenu(u16 string)
 	if (cursorPosition == 1000)
 		strColorBlink = blinkWhite;
 
-	DecalFont_DrawLine(sdata->lngStrings[321],
+	DecalFont_DrawLine(sdata->lngStrings[LNG_CANCEL],
 
 	                   // 40 is (r.x + 8)
 	                   40,

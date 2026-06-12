@@ -94,8 +94,8 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 
 	D230.cupSel_transitionFrames = elapsedFrames;
 
-	// "SELECT CUP RACE"
-	DecalFont_DrawLine(sdata->lngStrings[0xBF], (D230.transitionMeta_cupSel[4].currX + 0x100), (D230.transitionMeta_cupSel[4].currY + 0x10), 1, 0xffff8000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CUP_RACE], (D230.transitionMeta_cupSel[4].currX + 0x100), (D230.transitionMeta_cupSel[4].currY + 0x10), 1,
+	                   0xffff8000);
 
 	// Loop through all four cups
 	for (cupIndex = 0; cupIndex < 4; cupIndex++)
