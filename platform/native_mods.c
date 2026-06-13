@@ -794,7 +794,11 @@ int NativeMods_ScanMods(void)
     dir = opendir(modsDir);
     if (!dir)
     {
+        #if defined(_WIN32)
+        mkdir(modsDir);
+        #else
         mkdir(modsDir, 0755);
+        #endif
         return 0;
     }
 
