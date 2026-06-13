@@ -332,6 +332,10 @@ u32 main(void)
 #endif
 			GAMEPAD_ProcessAnyoneVars(gGS);
 
+#ifdef CTR_NATIVE
+			NativeMods_CallHook(NATIVE_MOD_HOOK_ON_INPUT);
+#endif
+
 			// Start new frame (ClearOTagR)
 			MainFrame_ResetDB(gGT);
 
@@ -394,6 +398,10 @@ u32 main(void)
 
 			if ((gGT->gameMode1 & LOADING) == 0)
 			{
+#ifdef CTR_NATIVE
+				NativeMods_CacheGameState();
+				NativeMods_CallHook(NATIVE_MOD_HOOK_ON_UPDATE);
+#endif
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 				NativePerf_BeginScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
 #endif
@@ -434,6 +442,7 @@ u32 main(void)
 
 #ifdef CTR_NATIVE
 			Platform_BeginFrame();
+			NativeMods_CallHook(NATIVE_MOD_HOOK_ON_RENDER);
 #endif
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 			NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
@@ -443,6 +452,7 @@ u32 main(void)
 			NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
 #endif
 #ifdef CTR_NATIVE
+			NativeMods_FlushDrawQueue();
 			Platform_EndFrame();
 #endif
 

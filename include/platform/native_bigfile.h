@@ -131,4 +131,14 @@ int NativeBigfile_GetSubfileSize(int index);
  */
 int NativeBigfile_ReadSubfile(int index, void *dst, int dstSize);
 
+/**
+ * Get the relative path (within the BIGFILE archive) for a subfile index.
+ * The returned string is owned by the bigfile module and must NOT be freed.
+ *
+ * @param index  Subfile index.
+ * @return The relative path (e.g. "levels/tracks/coco/1P/data.lev"),
+ *         or NULL if the index is out of range or the path map is not loaded.
+ */
+const char *NativeBigfile_GetRelPath(int index);
+
 #endif /* NATIVE_BIGFILE_H */

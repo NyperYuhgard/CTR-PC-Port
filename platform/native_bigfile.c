@@ -708,3 +708,14 @@ int NativeBigfile_ReadSubfile(int index, void *dst, int dstSize)
         BFDBG("ReadSubfile: [%d] OK — %zu bytes read", index, bytesRead);
         return (int)bytesRead;
 }
+
+const char *NativeBigfile_GetRelPath(int index)
+{
+        if (s_bfPaths == NULL || index < 0 || index >= s_bfPathCount)
+                return NULL;
+
+        if (s_bfPaths[index].relPath[0] == '\0')
+                return NULL;
+
+        return s_bfPaths[index].relPath;
+}

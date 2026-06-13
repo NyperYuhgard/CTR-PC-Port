@@ -252,6 +252,7 @@ int main(int argc, char *argv[])
 
         int result = CTR_Main();
 
+        NativeMods_Shutdown();
         Platform_Shutdown();
         return NativeConsole_Return(result);
 }

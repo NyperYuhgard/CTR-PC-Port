@@ -46,6 +46,124 @@ void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex
                 subfileIndex, eOffs, eSize, eSize);
 
 #if defined(CTR_NATIVE)
+        /* ---- Mod file override path ----
+         *
+         * Before checking the BIGFILE/ folder, check if any enabled mod
+         * provides a replacement for this subfile via its "files/"
+         * directory.  This allows mods to replace ANY asset from the
+         * BIGFILE archive by placing it at:
+         *
+         *   mods/<mod_name>/files/<relative_path_from_BIGFILE.TXT>
+         *
+         * For example, to replace a character model:
+         *   mods/my_mod/files/models/racers/hi/crash.ctr
+         *
+         * This works in ALL bigfile modes (PACKED, UNPACKED, HYBRID).
+         */
+        {
+                const char *relPath = NativeBigfile_GetRelPath(subfileIndex);
+                if (relPath != NULL)
+                {
+                        FILE *modFile = NativeMods_OpenFile(relPath, "rb");
+                        if (modFile != NULL)
+                        {
+                                long fileSize;
+                                int sectorCount;
+                                int readOk;
+
+                                BFDBG_PRINTF("ReadFile: subfile=%d, MOD OVERRIDE FOUND — %s",
+                                        subfileIndex, relPath);
+
+                                /* Determine file size. */
+                                fseek(modFile, 0, SEEK_END);
+                                fileSize = ftell(modFile);
+                                fseek(modFile, 0, SEEK_SET);
+
+                                if (fileSize > 0)
+                                {
+                                        *sizePtr = (int)fileSize;
+                                        sectorCount = (int)((fileSize + 0x7ffU) >> 0xb);
+                                        originalDst = ptrDst;
+
+                                        /* Allocate buffer if none provided. */
+                                        if (ptrDst == NULL)
+                                        {
+                                                int sectorSize = sectorCount << 0xb;
+                                                ptrDst = (void *)MEMPACK_AllocMem(sectorSize);
+                                                if (ptrDst == NULL)
+                                                {
+                                                        BFDBG_PRINTF_ERR("ReadFile: subfile=%d, mod override MEMPACK_AllocMem(%d) FAILED",
+                                                                subfileIndex, sectorSize);
+                                                        fclose(modFile);
+                                                        return NULL;
+                                                }
+                                                BFDBG_PRINTF("ReadFile: subfile=%d, mod override allocated %d bytes at %p",
+                                                        subfileIndex, sectorSize, ptrDst);
+                                                {
+                                                        struct LoadQueueSlot *lqs = &data.currSlot;
+                                                        lqs->flags |= LT_MEMPACK;
+                                                        lqs->ptrDestination = ptrDst;
+                                                        lqs->size_UNUSED = *sizePtr;
+                                                }
+                                        }
+                                        else
+                                        {
+                                                struct LoadQueueSlot *lqs = &data.currSlot;
+                                                lqs->flags &= ~LT_MEMPACK;
+                                                lqs->ptrDestination = ptrDst;
+                                                lqs->size_UNUSED = *sizePtr;
+                                        }
+
+                                        /* Read file contents. */
+                                        {
+                                                size_t bytesRead = fread(ptrDst, 1, (size_t)fileSize, modFile);
+                                                readOk = ((long)bytesRead == fileSize) ? 1 : 0;
+                                        }
+                                        fclose(modFile);
+
+                                        if (readOk)
+                                        {
+                                                BFDBG_PRINTF("ReadFile: subfile=%d, MOD OVERRIDE READ OK — %ld bytes",
+                                                        subfileIndex, fileSize);
+
+                                                /* Invoke callback synchronously if requested. */
+                                                if (callback != NULL)
+                                                {
+                                                        sdata->callbackCdReadSuccess = callback;
+                                                        data.currSlot.ptrBigfileCdPos_UNUSED = bigfile;
+                                                        data.currSlot.subfileIndex = subfileIndex;
+                                                        callback(&data.currSlot);
+                                                }
+
+                                                /* Trim allocation to actual size. */
+                                                if ((callback == NULL) && (originalDst == NULL))
+                                                {
+                                                        MEMPACK_ReallocMem(*sizePtr);
+                                                }
+
+                                                return ptrDst;
+                                        }
+
+                                        /* Read failed — fall through to standard paths. */
+                                        BFDBG_PRINTF_ERR("ReadFile: subfile=%d, MOD OVERRIDE READ FAILED — falling through",
+                                                subfileIndex);
+                                        *sizePtr = eSize;
+                                        if (originalDst == NULL && ptrDst != NULL)
+                                        {
+                                                MEMPACK_ReallocMem(0);
+                                                ptrDst = NULL;
+                                        }
+                                }
+                                else
+                                {
+                                        fclose(modFile);
+                                        BFDBG_PRINTF_ERR("ReadFile: subfile=%d, mod override exists but size <= 0 (%ld)",
+                                                subfileIndex, fileSize);
+                                }
+                        }
+                }
+        }
+
         /* ---- Unpacked / Hybrid override path ----
          *
          * If the bigfile system is in UNPACKED or HYBRID mode and the

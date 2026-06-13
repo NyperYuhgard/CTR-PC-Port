@@ -32,6 +32,7 @@
 #define NATIVE_MODS_SCRIPT_NAME      "main.lua"
 #define NATIVE_MODS_FILES_DIR        "files"
 #define NATIVE_MODS_BIGFILE_DIR      "BIGFILE"
+#define NATIVE_MODS_STATE_FILE       "mods_state.cfg"
 
 /* ============================================================
  * Driver struct offsets for Lua memory access
@@ -676,6 +677,8 @@ static const struct luaL_Reg s_nativeModLib[] = {
  * Initialization and mod scanning
  * ============================================================ */
 
+void NativeMods_Shutdown(void);
+
 int NativeMods_Init(void)
 {
     if (s_mods.initialized)
@@ -702,11 +705,72 @@ int NativeMods_Init(void)
 
     s_mods.initialized = 1;
     fprintf(stdout, "[Mods] Lua VM initialized (with draw + memory API).\n");
+
+    /* Save mod state on exit so enabled/disabled survives restart. */
+    atexit(NativeMods_Shutdown);
+
     return 1;
+}
+
+/* ============================================================
+ * Persist mod enabled/disabled state across sessions
+ * ============================================================ */
+
+static void NativeMods_SaveState(void)
+{
+    char statePath[NATIVE_MODS_PATH_MAX];
+    if (!NativeAssets_BuildPathFromBase(NATIVE_MODS_STATE_FILE, statePath, sizeof(statePath)))
+        return;
+
+    FILE *f = fopen(statePath, "w");
+    if (!f)
+        return;
+
+    for (int i = 0; i < s_mods.modCount; i++)
+        fprintf(f, "%s=%d\n", s_mods.mods[i].name, s_mods.mods[i].enabled ? 1 : 0);
+
+    fclose(f);
+}
+
+static void NativeMods_LoadState(void)
+{
+    char statePath[NATIVE_MODS_PATH_MAX];
+    if (!NativeAssets_BuildPathFromBase(NATIVE_MODS_STATE_FILE, statePath, sizeof(statePath)))
+        return;
+
+    FILE *f = fopen(statePath, "r");
+    if (!f)
+        return;
+
+    char line[256];
+    while (fgets(line, sizeof(line), f))
+    {
+        char *eq = strchr(line, '=');
+        if (!eq)
+            continue;
+
+        *eq = '\0';
+        char *name = line;
+        int enabled = atoi(eq + 1);
+
+        for (int i = 0; i < s_mods.modCount; i++)
+        {
+            if (strcmp(s_mods.mods[i].name, name) == 0)
+            {
+                s_mods.mods[i].enabled = enabled ? 1 : 0;
+                break;
+            }
+        }
+    }
+
+    fclose(f);
 }
 
 void NativeMods_Shutdown(void)
 {
+    if (!s_mods.initialized)
+        return;
+    NativeMods_SaveState();
     if (s_mods.L)
     {
         lua_close(s_mods.L);
@@ -762,6 +826,10 @@ int NativeMods_ScanMods(void)
     }
 
     closedir(dir);
+
+    /* Restore previously saved enabled/disabled states */
+    NativeMods_LoadState();
+
     return s_mods.modCount;
 }
 
@@ -782,6 +850,27 @@ int NativeMods_ToggleMod(int index)
     if (index < 0 || index >= s_mods.modCount)
         return 0;
     s_mods.mods[index].enabled = !s_mods.mods[index].enabled;
+
+    /* Clear all Lua hook refs so disabled mods stop firing. */
+    for (int i = 0; i < NATIVE_MOD_HOOK_COUNT; i++)
+        s_mods.luaRefs[i] = LUA_NOREF;
+
+    /* Reload all enabled mod scripts so hooks reflect the new state. */
+    NativeMods_LoadModScripts();
+
+    /* Reload the language file from disk so that any mod file
+     * override for the language file is applied or reverted.
+     * LOAD_LangFile is declared in functions.h (included via
+     * common.h before this file in the unity build). */
+    if (sdata != NULL && sdata->ptrBigfile1 != NULL)
+    {
+        LOAD_LangFile((int)sdata->ptrBigfile1, 1);
+        NativeMods_OnLanguageLoaded(sdata->lngStrings, sdata->numLngStrings);
+    }
+
+    /* Persist the new state so it survives game restarts. */
+    NativeMods_SaveState();
+
     return 1;
 }
 
