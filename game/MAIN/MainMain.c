@@ -7,6 +7,7 @@
 #endif
 #ifdef CTR_NATIVE
 #include <platform/native_mods.h>
+extern int g_cfg_60fpsMode;
 #endif
 
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
@@ -311,7 +312,15 @@ u32 main(void)
 			}
 
 			// frame counter, not represented in common.h currently
+#ifdef CTR_NATIVE
+			{
+				static int s_60fpsFcToggle = 0;
+				if (!g_cfg_60fpsMode || (s_60fpsFcToggle ^= 1))
+					sdata->frameCounter++;
+			}
+#else
 			sdata->frameCounter++;
+#endif
 
 			// Process all gamepad input
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)

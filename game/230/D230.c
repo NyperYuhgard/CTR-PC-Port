@@ -1,5 +1,9 @@
 #include <common.h>
 
+#ifdef CTR_NATIVE
+void MM_Options_MenuProc(struct RectMenu *menu);
+#endif
+
 #define CHEAT_N BTN_UP
 #define CHEAT_U BTN_UP
 #define CHEAT_S BTN_DOWN
@@ -24,7 +28,8 @@ struct OverlayDATA_230 D230 = {
             {0x50, 3, 5, 4, 4},
             {0x51, 4, 6, 5, 5},
 #ifdef CTR_NATIVE
-            {0x014, 5, 6, 6, 6},
+            {0x014, 5, 7, 6, 6},
+            {0x00e, 6, 6, 7, 7},
 #endif
             {-1},
         },
@@ -39,7 +44,8 @@ struct OverlayDATA_230 D230 = {
             {0x51, 4, 6, 5, 5},
             {0x234, 5, 7, 6, 6},
 #ifdef CTR_NATIVE
-            {0x014, 6, 7, 7, 7},
+            {0x014, 6, 8, 7, 7},
+            {0x00e, 7, 7, 8, 8},
 #endif
             {-1},
         },
@@ -225,12 +231,22 @@ struct OverlayDATA_230 D230 = {
             .state = 0x28,
             .funcPtr = MM_Mods_MenuProc,
         },
+
+    .menuOptions =
+        {
+            .stringIndexTitle = 0x00e,
+            .posX_curr = 0x100,
+            .posY_curr = 0x6c,
+            .state = 0x28,
+            .funcPtr = MM_Options_MenuProc,
+        },
 #endif
 
     .arrayMenuPtrs = {&D230.menuMainMenu, &D230.menuPlayers1P2P, &D230.menuPlayers2P3P4P, &D230.menuAdventure, &D230.menuCharacterSelect, &D230.menuTrackSelect,
                       &D230.menuCupSelect, &D230.menuBattleWeapons, &D230.menuHighScores,
 #ifdef CTR_NATIVE
                       &D230.menuMods,
+                      &D230.menuOptions,
 #endif
     },
 

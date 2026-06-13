@@ -926,6 +926,12 @@ static void VehPhysForce_TranslateMatrix_HideWake(struct Instance *inst, struct 
 
 static void VehPhysForce_TranslateMatrix_SpawnWakeParticle(struct Driver *d)
 {
+#ifdef CTR_NATIVE
+	extern int g_cfg_60fpsMode;
+	static int s_60fpsWakeToggle = 0;
+	if (g_cfg_60fpsMode && !(s_60fpsWakeToggle ^= 1))
+		return;
+#endif
 	struct Particle *p = Particle_Init(0, sdata->gGT->iconGroup[9], &data.emSet_Falling[0]);
 
 	if (p != NULL)

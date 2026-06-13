@@ -181,7 +181,12 @@ void RB_Fireball_ThTick(struct Thread *t)
 		fireObj->velY = velY;
 
 		// fire particles
-		particle = Particle_Init(0, gGT->iconGroup[0xA], &emSet_Fireball[0]);
+#ifdef CTR_NATIVE
+	static int s_60fpsFireToggle = 0;
+	if (g_cfg_60fpsMode && !(s_60fpsFireToggle ^= 1))
+		return;
+#endif
+	particle = Particle_Init(0, gGT->iconGroup[0xA], &emSet_Fireball[0]);
 
 		if (particle != 0)
 		{

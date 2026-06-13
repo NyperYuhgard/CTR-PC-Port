@@ -209,10 +209,15 @@ LAB_800adc08:;
 	    // numPlyrCurrGame < 2
 	    (sdata->gGT->numPlyrCurrGame < 2))
 	{
-		// Make Instane in Particle Pool
-		struct Particle *p;
-		// NOTE(aalhendi): Native uses retail emitter bytes from 0x800b2ae4.
-		p = Particle_Init(0, gGT->iconGroup[0], &R231.emSet_Missile[0]);
+// Make Instane in Particle Pool
+	struct Particle *p;
+	// NOTE(aalhendi): Native uses retail emitter bytes from 0x800b2ae4.
+#ifdef CTR_NATIVE
+	static int s_60fpsMissileToggle = 0;
+	if (g_cfg_60fpsMode && !(s_60fpsMissileToggle ^= 1))
+		return;
+#endif
+	p = Particle_Init(0, gGT->iconGroup[0], &R231.emSet_Missile[0]);
 
 		if (p != 0)
 		{

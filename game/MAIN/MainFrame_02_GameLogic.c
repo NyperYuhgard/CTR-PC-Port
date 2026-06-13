@@ -3,6 +3,9 @@
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 #include <platform/native_replay_scheduler.h>
 #endif
+#ifdef CTR_NATIVE
+extern int g_cfg_60fpsMode;
+#endif
 
 typedef void (*VehicleFuncPtr)(struct Thread *thread, struct Driver *driver);
 
@@ -73,8 +76,17 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		LAB_80034e74:
 			pushBuffer = pushBuffer + 1;
 		}
+#ifdef CTR_NATIVE
+		static int s_60fpsTimerHalf = 0;
+		if (!g_cfg_60fpsMode || (s_60fpsTimerHalf ^= 1))
+		{
+			gGT->timer = gGT->timer + 1;
+			gGT->framesInThisLEV = gGT->framesInThisLEV + 1;
+		}
+#else
 		gGT->timer = gGT->timer + 1;
 		gGT->framesInThisLEV = gGT->framesInThisLEV + 1;
+#endif
 		gGT->unk1cc4[4] = 0;
 
 		iVar4 = Timer_GetTime_Elapsed(gGT->clockFrameStart, &gGT->clockFrameStart);
@@ -83,7 +95,11 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		gGT->elapsedTimeMS = iVar4;
 		if (iVar4 < 0)
 		{
+#ifdef CTR_NATIVE
+			gGT->elapsedTimeMS = g_cfg_60fpsMode ? 0x10 : 0x20;
+#else
 			gGT->elapsedTimeMS = 0x20;
+#endif
 		}
 		if (0x40 < gGT->elapsedTimeMS)
 		{
@@ -91,7 +107,11 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		}
 		if ((gGT->gameMode1_prevFrame & PAUSE_ALL) != 0)
 		{
+#ifdef CTR_NATIVE
+			gGT->elapsedTimeMS = g_cfg_60fpsMode ? 0x10 : 0x20;
+#else
 			gGT->elapsedTimeMS = 0x20;
+#endif
 		}
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 		// NOTE(aalhendi): Replay playback must not let host RCNT timing decide

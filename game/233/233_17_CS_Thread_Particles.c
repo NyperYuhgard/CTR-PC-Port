@@ -3,6 +3,12 @@
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800abdd4-0x800abf70
 void CS_Thread_Particles(struct Thread *t)
 {
+#ifdef CTR_NATIVE
+	extern int g_cfg_60fpsMode;
+	static int s_60fpsCutsceneToggle = 0;
+	if (g_cfg_60fpsMode && !(s_60fpsCutsceneToggle ^= 1))
+		return;
+#endif
 	struct CutsceneObj *cs = t->object;
 	struct Instance *inst = t->inst;
 	const struct CsParticleConfig *entry;

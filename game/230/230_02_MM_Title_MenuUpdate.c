@@ -235,6 +235,12 @@ void MM_Title_MenuUpdate(void)
 		MM_Mods_Init();
 		sdata->ptrDesiredMenu = &D230.menuMods;
 		break;
+
+	// options menu
+	case 7:
+		MM_Options_Init();
+		sdata->ptrDesiredMenu = &D230.menuOptions;
+		break;
 #endif
 }
 

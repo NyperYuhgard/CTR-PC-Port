@@ -3,6 +3,7 @@
 
 #if defined(CTR_NATIVE)
 #include <string.h>
+extern int g_cfg_60fpsMode;
 #endif
 
 // Not native host

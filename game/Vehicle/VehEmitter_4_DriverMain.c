@@ -140,6 +140,12 @@ static void VehEmitter_MudSplash(struct Driver *d)
 
 static void VehEmitter_TerrainEffects(struct Thread *thread, struct Driver *d, struct Terrain *terrain, u32 terrainFlags, int absSpeedApprox)
 {
+#ifdef CTR_NATIVE
+	extern int g_cfg_60fpsMode;
+	static int s_60fpsTeToggle = 0;
+	if (g_cfg_60fpsMode && !(s_60fpsTeToggle ^= 1))
+		return;
+#endif
 	struct GameTracker *gGT = sdata->gGT;
 	struct Instance *inst = thread->inst;
 	MATRIX *m = &inst->matrix;

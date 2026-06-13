@@ -7105,7 +7105,7 @@ struct Data
             // Layout is: unused debug word, driver offset, size, BALANCED, ACCEL, SPEED, TURN.
             .metaPhys =
                 {
-                    {PHYSWRAP(GRAVITY_OFFSET, 2, 900, 900, 900, 900)},
+                    {PHYSWRAP(GRAVITY_OFFSET, 2, 850, 850, 850, 850)},
                     {PHYSWRAP(JUMP_OFFSET, 2, 4596, 4596, 4596, 4596)},
                     {PHYSWRAP(ACCEL_SLIDE_OFFSET, 2, 350, 350, 350, 350)},
                     {PHYSWRAP(ACCEL_FRICTION_OFFSET, 2, 120, 120, 120, 120)},

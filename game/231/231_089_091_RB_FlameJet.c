@@ -227,6 +227,12 @@ struct ParticleEmitter emSet_fjFire[0x8] = {[0] =
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b64c0-0x800b6728.
 void RB_FlameJet_Particles(struct Instance *inst, struct FlameJet *fjObj)
 {
+#ifdef CTR_NATIVE
+	extern int g_cfg_60fpsMode;
+	static int s_60fpsFlameToggle = 0;
+	if (g_cfg_60fpsMode && !(s_60fpsFlameToggle ^= 1))
+		return;
+#endif
 	int result;
 	struct Particle *particle1;
 	struct Particle *particle2;

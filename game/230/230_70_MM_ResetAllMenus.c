@@ -6,7 +6,7 @@ void MM_ResetAllMenus(void)
 	for (int i = 0; i < (int)(sizeof(D230.arrayMenuPtrs) / sizeof(D230.arrayMenuPtrs[0])); i++)
 	{
 #ifdef CTR_NATIVE
-		if (i == 9 && D230.menuMods.funcPtr == NULL)
+		if (i >= 9 && D230.menuMods.funcPtr == NULL)
 			break;
 #endif
 		struct RectMenu *menu = D230.arrayMenuPtrs[i];

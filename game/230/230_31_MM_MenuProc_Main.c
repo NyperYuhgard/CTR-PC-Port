@@ -221,5 +221,13 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 		D230.desiredMenuIndex = 6;
 		return;
 	}
+
+	// Options
+	if (choose == 0x00e)
+	{
+		D230.MM_State = 2;
+		D230.desiredMenuIndex = 7;
+		return;
+	}
 #endif
 }

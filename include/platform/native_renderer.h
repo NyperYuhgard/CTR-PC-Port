@@ -10,6 +10,7 @@ void NativeRenderer_ResetDevice(void);
 void NativeRenderer_BeginScene(void);
 void NativeRenderer_EndScene(void);
 void NativeRenderer_UpdateSwapIntervalState(int swapInterval);
+void NativeRenderer_SetAspectMode(int mode);
 void NativeRenderer_SwapWindow(void);
 void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h);
 void NativeRenderer_PresentVRAMDisplay(void);
