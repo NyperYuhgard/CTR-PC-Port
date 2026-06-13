@@ -129,9 +129,18 @@ LAB_800ad5f8:
 			PlaySound3D(0x3e, inst);
 		}
 
-		// add to the frame counter
+		// add to the frame counter (60fps: increment every other frame)
+#ifdef CTR_NATIVE
+		static int s_60fpsTntToggle = 0;
+		if (!g_cfg_60fpsMode || (s_60fpsTntToggle ^= 1))
+		{
+			mw->numFramesOnHead += 1;
+			numFrames = mw->numFramesOnHead;
+		}
+#else
 		mw->numFramesOnHead += 1;
 		numFrames = mw->numFramesOnHead;
+#endif
 
 		// set scale of TNT, given frame of animation
 		uVar3 = s_tntSitScale[numFrames * 2 + 0];

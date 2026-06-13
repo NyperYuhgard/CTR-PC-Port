@@ -185,9 +185,15 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		// do NOT patch for 60fps,
 		// velocity uses elapsedTime
+		// 60fps: increase multiplier for perceived speed at higher framerate
 		tw->vel[1] = 0;
-		tw->vel[0] = (weaponInst->matrix.m[0][2] * 3) >> 7;
-		tw->vel[2] = (weaponInst->matrix.m[2][2] * 3) >> 7;
+#ifdef CTR_NATIVE
+		int velMult = g_cfg_60fpsMode ? 4 : 3;
+#else
+		int velMult = 3;
+#endif
+		tw->vel[0] = (weaponInst->matrix.m[0][2] * velMult) >> 7;
+		tw->vel[2] = (weaponInst->matrix.m[2][2] * velMult) >> 7;
 
 		if (d->numWumpas >= 10)
 		{
