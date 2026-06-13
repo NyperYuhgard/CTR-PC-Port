@@ -28,6 +28,10 @@ struct NativeModInfo
     int enabled;
 };
 
+/* ============================================================
+ * Core mod engine lifecycle
+ * ============================================================ */
+
 int  NativeMods_Init(void);
 int  NativeMods_ScanMods(void);
 int  NativeMods_GetModCount(void);
@@ -39,9 +43,26 @@ const char *NativeMods_GetModsDir(void);
 
 int  NativeMods_LoadModScripts(void);
 void NativeMods_CallHook(enum NativeModHookType hook);
+void NativeMods_CallHookWithDelta(enum NativeModHookType hook, int dt);
+
+/* ============================================================
+ * Game state cache — call from game loop before firing hooks
+ * ============================================================ */
+
+void NativeMods_CacheGameState(void);
+
+/* ============================================================
+ * Draw queue flush — call from render path to execute
+ * queued drawing commands from Lua mods
+ * ============================================================ */
+
+void NativeMods_FlushDrawQueue(void);
+
+/* ============================================================
+ * Language and file overrides
+ * ============================================================ */
 
 FILE *NativeMods_OpenFile(const char *relativePath, const char *mode);
-
 void NativeMods_OnLanguageLoaded(char **lngStrings, int numStrings);
 
 #endif

@@ -29,6 +29,7 @@
 #include "psx/strings.h"
 #include "psx/inline_c.h"
 #include "platform/native_assets.h"
+#include "platform/native_bigfile.h"
 #include "platform/native_log.h"
 #include "platform/native_perf.h"
 #include "platform/native_replay_scheduler.h"
@@ -43,17 +44,17 @@
 #define RECT RECT16
 typedef enum
 {
-	PAD_ID_MOUSE = 0x1,
-	PAD_ID_NEGCON = 0x2,
-	PAD_ID_IRQ10_GUN = 0x3,
-	PAD_ID_DIGITAL = 0x4,
-	PAD_ID_ANALOG_STICK = 0x5,
-	PAD_ID_GUNCON = 0x6,
-	PAD_ID_ANALOG = 0x7,
-	PAD_ID_MULTITAP = 0x8,
-	PAD_ID_JOGCON = 0xe,
-	PAD_ID_CONFIG_MODE = 0xf,
-	PAD_ID_NONE = 0xf
+        PAD_ID_MOUSE = 0x1,
+        PAD_ID_NEGCON = 0x2,
+        PAD_ID_IRQ10_GUN = 0x3,
+        PAD_ID_DIGITAL = 0x4,
+        PAD_ID_ANALOG_STICK = 0x5,
+        PAD_ID_GUNCON = 0x6,
+        PAD_ID_ANALOG = 0x7,
+        PAD_ID_MULTITAP = 0x8,
+        PAD_ID_JOGCON = 0xe,
+        PAD_ID_CONFIG_MODE = 0xf,
+        PAD_ID_NONE = 0xf
 } PadTypeID;
 
 #include "platform.h"
@@ -67,6 +68,7 @@ typedef enum
 #undef RECT
 
 #include "platform/native_assets.c"
+#include "platform/native_bigfile.c"
 #include "platform/native_audio.c"
 #include "platform/native_memory.c"
 #include "platform/native_checkpoint.c"
@@ -127,126 +129,129 @@ typedef enum
 static int NativeConsole_ShouldPauseOnError(void)
 {
 #if defined(_WIN32)
-	DWORD consoleProcesses[2];
-	DWORD consoleProcessCount;
+        DWORD consoleProcesses[2];
+        DWORD consoleProcessCount;
 
-	if (GetConsoleWindow() == NULL)
-		return 0;
+        if (GetConsoleWindow() == NULL)
+                return 0;
 
-	consoleProcessCount = GetConsoleProcessList(consoleProcesses, (DWORD)(sizeof(consoleProcesses) / sizeof(consoleProcesses[0])));
-	return (consoleProcessCount == 1) && (consoleProcesses[0] == GetCurrentProcessId());
+        consoleProcessCount = GetConsoleProcessList(consoleProcesses, (DWORD)(sizeof(consoleProcesses) / sizeof(consoleProcesses[0])));
+        return (consoleProcessCount == 1) && (consoleProcesses[0] == GetCurrentProcessId());
 #else
-	return 0;
+        return 0;
 #endif
 }
 
 static int NativeConsole_Return(int result)
 {
-	if ((result != 0) && NativeConsole_ShouldPauseOnError())
-	{
-		fflush(stdout);
-		fflush(stderr);
-		fprintf(stderr, "\n[CTR Native] Press Enter to close this window...");
-		fflush(stderr);
+        if ((result != 0) && NativeConsole_ShouldPauseOnError())
+        {
+                fflush(stdout);
+                fflush(stderr);
+                fprintf(stderr, "\n[CTR Native] Press Enter to close this window...");
+                fflush(stderr);
 
-		while (getchar() != '\n' && !feof(stdin))
-		{
-		}
-	}
+                while (getchar() != '\n' && !feof(stdin))
+                {
+                }
+        }
 
-	return result;
+        return result;
 }
 
 // TODO(aalhendi): just make an argparser?
 static int NativeArg_IsVersion(const char *arg)
 {
-	return (arg != NULL) && ((strcmp(arg, "--version") == 0) || (strcmp(arg, "-v") == 0));
+        return (arg != NULL) && ((strcmp(arg, "--version") == 0) || (strcmp(arg, "-v") == 0));
 }
 
 
 int main(int argc, char *argv[])
 {
-	for (int argIndex = 1; argIndex < argc; argIndex++)
-	{
-		if (NativeArg_IsVersion(argv[argIndex]))
-		{
-			printf("CTR Native %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
-			return 0;
-		}
-	}
+        for (int argIndex = 1; argIndex < argc; argIndex++)
+        {
+                if (NativeArg_IsVersion(argv[argIndex]))
+                {
+                        printf("CTR Native %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
+                        return 0;
+                }
+        }
 
-	printf("[CTR Native] Starting...\n");
-	fflush(stdout);
+        printf("[CTR Native] Starting...\n");
+        fflush(stdout);
 
-	const char *sdlBasePath = SDL_GetBasePath();
-	printf("[CTR Native] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
-	fflush(stdout);
+        const char *sdlBasePath = SDL_GetBasePath();
+        printf("[CTR Native] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
+        fflush(stdout);
 
-	if (!NativeAssets_Init(sdlBasePath))
-	{
-		fprintf(stderr, "[CTR Native] Failed to initialize asset paths.\n");
-		return NativeConsole_Return(1);
-	}
+        if (!NativeAssets_Init(sdlBasePath))
+        {
+                fprintf(stderr, "[CTR Native] Failed to initialize asset paths.\n");
+                return NativeConsole_Return(1);
+        }
 
-	printf("[CTR Native] Version: %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
-	printf("[CTR Native] Built with: " CC "\n");
-	printf("[CTR Native] Base: %s\n", NativeAssets_GetBaseDir());
-	printf("[CTR Native] Assets: %s\n", NativeAssets_GetAssetDir());
-	fflush(stdout);
+        printf("[CTR Native] Version: %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
+        printf("[CTR Native] Built with: " CC "\n");
+        printf("[CTR Native] Base: %s\n", NativeAssets_GetBaseDir());
+        printf("[CTR Native] Assets: %s\n", NativeAssets_GetAssetDir());
+        fflush(stdout);
 
-	if (chdir(NativeAssets_GetBaseDir()) != 0)
-	{
-		fprintf(stderr, "[CTR Native] Failed to enter base directory: %s\n", NativeAssets_GetBaseDir());
-		return NativeConsole_Return(1);
-	}
+        if (chdir(NativeAssets_GetBaseDir()) != 0)
+        {
+                fprintf(stderr, "[CTR Native] Failed to enter base directory: %s\n", NativeAssets_GetBaseDir());
+                return NativeConsole_Return(1);
+        }
 
-	if (!NativeAssets_Validate())
-		return NativeConsole_Return(1);
+        if (!NativeAssets_Validate())
+                return NativeConsole_Return(1);
 
-	if (!NativeMods_Init())
-		fprintf(stderr, "[CTR Native] Failed to initialize mod system.\n");
-	else
-		NativeMods_ScanMods();
+        if (!NativeMods_Init())
+                fprintf(stderr, "[CTR Native] Failed to initialize mod system.\n");
+        else
+        {
+                NativeMods_ScanMods();
+                NativeMods_LoadModScripts();
+        }
 
 #if defined(CTR_INTERNAL)
-	if (NativeReplayScheduler_PrepareReportFromArgs(argc, argv) != 0)
-		return NativeConsole_Return(1);
+        if (NativeReplayScheduler_PrepareReportFromArgs(argc, argv) != 0)
+                return NativeConsole_Return(1);
 #endif
 
 #ifdef USE_16BY9
-	printf("[CTR Native] Widescreen\n");
-	Platform_Init("Crash Team Racing", 1280, 720);
+        printf("[CTR Native] Widescreen\n");
+        Platform_Init("Crash Team Racing", 1280, 720);
 #else
-	printf("[CTR Native] 4:3\n");
-	Platform_Init("Crash Team Racing", 800, 600);
+        printf("[CTR Native] 4:3\n");
+        Platform_Init("Crash Team Racing", 800, 600);
 #endif
 
 #if defined(CTR_INTERNAL)
-	if (NativePerf_ConfigureFromArgs(argc, argv) != 0)
-	{
-		Platform_LogFlush();
-		Platform_Shutdown();
-		return NativeConsole_Return(1);
-	}
+        if (NativePerf_ConfigureFromArgs(argc, argv) != 0)
+        {
+                Platform_LogFlush();
+                Platform_Shutdown();
+                return NativeConsole_Return(1);
+        }
 #endif
 
-	Platform_InitScratchpad();
-	Platform_RepairResidentPointers(0);
+        Platform_InitScratchpad();
+        Platform_RepairResidentPointers(0);
 
 #if defined(CTR_INTERNAL)
-	if (NativeReplayScheduler_ConfigureFromArgs(argc, argv) != 0)
-	{
-		Platform_LogFlush();
-		Platform_Shutdown();
-		return NativeConsole_Return(1);
-	}
+        if (NativeReplayScheduler_ConfigureFromArgs(argc, argv) != 0)
+        {
+                Platform_LogFlush();
+                Platform_Shutdown();
+                return NativeConsole_Return(1);
+        }
 #else
-	(void)argc;
-	(void)argv;
+        (void)argc;
+        (void)argv;
 #endif
 
-	int result = CTR_Main();
+        int result = CTR_Main();
 
-	Platform_Shutdown();
-	return NativeConsole_Return(result);
+        Platform_Shutdown();
+        return NativeConsole_Return(result);
 }

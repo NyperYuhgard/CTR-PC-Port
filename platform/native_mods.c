@@ -7,6 +7,21 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
+/* Ensure RECT type is available for CTR_Box_Draw* functions.
+ *
+ * In main.c, the game code uses #define RECT RECT16 before including
+ * game headers, and #undef RECT after.  native_mods.c is included
+ * after the #undef, so RECT may not be defined.  However, RECT16 is
+ * always available from psx/libgpu.h (included in main.c before us).
+ *
+ * We define RECT as RECT16 if it's not already defined, which ensures
+ * compatibility with CTR's function declarations without creating a
+ * conflicting type.
+ */
+#ifndef RECT
+#define RECT RECT16
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +33,24 @@
 #define NATIVE_MODS_FILES_DIR        "files"
 #define NATIVE_MODS_BIGFILE_DIR      "BIGFILE"
 
+/* ============================================================
+ * Driver struct offsets for Lua memory access
+ * These must match namespace_Vehicle.h
+ * ============================================================ */
+#define DRIVER_OFFSET_RESERVES              0x3E2
+#define DRIVER_OFFSET_FIRE_SPEED_CAP        0x3E4
+#define DRIVER_OFFSET_TURBO_METER_ROOM_LEFT 0x3DC
+#define DRIVER_OFFSET_TURBO_OUTSIDE_TIMER   0x3DE
+#define DRIVER_OFFSET_NUM_TURBOS            0x614
+#define DRIVER_OFFSET_CONST_SACRED_FIRE     0x432
+#define DRIVER_OFFSET_CONST_SINGLE_TURBO    0x430
+#define DRIVER_OFFSET_CONST_TURBO_MAX_ROOM  0x476
+#define DRIVER_OFFSET_CONST_ACCEL_RESERVES  0x42A
+#define DRIVER_OFFSET_DRIVER_ID             0x4A
+#define DRIVER_OFFSET_KART_STATE            0x4A
+#define DRIVER_OFFSET_ACTIONS_FLAG_SET      0x28C
+#define DRIVER_OFFSET_SPEED_APPROX          0x3C8
+
 struct NativeModsState
 {
     lua_State *L;
@@ -27,9 +60,24 @@ struct NativeModsState
     int luaRefs[NATIVE_MOD_HOOK_COUNT];
     char activeModName[NATIVE_MODS_NAME_MAX];
     char activeModPath[NATIVE_MODS_PATH_MAX];
+
+    /* Cached game state for Lua rendering */
+    void *cachedDriverPtrs[8];
+    int  cachedNumPlayers;
+    int  cachedGameMode1;
 };
 
 global_variable struct NativeModsState s_mods;
+
+/* ============================================================
+ * Forward declarations for game functions we need
+ * These are declared in functions.h / common.h, which are
+ * included via game_includes.h before this file in the unity build.
+ * We only need the sdata extern declaration since it's
+ * defined in regionsEXE.h.
+ * ============================================================ */
+
+extern struct sData *sdata;
 
 internal int NativeMods_LuaPanic(lua_State *L)
 {
@@ -42,6 +90,10 @@ internal void NativeMods_ReportLuaError(lua_State *L, const char *context)
     fprintf(stderr, "[Mods] Lua error in %s: %s\n", context, lua_tostring(L, -1));
     lua_pop(L, 1);
 }
+
+/* ============================================================
+ * Existing Lua API functions
+ * ============================================================ */
 
 static int NativeMods_Lua_Log(lua_State *L)
 {
@@ -153,14 +205,476 @@ static int NativeMods_Lua_Hook(lua_State *L)
     return 0;
 }
 
+/* ============================================================
+ * NEW: Game memory access API
+ * ============================================================ */
+
+/* Helper: Read a signed 16-bit value from a memory address + offset */
+static s16 NativeMods_ReadS16(void *base, int offset)
+{
+    if (!base)
+        return 0;
+    /* Handle potentially unaligned access */
+    s16 value;
+    memcpy(&value, ((char *)base) + offset, sizeof(s16));
+    return value;
+}
+
+/* Helper: Read an unsigned 8-bit value from a memory address + offset */
+static u8 NativeMods_ReadU8(void *base, int offset)
+{
+    if (!base)
+        return 0;
+    return (u8)(((char *)base)[offset]);
+}
+
+/* Helper: Read a signed 32-bit value from a memory address + offset */
+static s32 NativeMods_ReadS32(void *base, int offset)
+{
+    if (!base)
+        return 0;
+    s32 value;
+    memcpy(&value, ((char *)base) + offset, sizeof(s32));
+    return value;
+}
+
+/* ============================================================
+ * Write helpers — allow mods to modify game memory
+ * ============================================================ */
+
+/* Helper: Write a signed 16-bit value to a memory address + offset */
+static void NativeMods_WriteS16(void *base, int offset, s16 value)
+{
+    if (!base)
+        return;
+    memcpy(((char *)base) + offset, &value, sizeof(s16));
+}
+
+/* Helper: Write an unsigned 8-bit value to a memory address + offset */
+static void NativeMods_WriteU8(void *base, int offset, u8 value)
+{
+    if (!base)
+        return;
+    ((char *)base)[offset] = (char)value;
+}
+
+/* Helper: Write a signed 32-bit value to a memory address + offset */
+static void NativeMods_WriteS32(void *base, int offset, s32 value)
+{
+    if (!base)
+        return;
+    memcpy(((char *)base) + offset, &value, sizeof(s32));
+}
+
+/* mod.getDriver(index) — Returns a table with driver fields for player index (0-7)
+ *
+ * Returns a Lua table:
+ *   { reserves, fireSpeedCap, turbo_MeterRoomLeft, turbo_outsideTimer,
+ *     numTurbos, const_SacredFireSpeed, const_SingleTurboSpeed,
+ *     const_turboMaxRoom, driverID, kartState, actionsFlagSet, speedApprox,
+ *     valid }
+ * If the driver pointer is NULL, returns a table with valid=false.
+ */
+static int NativeMods_Lua_GetDriver(lua_State *L)
+{
+    int index = (int)luaL_checkinteger(L, 1);
+    if (index < 0 || index > 7)
+        return luaL_argerror(L, 1, "driver index must be 0-7");
+
+    void *driverPtr = s_mods.cachedDriverPtrs[index];
+
+    lua_newtable(L);
+
+    if (!driverPtr)
+    {
+        lua_pushboolean(L, 0);
+        lua_setfield(L, -2, "valid");
+        lua_pushinteger(L, 0);
+        lua_setfield(L, -2, "reserves");
+        lua_pushinteger(L, 0);
+        lua_setfield(L, -2, "fireSpeedCap");
+        lua_pushinteger(L, 0);
+        lua_setfield(L, -2, "turbo_MeterRoomLeft");
+        lua_pushinteger(L, 0);
+        lua_setfield(L, -2, "numTurbos");
+        lua_pushinteger(L, 0);
+        lua_setfield(L, -2, "const_SacredFireSpeed");
+        lua_pushinteger(L, 0);
+        lua_setfield(L, -2, "const_SingleTurboSpeed");
+        return 1;
+    }
+
+    lua_pushboolean(L, 1);
+    lua_setfield(L, -2, "valid");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_RESERVES));
+    lua_setfield(L, -2, "reserves");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_FIRE_SPEED_CAP));
+    lua_setfield(L, -2, "fireSpeedCap");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_TURBO_METER_ROOM_LEFT));
+    lua_setfield(L, -2, "turbo_MeterRoomLeft");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_TURBO_OUTSIDE_TIMER));
+    lua_setfield(L, -2, "turbo_outsideTimer");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadU8(driverPtr, DRIVER_OFFSET_NUM_TURBOS));
+    lua_setfield(L, -2, "numTurbos");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_CONST_SACRED_FIRE));
+    lua_setfield(L, -2, "const_SacredFireSpeed");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_CONST_SINGLE_TURBO));
+    lua_setfield(L, -2, "const_SingleTurboSpeed");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadU8(driverPtr, DRIVER_OFFSET_CONST_TURBO_MAX_ROOM));
+    lua_setfield(L, -2, "const_turboMaxRoom");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadU8(driverPtr, DRIVER_OFFSET_DRIVER_ID));
+    lua_setfield(L, -2, "driverID");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_ACTIONS_FLAG_SET));
+    lua_setfield(L, -2, "actionsFlagSet");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_SPEED_APPROX));
+    lua_setfield(L, -2, "speedApprox");
+
+    return 1;
+}
+
+/* mod.getNumPlayers() — Returns the number of players in the current game */
+static int NativeMods_Lua_GetNumPlayers(lua_State *L)
+{
+    lua_pushinteger(L, (lua_Integer)s_mods.cachedNumPlayers);
+    return 1;
+}
+
+/* mod.getGameMode() — Returns the current gameMode1 value */
+static int NativeMods_Lua_GetGameMode(lua_State *L)
+{
+    lua_pushinteger(L, (lua_Integer)s_mods.cachedGameMode1);
+    return 1;
+}
+
+/* mod.readS16(pointer, offset) — Read a signed 16-bit value
+ * pointer is a lightuserdata, offset is an integer
+ */
+static int NativeMods_Lua_ReadS16(lua_State *L)
+{
+    if (!lua_islightuserdata(L, 1))
+        return luaL_argerror(L, 1, "expected lightuserdata (pointer)");
+    void *ptr = lua_touserdata(L, 1);
+    int offset = (int)luaL_checkinteger(L, 2);
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, offset));
+    return 1;
+}
+
+/* mod.readU8(pointer, offset) — Read an unsigned 8-bit value */
+static int NativeMods_Lua_ReadU8(lua_State *L)
+{
+    if (!lua_islightuserdata(L, 1))
+        return luaL_argerror(L, 1, "expected lightuserdata (pointer)");
+    void *ptr = lua_touserdata(L, 1);
+    int offset = (int)luaL_checkinteger(L, 2);
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadU8(ptr, offset));
+    return 1;
+}
+
+/* mod.readS32(pointer, offset) — Read a signed 32-bit value */
+static int NativeMods_Lua_ReadS32(lua_State *L)
+{
+    if (!lua_islightuserdata(L, 1))
+        return luaL_argerror(L, 1, "expected lightuserdata (pointer)");
+    void *ptr = lua_touserdata(L, 1);
+    int offset = (int)luaL_checkinteger(L, 2);
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(ptr, offset));
+    return 1;
+}
+
+/* ============================================================
+ * Write API — allow mods to modify game state
+ * ============================================================ */
+
+/* mod.writeS16(pointer, offset, value) — Write a signed 16-bit value */
+static int NativeMods_Lua_WriteS16(lua_State *L)
+{
+    if (!lua_islightuserdata(L, 1))
+        return luaL_argerror(L, 1, "expected lightuserdata (pointer)");
+    void *ptr = lua_touserdata(L, 1);
+    int offset = (int)luaL_checkinteger(L, 2);
+    s16 value  = (s16)luaL_checkinteger(L, 3);
+    NativeMods_WriteS16(ptr, offset, value);
+    return 0;
+}
+
+/* mod.writeU8(pointer, offset, value) — Write an unsigned 8-bit value */
+static int NativeMods_Lua_WriteU8(lua_State *L)
+{
+    if (!lua_islightuserdata(L, 1))
+        return luaL_argerror(L, 1, "expected lightuserdata (pointer)");
+    void *ptr = lua_touserdata(L, 1);
+    int offset = (int)luaL_checkinteger(L, 2);
+    u8 value   = (u8)luaL_checkinteger(L, 3);
+    NativeMods_WriteU8(ptr, offset, value);
+    return 0;
+}
+
+/* mod.writeS32(pointer, offset, value) — Write a signed 32-bit value */
+static int NativeMods_Lua_WriteS32(lua_State *L)
+{
+    if (!lua_islightuserdata(L, 1))
+        return luaL_argerror(L, 1, "expected lightuserdata (pointer)");
+    void *ptr = lua_touserdata(L, 1);
+    int offset = (int)luaL_checkinteger(L, 2);
+    s32 value  = (s32)luaL_checkinteger(L, 3);
+    NativeMods_WriteS32(ptr, offset, value);
+    return 0;
+}
+
+/* ============================================================
+ * Driver write API — safe, named-field write access
+ * ============================================================ */
+
+/* Field descriptor for driver set operations */
+struct DriverFieldDesc
+{
+    const char *name;
+    int offset;
+    int size; /* 1=u8, 2=s16, 4=s32 */
+};
+
+/* Table of writable driver fields.
+ * Only fields that make sense to modify are listed.
+ * Constants (const_*) are intentionally excluded from writing
+ * to prevent accidental corruption of game balance. */
+static const struct DriverFieldDesc s_writableDriverFields[] =
+{
+    {"reserves",            DRIVER_OFFSET_RESERVES,              2},
+    {"fireSpeedCap",        DRIVER_OFFSET_FIRE_SPEED_CAP,        2},
+    {"turbo_MeterRoomLeft",  DRIVER_OFFSET_TURBO_METER_ROOM_LEFT, 2},
+    {"turbo_outsideTimer",  DRIVER_OFFSET_TURBO_OUTSIDE_TIMER,   2},
+    {"numTurbos",           DRIVER_OFFSET_NUM_TURBOS,            1},
+    {"kartState",           DRIVER_OFFSET_KART_STATE,            1},
+    {"actionsFlagSet",      DRIVER_OFFSET_ACTIONS_FLAG_SET,      2},
+    {"speedApprox",         DRIVER_OFFSET_SPEED_APPROX,          2},
+    { NULL, 0, 0 } /* sentinel */
+};
+
+/* mod.setDriverField(playerIndex, fieldName, value) — Write a driver field safely by name
+ *
+ * playerIndex: 0-7
+ * fieldName:   one of "reserves", "fireSpeedCap", "turbo_MeterRoomLeft",
+ *              "turbo_outsideTimer", "numTurbos", "kartState",
+ *              "actionsFlagSet", "speedApprox"
+ * value:       integer value to write
+ *
+ * Returns true on success, false on failure (invalid index/name/null driver)
+ */
+static int NativeMods_Lua_SetDriverField(lua_State *L)
+{
+    int index = (int)luaL_checkinteger(L, 1);
+    const char *fieldName = luaL_checkstring(L, 2);
+    lua_Integer value = luaL_checkinteger(L, 3);
+
+    if (index < 0 || index > 7)
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    void *driverPtr = s_mods.cachedDriverPtrs[index];
+    if (!driverPtr)
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    /* Find the field descriptor */
+    const struct DriverFieldDesc *desc = s_writableDriverFields;
+    while (desc->name != NULL)
+    {
+        if (strcmp(desc->name, fieldName) == 0)
+            break;
+        desc++;
+    }
+
+    if (desc->name == NULL)
+    {
+        /* Unknown field name */
+        char errMsg[128];
+        snprintf(errMsg, sizeof(errMsg),
+            "unknown driver field '%s' (writable: reserves, fireSpeedCap, turbo_MeterRoomLeft, turbo_outsideTimer, numTurbos, kartState, actionsFlagSet, speedApprox)",
+            fieldName);
+        return luaL_argerror(L, 2, errMsg);
+    }
+
+    /* Write the value based on field size */
+    switch (desc->size)
+    {
+        case 1: NativeMods_WriteU8(driverPtr, desc->offset, (u8)value);   break;
+        case 2: NativeMods_WriteS16(driverPtr, desc->offset, (s16)value);  break;
+        case 4: NativeMods_WriteS32(driverPtr, desc->offset, (s32)value);  break;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* ============================================================
+ * GameTracker access API
+ * ============================================================ */
+
+/* mod.getGameTracker() — Returns a lightuserdata pointer to the GameTracker
+ *
+ * Combined with readS16/readU8/readS32/writeS16/writeU8/writeS32,
+ * this allows full access to the game state beyond the driver struct.
+ *
+ * Known GameTracker offsets (for advanced modders):
+ *   0x000  gameMode1       (s32)
+ *   0x343  numPlyrCurrGame (u8)
+ *   0x24EC drivers[]       (pointer array, 8 entries)
+ *   etc.
+ */
+static int NativeMods_Lua_GetGameTracker(lua_State *L)
+{
+    if (!sdata || !sdata->gGT)
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushlightuserdata(L, (void *)sdata->gGT);
+    return 1;
+}
+
+/* ============================================================
+ * NEW: Drawing API for Lua mods
+ *
+ * These functions queue drawing commands that are flushed
+ * during the ON_RENDER hook via NativeMods_FlushDrawQueue().
+ * This avoids Lua→C draw calls from happening at random times.
+ * ============================================================ */
+
+#define NATIVE_MODS_DRAW_QUEUE_SIZE 256
+
+enum NativeModDrawCmdType
+{
+    NATIVE_MOD_DRAW_RECT,
+    NATIVE_MOD_DRAW_TEXT
+};
+
+struct NativeModDrawCmd
+{
+    enum NativeModDrawCmdType type;
+    union
+    {
+        struct
+        {
+            s16 x, y;
+            s16 w, h;
+            u8 r, g, b, a;
+        } rect;
+        struct
+        {
+            char text[128];
+            s16 x, y;
+            s16 fontType;
+            s16 justify;
+        } text;
+    };
+};
+
+static struct NativeModDrawCmd s_drawQueue[NATIVE_MODS_DRAW_QUEUE_SIZE];
+static int s_drawQueueCount = 0;
+
+/* mod.drawRect(x, y, w, h, r, g, b, [a]) — Queue a colored rectangle */
+static int NativeMods_Lua_DrawRect(lua_State *L)
+{
+    if (s_drawQueueCount >= NATIVE_MODS_DRAW_QUEUE_SIZE)
+    {
+        fprintf(stderr, "[Mods] Draw queue overflow, ignoring drawRect\n");
+        return 0;
+    }
+
+    struct NativeModDrawCmd *cmd = &s_drawQueue[s_drawQueueCount++];
+    cmd->type = NATIVE_MOD_DRAW_RECT;
+    cmd->rect.x = (s16)luaL_checkinteger(L, 1);
+    cmd->rect.y = (s16)luaL_checkinteger(L, 2);
+    cmd->rect.w = (s16)luaL_checkinteger(L, 3);
+    cmd->rect.h = (s16)luaL_checkinteger(L, 4);
+    cmd->rect.r = (u8)luaL_checkinteger(L, 5);
+    cmd->rect.g = (u8)luaL_checkinteger(L, 6);
+    cmd->rect.b = (u8)luaL_checkinteger(L, 7);
+    cmd->rect.a = (u8)luaL_optinteger(L, 8, 255);
+
+    return 0;
+}
+
+/* mod.drawText(text, x, y, [fontType], [justify]) — Queue text drawing
+ * fontType: 1=big, 2=small (default: 2)
+ * justify: 0=left, 1=center, 2=right (default: 0)
+ */
+static int NativeMods_Lua_DrawText(lua_State *L)
+{
+    if (s_drawQueueCount >= NATIVE_MODS_DRAW_QUEUE_SIZE)
+    {
+        fprintf(stderr, "[Mods] Draw queue overflow, ignoring drawText\n");
+        return 0;
+    }
+
+    const char *text = luaL_checkstring(L, 1);
+    if (!text)
+        return 0;
+
+    struct NativeModDrawCmd *cmd = &s_drawQueue[s_drawQueueCount++];
+    cmd->type = NATIVE_MOD_DRAW_TEXT;
+    strncpy(cmd->text.text, text, sizeof(cmd->text.text) - 1);
+    cmd->text.text[sizeof(cmd->text.text) - 1] = '\0';
+    cmd->text.x = (s16)luaL_checkinteger(L, 2);
+    cmd->text.y = (s16)luaL_checkinteger(L, 3);
+    cmd->text.fontType = (s16)luaL_optinteger(L, 4, 2);
+    cmd->text.justify = (s16)luaL_optinteger(L, 5, 0);
+
+    return 0;
+}
+
+/* ============================================================
+ * Lua library registration table (with new API)
+ * ============================================================ */
+
 static const struct luaL_Reg s_nativeModLib[] = {
+    /* Original API */
     {"log", NativeMods_Lua_Log},
     {"getModPath", NativeMods_Lua_GetModPath},
     {"readFile", NativeMods_Lua_ReadFile},
     {"writeFile", NativeMods_Lua_WriteFile},
     {"hook", NativeMods_Lua_Hook},
+
+    /* Game memory access (read) */
+    {"getDriver", NativeMods_Lua_GetDriver},
+    {"getNumPlayers", NativeMods_Lua_GetNumPlayers},
+    {"getGameMode", NativeMods_Lua_GetGameMode},
+    {"getGameTracker", NativeMods_Lua_GetGameTracker},
+    {"readS16", NativeMods_Lua_ReadS16},
+    {"readU8", NativeMods_Lua_ReadU8},
+    {"readS32", NativeMods_Lua_ReadS32},
+
+    /* Game memory access (write) */
+    {"writeS16", NativeMods_Lua_WriteS16},
+    {"writeU8", NativeMods_Lua_WriteU8},
+    {"writeS32", NativeMods_Lua_WriteS32},
+    {"setDriverField", NativeMods_Lua_SetDriverField},
+
+    /* Drawing */
+    {"drawRect", NativeMods_Lua_DrawRect},
+    {"drawText", NativeMods_Lua_DrawText},
+
     {NULL, NULL}
 };
+
+/* ============================================================
+ * Initialization and mod scanning
+ * ============================================================ */
 
 int NativeMods_Init(void)
 {
@@ -187,7 +701,7 @@ int NativeMods_Init(void)
         s_mods.luaRefs[i] = LUA_NOREF;
 
     s_mods.initialized = 1;
-    fprintf(stdout, "[Mods] Lua VM initialized.\n");
+    fprintf(stdout, "[Mods] Lua VM initialized (with draw + memory API).\n");
     return 1;
 }
 
@@ -318,6 +832,10 @@ int NativeMods_LoadModScripts(void)
     return 1;
 }
 
+/* ============================================================
+ * Hook dispatch
+ * ============================================================ */
+
 void NativeMods_CallHook(enum NativeModHookType hook)
 {
     if (!s_mods.initialized || hook < 0 || hook >= NATIVE_MOD_HOOK_COUNT)
@@ -331,6 +849,141 @@ void NativeMods_CallHook(enum NativeModHookType hook)
     if (lua_pcall(s_mods.L, 0, 0, 0) != LUA_OK)
         NativeMods_ReportLuaError(s_mods.L, "hook callback");
 }
+
+void NativeMods_CallHookWithDelta(enum NativeModHookType hook, int dt)
+{
+    if (!s_mods.initialized || hook < 0 || hook >= NATIVE_MOD_HOOK_COUNT)
+        return;
+
+    if (s_mods.luaRefs[hook] == LUA_NOREF)
+        return;
+
+    lua_rawgeti(s_mods.L, LUA_REGISTRYINDEX, s_mods.luaRefs[hook]);
+    lua_pushinteger(s_mods.L, (lua_Integer)dt);
+
+    if (lua_pcall(s_mods.L, 1, 0, 0) != LUA_OK)
+        NativeMods_ReportLuaError(s_mods.L, "hook callback");
+}
+
+/* ============================================================
+ * Game state cache — called from the game loop to snapshot
+ * driver pointers before Lua hooks run
+ * ============================================================ */
+
+void NativeMods_CacheGameState(void)
+{
+    if (!s_mods.initialized || !sdata)
+        return;
+
+    struct GameTracker *gGT = sdata->gGT;
+    if (!gGT)
+        return;
+
+    /* Cache driver pointers */
+    /* gGT->drivers is at offset 0x24EC in GameTracker */
+    /* We access it through the struct definition */
+    struct Driver **drivers = (struct Driver **)(((char *)gGT) + 0x24EC);
+    for (int i = 0; i < 8; i++)
+    {
+        s_mods.cachedDriverPtrs[i] = (void *)drivers[i];
+    }
+
+    /* numPlyrCurrGame is at offset 0x343 */
+    s_mods.cachedNumPlayers = (int)((char *)gGT)[0x343];
+
+    /* gameMode1 is at offset 0x0 */
+    s_mods.cachedGameMode1 = *(int *)(((char *)gGT) + 0x0);
+}
+
+/* ============================================================
+ * Draw queue flush — called from CTR's render path to execute
+ * all queued drawing commands using CTR's native primitives
+ * ============================================================ */
+
+void NativeMods_FlushDrawQueue(void)
+{
+    if (s_drawQueueCount == 0)
+        return;
+    if (!sdata)
+        return;
+
+    struct GameTracker *gGT = sdata->gGT;
+    if (!gGT)
+        return;
+
+    /* Use the UI ordering table for drawing */
+    u_long *ot = gGT->pushBuffer_UI.ptrOT;
+    if (!ot)
+    {
+        s_drawQueueCount = 0;
+        return;
+    }
+
+    for (int i = 0; i < s_drawQueueCount; i++)
+    {
+        struct NativeModDrawCmd *cmd = &s_drawQueue[i];
+
+        if (cmd->type == NATIVE_MOD_DRAW_RECT)
+        {
+            s16 x = cmd->rect.x;
+            s16 y = cmd->rect.y;
+            s16 w = cmd->rect.w;
+            s16 h = cmd->rect.h;
+
+            /* Build a ColorCode for the rectangle */
+            /* For opaque: use CTR_Box_DrawSolidBox which handles PrimMem allocation */
+            /* For semi-transparent: use CTR_Box_DrawClearBox */
+            const PrimCode primCode = {.poly = {.quad = 1, .renderCode = RenderCode_Polygon}};
+            Color rectColor = MakeColorCode(cmd->rect.r, cmd->rect.g, cmd->rect.b, primCode);
+
+            RECT box;
+            box.x = x;
+            box.y = y;
+            box.w = w;
+            box.h = h;
+
+            if (cmd->rect.a >= 255)
+            {
+                /* Opaque rectangle */
+                CTR_Box_DrawSolidBox(&box, rectColor, ot);
+            }
+            else
+            {
+                /* Semi-transparent rectangle using CTR_Box_DrawClearBox
+                 * transparency parameter: 0=50%, 1=100%+1, 2=100%+2, 3=100%-1
+                 * Using 0 for standard 50% semi-transparency */
+                CTR_Box_DrawClearBox(&box, &rectColor, 0, ot);
+            }
+        }
+        else if (cmd->type == NATIVE_MOD_DRAW_TEXT)
+        {
+            s16 x = cmd->text.x;
+            s16 y = cmd->text.y;
+            s16 fontType = cmd->text.fontType;
+            s16 justify = cmd->text.justify;
+
+            /* Map font types:
+             * fontType 1 = FONT_BIG (1) — large font
+             * fontType 2 = FONT_SMALL (2) — small font
+             */
+            if (fontType < 1) fontType = 1;
+            if (fontType > 2) fontType = 2;
+
+            /* Map justify flags to CTR's JUSTIFY_ constants */
+            int flags = 0;
+            if (justify == 1) flags = JUSTIFY_CENTER;
+            else if (justify == 2) flags = JUSTIFY_RIGHT;
+
+            DecalFont_DrawLineOT(cmd->text.text, x, y, fontType, flags, ot);
+        }
+    }
+
+    s_drawQueueCount = 0;
+}
+
+/* ============================================================
+ * Language and file overrides
+ * ============================================================ */
 
 void NativeMods_OnLanguageLoaded(char **lngStrings, int numStrings)
 {
@@ -348,6 +1001,15 @@ FILE *NativeMods_OpenFile(const char *relativePath, const char *mode)
     char path[NATIVE_MODS_PATH_MAX];
     FILE *file;
 
+    /* Priority 1: Check each enabled mod's "files/" directory.
+     * This allows mods to provide complete file overrides.
+     * A mod can replace ANY game asset by placing it in:
+     *   mods/my_mod/files/<relative_path>
+     * For example, to override a BIGFILE asset:
+     *   mods/my_mod/files/BIGFILE/levels/tracks/coco/1P/data.lev
+     * Or to provide a custom language file:
+     *   mods/my_mod/files/BIGFILE/lang/en.lng
+     */
     for (int i = 0; i < s_mods.modCount; i++)
     {
         if (!s_mods.mods[i].enabled)
@@ -359,18 +1021,41 @@ FILE *NativeMods_OpenFile(const char *relativePath, const char *mode)
 
         file = fopen(path, mode);
         if (file)
+        {
+            fprintf(stdout, "[Mods] File override: %s (from mod: %s)\n", relativePath, s_mods.mods[i].name);
             return file;
+        }
     }
 
+    /* Priority 2: Check the global BIGFILE/ unpacked folder.
+     * This is the shared unpacked asset directory that any mod
+     * can add files to (the HYBRID/UNPACKED bigfile path).
+     */
     char bigfilePath[NATIVE_MODS_PATH_MAX];
-    if (!NativeAssets_BuildPath(NATIVE_MODS_BIGFILE_DIR, bigfilePath, sizeof(bigfilePath)))
-        return NULL;
+    if (NativeAssets_BuildPath(NATIVE_MODS_BIGFILE_DIR, bigfilePath, sizeof(bigfilePath)))
+    {
+        char unpackedPath[NATIVE_MODS_PATH_MAX];
+        int written = snprintf(unpackedPath, sizeof(unpackedPath), "%s/%s", bigfilePath, relativePath);
+        if ((written > 0) && ((size_t)written < sizeof(unpackedPath)))
+        {
+            file = fopen(unpackedPath, mode);
+            if (file)
+                return file;
+        }
+    }
 
-    char unpackedPath[NATIVE_MODS_PATH_MAX];
-    int written = snprintf(unpackedPath, sizeof(unpackedPath), "%s/%s", bigfilePath, relativePath);
-    if ((written <= 0) || ((size_t)written >= sizeof(unpackedPath)))
-        return NULL;
+    /* Priority 3: Try the base assets directory directly.
+     * This catches assets that are in assets/ but not in BIGFILE/.
+     */
+    {
+        char assetPath[NATIVE_MODS_PATH_MAX];
+        if (NativeAssets_BuildPath(relativePath, assetPath, sizeof(assetPath)))
+        {
+            file = fopen(assetPath, mode);
+            if (file)
+                return file;
+        }
+    }
 
-    file = fopen(unpackedPath, mode);
-    return file;
+    return NULL;
 }

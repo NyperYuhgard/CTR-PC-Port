@@ -141,27 +141,27 @@ struct OverlayDATA_230 D230 = {
         },
 
 #if 0
-	.langIndex = {2,3,4,5,6,7},
+        .langIndex = {2,3,4,5,6,7},
 
-	.rowsLanguage =
-	{
-		{0x85, 0,1,0,0},
-		{0x86, 0,2,1,1},
-		{0x87, 1,3,2,2},
-		{0x88, 2,4,3,3},
-		{0x89, 3,5,4,4},
-		{0x8a, 4,5,5,5},
-		{-1}
-	},
+        .rowsLanguage =
+        {
+                {0x85, 0,1,0,0},
+                {0x86, 0,2,1,1},
+                {0x87, 1,3,2,2},
+                {0x88, 2,4,3,3},
+                {0x89, 3,5,4,4},
+                {0x8a, 4,5,5,5},
+                {-1}
+        },
 
-	.menuLanguage =
-	{
-		.stringIndexTitle = -1,
+        .menuLanguage =
+        {
+                .stringIndexTitle = -1,
 
-		.state = 0x400001,
-		.rows = &D230.rowsLngBoot,
-		.funcPtr = MM_MenuProc_Language
-	},
+                .state = 0x400001,
+                .rows = &D230.rowsLngBoot,
+                .funcPtr = MM_MenuProc_Language
+        },
 
 #endif
 
@@ -220,7 +220,7 @@ struct OverlayDATA_230 D230 = {
     .menuMods =
         {
             .stringIndexTitle = 0x014,
-            .posX_curr = 0x180,
+            .posX_curr = 0x100,
             .posY_curr = 0x6c,
             .state = 0x28,
             .funcPtr = MM_Mods_MenuProc,
@@ -777,30 +777,30 @@ struct OverlayDATA_230 D230 = {
 
 #if 0
 
-	.fileIndexLngBoot = {2,3,4,5,6,7},
+        .fileIndexLngBoot = {2,3,4,5,6,7},
 
-	.rowsLngBoot =
-	{
-		{0x85, 0,1,0,0},
-		{0x86, 0,2,1,1},
-		{0x87, 1,3,2,2},
-		{0x88, 2,4,3,3},
-		{0x89, 3,5,4,4},
-		{0x8a, 4,5,5,5},
-		{-1}
-	}
+        .rowsLngBoot =
+        {
+                {0x85, 0,1,0,0},
+                {0x86, 0,2,1,1},
+                {0x87, 1,3,2,2},
+                {0x88, 2,4,3,3},
+                {0x89, 3,5,4,4},
+                {0x8a, 4,5,5,5},
+                {-1}
+        }
 
-	.menuLngBoot =
-	{
-		.stringIndexTitle = -1,
+        .menuLngBoot =
+        {
+                .stringIndexTitle = -1,
 
-		.posX_curr = 256,
-		.posY_curr = 118,
+                .posX_curr = 256,
+                .posY_curr = 118,
 
-		.state = 0xC03,
-		.rows = &D230.rowsLngBoot,
-		.funcPtr = MM_MenuProc_LanguageBoot
-	}
+                .state = 0xC03,
+                .rows = &D230.rowsLngBoot,
+                .funcPtr = MM_MenuProc_LanguageBoot
+        }
 
 #endif
 
@@ -858,7 +858,7 @@ struct OverlayDATA_230 D230 = {
 
     .timerPerPlayer = {0, 0, 0, 0},
 #if 0
-	.langMenuTimer = 0,
+        .langMenuTimer = 0,
 #endif
     .isRosterExpanded = 0,
     .characterSelect_sizeX = 0,
@@ -881,19 +881,19 @@ static int s_d230InitialStateReady;
 
 void OVR230_ResetRuntimeState(void)
 {
-	if (s_d230InitialStateReady == 0)
-	{
-		s_d230InitialState = D230;
-		s_d230InitialStateReady = 1;
-	}
+        if (s_d230InitialStateReady == 0)
+        {
+                s_d230InitialState = D230;
+                s_d230InitialStateReady = 1;
+        }
 
-	D230 = s_d230InitialState;
-	memset(&V230, 0, sizeof(V230));
+        D230 = s_d230InitialState;
+        memset(&V230, 0, sizeof(V230));
 }
 
 void OVR230_InitData(void)
 {
-	OVR230_ResetRuntimeState();
+        OVR230_ResetRuntimeState();
 }
 #endif
 
