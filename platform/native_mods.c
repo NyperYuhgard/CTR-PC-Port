@@ -969,19 +969,13 @@ void NativeMods_CacheGameState(void)
         return;
 
     /* Cache driver pointers */
-    /* gGT->drivers is at offset 0x24EC in GameTracker */
-    /* We access it through the struct definition */
-    struct Driver **drivers = (struct Driver **)(((char *)gGT) + 0x24EC);
     for (int i = 0; i < 8; i++)
     {
-        s_mods.cachedDriverPtrs[i] = (void *)drivers[i];
+        s_mods.cachedDriverPtrs[i] = (void *)gGT->drivers[i];
     }
 
-    /* numPlyrCurrGame is at offset 0x343 */
-    s_mods.cachedNumPlayers = (int)((char *)gGT)[0x343];
-
-    /* gameMode1 is at offset 0x0 */
-    s_mods.cachedGameMode1 = *(int *)(((char *)gGT) + 0x0);
+    s_mods.cachedNumPlayers = gGT->numPlyrCurrGame;
+    s_mods.cachedGameMode1 = gGT->gameMode1;
 }
 
 /* ============================================================
