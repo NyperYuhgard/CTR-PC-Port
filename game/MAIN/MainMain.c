@@ -443,6 +443,7 @@ u32 main(void)
 #ifdef CTR_NATIVE
 			Platform_BeginFrame();
 			NativeMods_CallHook(NATIVE_MOD_HOOK_ON_RENDER);
+			NativeMods_FlushDrawQueue();
 #endif
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 			NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
@@ -452,7 +453,6 @@ u32 main(void)
 			NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
 #endif
 #ifdef CTR_NATIVE
-			NativeMods_FlushDrawQueue();
 			Platform_EndFrame();
 #endif
 
