@@ -17,7 +17,7 @@ void UI_Weapon_DrawBG(s16 param_1, s16 param_2, s16 param_3, struct Driver *d)
 	iVar2 = (int)param_3;
 
 	// wumpaShineTheta (given to sine)
-	sdata->wumpaShineTheta += 0x100;
+	sdata->wumpaShineTheta += FPS_HALF(0x100);
 
 	iVar1 = iVar2 * 0xd000 >> 0x10;
 

@@ -1201,9 +1201,7 @@ void RenderSubmit(struct GameTracker *gGT)
 	gGT->clockDurationStall = Timer_GetTime_Elapsed(gGT->clockDurationStall, 0);
 
 #if defined(CTR_NATIVE)
-
-	extern int g_cfg_60fpsMode;
-	sdata->vsyncTillFlip = g_cfg_60fpsMode ? 1 : 2;
+	sdata->vsyncTillFlip = g_cfg_60fpsMode != 0 ? 1 : 2;
 
 	// Native still renders immediately through PsyCross, so keep the host GPU's
 	// active draw/display envs in step with the retail DB selected this frame.

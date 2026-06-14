@@ -42,10 +42,12 @@ void FLARE_ThTick(struct Thread *th)
 {
 	struct GameTracker *gGT = sdata->gGT;
 	struct PushBuffer *pb = &gGT->pushBuffer[0];
+	static int s_60fpsToggle_FLARE = 0;
 	s32 *flare = th->object;
 	s32 timer = flare[0];
 
-	flare[0] = timer + 1;
+	if (FRAME_GATE(s_60fpsToggle_FLARE))
+		flare[0] = timer + 1;
 
 	if (timer >= 20)
 	{

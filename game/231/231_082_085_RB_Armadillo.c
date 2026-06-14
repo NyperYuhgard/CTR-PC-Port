@@ -83,7 +83,7 @@ void RB_Armadillo_ThTick_Rolling(struct Thread *t)
 	if (armObj->timeRolling < 0x500)
 	{
 		// 32ms, 30fps
-		armObj->timeRolling += 0x20;
+		armObj->timeRolling += FPS_HALF(0x20);
 
 		if (armObj->direction == 0)
 			armObj->distFromSpawn++;

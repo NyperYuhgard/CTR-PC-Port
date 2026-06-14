@@ -32,7 +32,7 @@ void RB_ShieldDark_ThTick_Grow(struct Thread *th)
 	// if highlight cooldown is gone
 	if (shield->highlightTimer == 0)
 	{
-		shield->highlightRot[1] += 0x100;
+		shield->highlightRot[1] += FPS_HALF(0x100);
 
 		// highlight is now visible
 		highlightInst->flags &= ~(0x80);

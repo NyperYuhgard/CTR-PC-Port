@@ -24,7 +24,7 @@ void RB_MaskWeapon_FadeAway(struct Thread *t)
 	mhs->posOffset[2] = ((durationAdjusted * MATH_Cos(mask->rot[1])) >> 0xc);
 	mhs->posOffset[1] = 0x40;
 
-	mask->rot[1] += -0x100;
+	mask->rot[1] += FPS_HALF(-0x100);
 
 	struct Instance *instCurr;
 	instCurr = inst;
@@ -55,7 +55,7 @@ void RB_MaskWeapon_FadeAway(struct Thread *t)
 	MatrixRotate(m, m, &mhs->m);
 
 	if (maskBeamInst->alphaScale < 0x1000)
-		maskBeamInst->alphaScale += 0x200;
+		maskBeamInst->alphaScale += FPS_HALF(0x200);
 
 	totalTime = mask->duration;
 

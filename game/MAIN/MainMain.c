@@ -7,7 +7,6 @@
 #endif
 #ifdef CTR_NATIVE
 #include <platform/native_mods.h>
-extern int g_cfg_60fpsMode;
 #endif
 
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
@@ -311,11 +310,19 @@ u32 main(void)
 				gGT->trafficLightsTimer = 0xfffffc40;
 			}
 
-			// frame counter, not represented in common.h currently
+			// frame counter
 #ifdef CTR_NATIVE
+			static int s_60fpsFcToggle = 0;
+			int advanceFrame = 1;
+			if (IS_INTERP_60FPS)
 			{
-				static int s_60fpsFcToggle = 0;
-				if (!g_cfg_60fpsMode || (s_60fpsFcToggle ^= 1))
+				// Interpolated mode: frame advances every other call
+				static int s_interpFrameToggle = 0;
+				advanceFrame = (s_interpFrameToggle ^= 1);
+			}
+			if (!IS_NATIVE_60FPS || (s_60fpsFcToggle ^= 1))
+			{
+				if (advanceFrame)
 					sdata->frameCounter++;
 			}
 #else
@@ -408,17 +415,63 @@ u32 main(void)
 			if ((gGT->gameMode1 & LOADING) == 0)
 			{
 #ifdef CTR_NATIVE
-				NativeMods_CacheGameState();
-				NativeMods_CallHook(NATIVE_MOD_HOOK_ON_UPDATE);
-#endif
+				// Interpolated mode: skip game logic on render-only frames
+				if (!IS_INTERP_60FPS || advanceFrame)
+				{
+					NativeMods_CacheGameState();
+					NativeMods_CallHook(NATIVE_MOD_HOOK_ON_UPDATE);
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-				NativePerf_BeginScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
+					NativePerf_BeginScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
 #endif
+					MainFrame_GameLogic(gGT, gGS);
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+					NativePerf_EndScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
+#endif
+				}
+#else
 				MainFrame_GameLogic(gGT, gGS);
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-				NativePerf_EndScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
 #endif
 			}
+
+#ifdef CTR_NATIVE
+			// Interpolated 60fps: save camera state after logic, interpolate on render-only frames
+			if (IS_INTERP_60FPS)
+			{
+				static s16 s_prevPushBufferPos[4][3];
+				static s16 s_prevPushBufferRot[4][3];
+				if (advanceFrame)
+				{
+					// Save current pushbuffer state for interpolation
+					int numPb = gGT->numPlyrCurrGame > 4 ? 4 : gGT->numPlyrCurrGame;
+					if (numPb < 1) numPb = 1;
+					for (int i = 0; i < numPb; i++)
+					{
+						s_prevPushBufferPos[i][0] = gGT->pushBuffer[i].pos[0];
+						s_prevPushBufferPos[i][1] = gGT->pushBuffer[i].pos[1];
+						s_prevPushBufferPos[i][2] = gGT->pushBuffer[i].pos[2];
+						s_prevPushBufferRot[i][0] = gGT->pushBuffer[i].rot[0];
+						s_prevPushBufferRot[i][1] = gGT->pushBuffer[i].rot[1];
+						s_prevPushBufferRot[i][2] = gGT->pushBuffer[i].rot[2];
+					}
+				}
+				else
+				{
+					// Interpolate pushbuffer state between previous and current (50%)
+					int numPb = gGT->numPlyrCurrGame > 4 ? 4 : gGT->numPlyrCurrGame;
+					if (numPb < 1) numPb = 1;
+					for (int i = 0; i < numPb; i++)
+					{
+						gGT->pushBuffer[i].pos[0] = (s16)(((int)s_prevPushBufferPos[i][0] + (int)gGT->pushBuffer[i].pos[0]) >> 1);
+						gGT->pushBuffer[i].pos[1] = (s16)(((int)s_prevPushBufferPos[i][1] + (int)gGT->pushBuffer[i].pos[1]) >> 1);
+						gGT->pushBuffer[i].pos[2] = (s16)(((int)s_prevPushBufferPos[i][2] + (int)gGT->pushBuffer[i].pos[2]) >> 1);
+						gGT->pushBuffer[i].rot[0] = (s16)(((int)s_prevPushBufferRot[i][0] + (int)gGT->pushBuffer[i].rot[0]) >> 1);
+						gGT->pushBuffer[i].rot[1] = (s16)(((int)s_prevPushBufferRot[i][1] + (int)gGT->pushBuffer[i].rot[1]) >> 1);
+						gGT->pushBuffer[i].rot[2] = (s16)(((int)s_prevPushBufferRot[i][2] + (int)gGT->pushBuffer[i].rot[2]) >> 1);
+						PushBuffer_SetMatrixVP(&gGT->pushBuffer[i]);
+					}
+				}
+			}
+#endif
 
 			// If you are in demo mode
 			if (gGT->boolDemoMode != '\0')

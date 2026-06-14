@@ -214,7 +214,7 @@ LAB_800adc08:;
 	// NOTE(aalhendi): Native uses retail emitter bytes from 0x800b2ae4.
 #ifdef CTR_NATIVE
 	static int s_60fpsMissileToggle = 0;
-	if (g_cfg_60fpsMode && !(s_60fpsMissileToggle ^= 1))
+	if (IS_NATIVE_60FPS && !(s_60fpsMissileToggle ^= 1))
 		return;
 #endif
 	p = Particle_Init(0, gGT->iconGroup[0], &R231.emSet_Missile[0]);
@@ -239,13 +239,13 @@ LAB_800adc08:;
 		// if bomb is forwards
 		if ((tw->flags & 0x20) == 0)
 		{
-			tw->dir[0] += 0x200;
+			tw->dir[0] += FPS_HALF(0x200);
 		}
 
 		// if bomb is backwards
 		else
 		{
-			tw->dir[0] -= 0x200;
+			tw->dir[0] -= FPS_HALF(0x200);
 		}
 
 		// convert 3 rotation shorts into rotation matrix

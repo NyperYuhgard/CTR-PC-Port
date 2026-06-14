@@ -228,9 +228,8 @@ struct ParticleEmitter emSet_fjFire[0x8] = {[0] =
 void RB_FlameJet_Particles(struct Instance *inst, struct FlameJet *fjObj)
 {
 #ifdef CTR_NATIVE
-	extern int g_cfg_60fpsMode;
 	static int s_60fpsFlameToggle = 0;
-	if (g_cfg_60fpsMode && !(s_60fpsFlameToggle ^= 1))
+	if (IS_NATIVE_60FPS && !(s_60fpsFlameToggle ^= 1))
 		return;
 #endif
 	int result;
@@ -319,7 +318,11 @@ void RB_FlameJet_ThTick(struct Thread *t)
 	// NOTE(aalhendi): ASM-verified audio/lifecycle path for NTSC-U 926 0x800b6728-0x800b6938.
 	if (fjObj->cooldown != 0)
 	{
-		fjObj->cooldown--;
+		static int s_60fpsToggle_cooldown = 0;
+		if (FRAME_GATE(s_60fpsToggle_cooldown))
+		{
+			fjObj->cooldown--;
+		}
 		return;
 	}
 
@@ -329,7 +332,7 @@ void RB_FlameJet_ThTick(struct Thread *t)
 		PlaySound3D_Flags((u32 *)&fjObj->audioPtr, 0x68, fjInst);
 
 		// [unused variable?]
-		fjObj->unk += 0x100;
+		fjObj->unk += FPS_HALF(0x100);
 
 		RB_FlameJet_Particles(fjInst, fjObj);
 
@@ -390,8 +393,13 @@ void RB_FlameJet_ThTick(struct Thread *t)
 		fjObj->cycleTimer = 0;
 
 EndFjThTick:
-
-	fjObj->cycleTimer++;
+{
+	static int s_60fpsToggle_cycleTimer = 0;
+	if (FRAME_GATE(s_60fpsToggle_cycleTimer))
+	{
+		fjObj->cycleTimer++;
+	}
+}
 	Vector_SpecLightNoSpin3D(fjInst, &fjInst->instDef->rot[0], &fjLightDir[0]);
 }
 

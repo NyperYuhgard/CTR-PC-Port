@@ -366,7 +366,7 @@ void RB_Spider_LInB(struct Instance *inst)
 	shadowInst->matrix.t[0] = inst->matrix.t[0];
 	shadowInst->matrix.t[1] = inst->matrix.t[1] - 8;
 	shadowInst->matrix.t[2] = inst->matrix.t[2];
-	inst->matrix.t[1] += 0x4c0;
+	inst->matrix.t[1] += FPS_HALF(0x4c0);
 
 	shadowInst->scale[0] = 0x2000;
 	shadowInst->scale[1] = 0x2000;

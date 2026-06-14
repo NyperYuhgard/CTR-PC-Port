@@ -70,8 +70,18 @@ void RB_Crystal_ThTick(struct Thread *t)
 	crystalInst = t->inst;
 	crystalObj = t->object;
 
+	// 60fps: rotation runs 2x per frame, gate to maintain 30fps rotation speed
+#ifdef CTR_NATIVE
+	static int s_60fpsCrystalRotToggle = 0;
+	if (!IS_NATIVE_60FPS || (s_60fpsCrystalRotToggle ^= 1))
+	{
+		RB_Crystal_RotateStep(crystalInst, crystalObj);
+		RB_Crystal_RotateStep(crystalInst, crystalObj);
+	}
+#else
 	RB_Crystal_RotateStep(crystalInst, crystalObj);
 	RB_Crystal_RotateStep(crystalInst, crystalObj);
+#endif
 
 	// sine curve for vertical bounce
 	sine = MATH_Sin(crystalObj->rot[1]);

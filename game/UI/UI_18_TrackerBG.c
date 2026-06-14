@@ -15,7 +15,7 @@ void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct Prim
 	s16 leftX;
 
 	// wumpaShineTheta (given to sine)
-	sdata->wumpaShineTheta += 0x100;
+	sdata->wumpaShineTheta += FPS_HALF(0x100);
 
 	offsX = ((targetIcon->texLayout.u1 - targetIcon->texLayout.u0) * angleX) >> 0xc;
 	offsY = ((targetIcon->texLayout.v2 - targetIcon->texLayout.v0) * angleY) >> 0xc;

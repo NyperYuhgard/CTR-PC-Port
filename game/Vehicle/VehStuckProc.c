@@ -310,7 +310,7 @@ void VehStuckProc_MaskGrab_Animate(struct Thread *t, struct Driver *d)
 					d->KartStates.MaskGrab.boolParticlesSpawned = true;
 				}
 
-				d->jumpSquishStretch += 0x2d0;
+				d->jumpSquishStretch += FPS_HALF(0x2d0);
 				if (d->jumpSquishStretch > 8000)
 					d->jumpSquishStretch = 8000;
 			}
@@ -1476,7 +1476,7 @@ void VehStuckProc_Warp_PhysAngular(struct Thread *th, struct Driver *d)
 	}
 
 	timer = d->KartStates.Warp.timer;
-	timer += 26;
+	timer += FPS_HALF(26);
 
 	if (timer <= 800)
 	{

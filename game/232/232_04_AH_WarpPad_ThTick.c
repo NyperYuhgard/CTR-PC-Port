@@ -241,7 +241,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 		warppadObj->spinRot_Prize[0] = 0;
 		warppadObj->spinRot_Prize[2] = 0;
 
-		warppadObj->spinRot_Prize[1] += 0x40;
+		warppadObj->spinRot_Prize[1] += FPS_HALF(0x40);
 
 		// reuse variable,
 		// end of function anyway
@@ -538,7 +538,7 @@ WarpPad_AnimateOpen:
 			warppadObj->spinRot_Wisp[i][0] = 0;
 			warppadObj->spinRot_Wisp[i][2] = 0;
 
-			warppadObj->spinRot_Wisp[i][1] += 0x100;
+			warppadObj->spinRot_Wisp[i][1] += FPS_HALF(0x100);
 
 			// converted to TEST in rebuildPS1
 			ConvertRotToMatrix(&instArr[WPIS_OPEN_RING1 + i]->matrix, &warppadObj->spinRot_Wisp[i][0]);
@@ -553,7 +553,7 @@ WarpPad_AnimateOpen:
 				if (instArr[WPIS_OPEN_RING1 + i]->matrix.t[1] < (warppadInst->matrix.t[1] + wispRiseRate * 4))
 				{
 					// reduce transparency
-					instArr[WPIS_OPEN_RING1 + i]->alphaScale -= 0x380;
+					instArr[WPIS_OPEN_RING1 + i]->alphaScale -= FPS_HALF(0x380);
 				}
 
 				// after first 4 frames
@@ -583,10 +583,10 @@ WarpPad_AnimateOpen:
 			}
 		}
 
-		wispRiseRate += 0x10;
+		wispRiseRate += FPS_HALF(0x10);
 	}
 
-	warppadObj->spinRot_Prize[1] += 0x80;
+	warppadObj->spinRot_Prize[1] += FPS_HALF(0x80);
 
 	rewardScale = 0x100;
 
@@ -645,8 +645,8 @@ WarpPad_AnimateOpen:
 			}
 		}
 
-		warppadObj->thirds[i] += 0x20;
-		warppadObj->spinRot_Rewards[1] += 0x4;
+		warppadObj->thirds[i] += FPS_HALF(0x20);
+		warppadObj->spinRot_Rewards[1] += FPS_HALF(0x4);
 	}
 
 	if (instArr[WPIS_CLOSED_1S] != 0)

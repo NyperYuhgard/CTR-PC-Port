@@ -188,7 +188,7 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		// 60fps: increase multiplier for perceived speed at higher framerate
 		tw->vel[1] = 0;
 #ifdef CTR_NATIVE
-		int velMult = g_cfg_60fpsMode ? 4 : 3;
+		int velMult = IS_NATIVE_60FPS ? 4 : 3;
 #else
 		int velMult = 3;
 #endif

@@ -29,7 +29,6 @@
 static int s_optionsSelectedIndex = 0;
 
 extern int g_cfg_bilinearFiltering;
-extern int g_cfg_60fpsMode;
 extern int g_cfg_aspectMode;
 extern void NativeRenderer_UpdateSwapIntervalState(int swapInterval);
 extern void NativeRenderer_SetAspectMode(int mode);
@@ -114,8 +113,10 @@ void MM_Options_MenuProc(struct RectMenu *menu)
     }
 
     {
+        char *fpsLabels[] = {"30", "60", "60I"};
+        int fpsColor = g_cfg_60fpsMode == 2 ? TINY_GREEN : g_cfg_60fpsMode == 1 ? TINY_GREEN : WHITE;
         DecalFont_DrawLineOT("FPS", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-        DecalFont_DrawLineOT(g_cfg_60fpsMode ? "60" : "30", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, g_cfg_60fpsMode ? TINY_GREEN : WHITE, ot);
+        DecalFont_DrawLineOT(fpsLabels[g_cfg_60fpsMode], OPTIONS_MENU_VALUE_X, y, FONT_SMALL, fpsColor, ot);
         y += OPTIONS_MENU_ROW_HEIGHT;
     }
 
@@ -194,8 +195,8 @@ void MM_Options_MenuProc(struct RectMenu *menu)
         }
         else if (s_optionsSelectedIndex == OPTION_ROW_FPS)
         {
-            g_cfg_60fpsMode = !g_cfg_60fpsMode;
-            NativeRenderer_UpdateSwapIntervalState(g_cfg_60fpsMode ? 1 : -1);
+            g_cfg_60fpsMode = (g_cfg_60fpsMode + 1) % 3;
+            NativeRenderer_UpdateSwapIntervalState(g_cfg_60fpsMode != 0 ? 1 : -1);
         }
         else if (s_optionsSelectedIndex == OPTION_ROW_FILTER)
         {

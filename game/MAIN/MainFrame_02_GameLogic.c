@@ -3,10 +3,6 @@
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 #include <platform/native_replay_scheduler.h>
 #endif
-#ifdef CTR_NATIVE
-extern int g_cfg_60fpsMode;
-#endif
-
 typedef void (*VehicleFuncPtr)(struct Thread *thread, struct Driver *driver);
 
 void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
@@ -78,7 +74,10 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		}
 #ifdef CTR_NATIVE
 		static int s_60fpsTimerHalf = 0;
-		if (!g_cfg_60fpsMode || (s_60fpsTimerHalf ^= 1))
+		// Native 60fps: timer increments every other frame (30fps rate)
+		// Interpolated 60fps: GameLogic runs every other frame (handled in MainMain),
+		//   so timer already runs at 30fps naturally
+		if (!IS_NATIVE_60FPS || (s_60fpsTimerHalf ^= 1))
 		{
 			gGT->timer = gGT->timer + 1;
 			gGT->framesInThisLEV = gGT->framesInThisLEV + 1;
@@ -96,7 +95,7 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		if (iVar4 < 0)
 		{
 #ifdef CTR_NATIVE
-			gGT->elapsedTimeMS = g_cfg_60fpsMode ? 0x10 : 0x20;
+			gGT->elapsedTimeMS = IS_NATIVE_60FPS ? 0x10 : 0x20;
 #else
 			gGT->elapsedTimeMS = 0x20;
 #endif
@@ -108,7 +107,7 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		if ((gGT->gameMode1_prevFrame & PAUSE_ALL) != 0)
 		{
 #ifdef CTR_NATIVE
-			gGT->elapsedTimeMS = g_cfg_60fpsMode ? 0x10 : 0x20;
+			gGT->elapsedTimeMS = IS_NATIVE_60FPS ? 0x10 : 0x20;
 #else
 			gGT->elapsedTimeMS = 0x20;
 #endif

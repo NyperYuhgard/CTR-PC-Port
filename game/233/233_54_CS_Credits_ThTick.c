@@ -36,10 +36,10 @@ void CS_Credits_ThTick(void)
 			for (int i = 1; i < 5; i++)
 			{
 				struct Instance *ghost = co->creditGhostInst[i];
-				ghost->scale[0] += 0x4b;
-				ghost->scale[1] += 0x4b;
-				ghost->scale[2] += 0x4b;
-				ghost->alphaScale += 0x9d;
+				ghost->scale[0] += FPS_HALF(0x4b);
+				ghost->scale[1] += FPS_HALF(0x4b);
+				ghost->scale[2] += FPS_HALF(0x4b);
+				ghost->alphaScale += FPS_HALF(0x9d);
 			}
 		}
 	}

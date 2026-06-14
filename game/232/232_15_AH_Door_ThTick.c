@@ -291,9 +291,9 @@ void AH_Door_ThTick(struct Thread *t)
 							if (keyInst->scale[0] < 0xa00)
 							{
 								// increase scale on X, Y, Z
-								keyInst->scale[0] += 0x40;
-								keyInst->scale[1] += 0x40;
-								keyInst->scale[2] += 0x40;
+								keyInst->scale[0] += FPS_HALF(0x40);
+								keyInst->scale[1] += FPS_HALF(0x40);
+								keyInst->scale[2] += FPS_HALF(0x40);
 							}
 
 							// if key posY is less than (player posY + 0xa0)
@@ -335,10 +335,10 @@ void AH_Door_ThTick(struct Thread *t)
 				}
 
 				door->keyRot[0] = 0;
-				door->keyRot[1] += 0x40;
+				door->keyRot[1] += FPS_HALF(0x40);
 				door->keyRot[2] = 0;
 
-				door->keyOrbit += 0x10;
+				door->keyOrbit += FPS_HALF(0x10);
 
 				door->frameCount_doorOpenAnim++;
 
@@ -418,7 +418,7 @@ void AH_Door_ThTick(struct Thread *t)
 
 	if (door->doorRot[1] < 0x400)
 	{
-		door->doorRot[1] += 0x10;
+		door->doorRot[1] += FPS_HALF(0x10);
 
 		// right-hand door rot[x,y,z]
 		desiredRot[0] = door->doorRot[0];

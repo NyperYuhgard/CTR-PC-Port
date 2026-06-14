@@ -77,7 +77,7 @@ void RB_TNT_ThTick_ThrowOnHead(struct Thread *t)
 		mw->velocity[1] = -0x60;
 
 	// rotation
-	mw->tntSpinY += 0x100;
+	mw->tntSpinY += FPS_HALF(0x100);
 
 	// if scale is small
 	if (inst->scale[0] < 0x801)
@@ -92,9 +92,9 @@ void RB_TNT_ThTick_ThrowOnHead(struct Thread *t)
 	else
 	{
 		// reduce scale
-		inst->scale[0] -= 0x100;
-		inst->scale[1] -= 0x100;
-		inst->scale[2] -= 0x100;
+		inst->scale[0] -= FPS_HALF(0x100);
+		inst->scale[1] -= FPS_HALF(0x100);
+		inst->scale[2] -= FPS_HALF(0x100);
 	}
 	return;
 }

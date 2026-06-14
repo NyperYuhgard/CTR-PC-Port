@@ -244,14 +244,14 @@ void VehTurbo_ThTick(struct Thread *turboThread)
 			if (turbo->fireDisappearCountdown == '\0')
 			{
 				// increase transparency
-				instance->alphaScale += 0x100;
-				turbo->inst->alphaScale += 0x100;
+				instance->alphaScale += FPS_HALF(0x100);
+				turbo->inst->alphaScale += FPS_HALF(0x100);
 			}
 			else
 			{
 				// increase transparency
-				instance->alphaScale += 0x40;
-				turbo->inst->alphaScale += 0x40;
+				instance->alphaScale += FPS_HALF(0x40);
+				turbo->inst->alphaScale += FPS_HALF(0x40);
 			}
 		}
 		else

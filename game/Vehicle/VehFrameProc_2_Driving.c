@@ -4,7 +4,7 @@ static void VehFrameProc_Driving_SpawnBurnSmoke(struct Driver *d)
 {
 #ifdef CTR_NATIVE
 	static int s_60fpsBurnToggle = 0;
-	if (g_cfg_60fpsMode && !(s_60fpsBurnToggle ^= 1))
+	if (IS_NATIVE_60FPS && !(s_60fpsBurnToggle ^= 1))
 		return;
 #endif
 	struct Particle *p = Particle_Init(0, sdata->gGT->iconGroup[1], &data.emSet_BurnSmoke[0]);

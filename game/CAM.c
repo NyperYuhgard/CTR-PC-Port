@@ -1517,7 +1517,7 @@ LAB_8001ab04:
 
 		if (pb->rot[0] < 0x800)
 		{
-			pb->rot[0] += 0x10;
+			pb->rot[0] += FPS_HALF(0x10);
 			if (pb->rot[0] > 0x800)
 				pb->rot[0] = 0x800;
 		}

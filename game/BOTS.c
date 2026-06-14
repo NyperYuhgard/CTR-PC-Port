@@ -831,7 +831,7 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 
 	if ((botDriver->actionsFlagSet & 1) == 0)
 	{
-		speedApprox += 0xf00;
+		speedApprox += FPS_HALF(0xf00);
 	}
 	else
 	{
@@ -945,7 +945,7 @@ give_this_label_a_better_name2:
 		if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE) // check is oxide
 		{
 			// Pretend there is less time (oxide is a cheater)
-			trafficLightsTimer -= 0x1e0;
+			trafficLightsTimer -= FPS_HALF(0x1e0);
 		}
 
 		if (0 < trafficLightsTimer)
@@ -2619,7 +2619,7 @@ LAB_8001686c:
 		MATH_MatrixMul(&botInstance->matrix, &sdata->rotXYZ, &data.identity);
 
 		// MATRIX is only 30 bytes, but is 32 because there's 2 bytes of padding (at the end?) this additional data is stored there?
-		(*(int *)(((char *)botInstance) + 0x48)) += 0x20;
+		(*(int *)(((char *)botInstance) + 0x48)) += FPS_HALF(0x20);
 	}
 
 	if ((botDriver->botData.botFlags & 4) == 0)
@@ -2652,7 +2652,7 @@ LAB_8001686c:
 		posTop[0] = (short)((botDriver->botData.ai_posBackup[0] + botDriver->botData.unk5bc.ai_velAxis[0]) >> 8);
 		posBot[1] = (short)((botDriver->botData.ai_posBackup[1] + botDriver->botData.unk5bc.ai_velAxis[1]) >> 8);
 		posTop[1] = posBot[1] - 0x100;
-		posBot[1] += 0x40;
+		posBot[1] += FPS_HALF(0x40);
 		posTop[2] = (short)((botDriver->botData.ai_posBackup[2] + botDriver->botData.unk5bc.ai_velAxis[2]) >> 8);
 		posBot[0] = posTop[0];
 		posBot[2] = posTop[2];
@@ -2746,7 +2746,7 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 		if ((driverVictim->botData.botFlags & 2) == 0)
 		{
 			driverVictim->botData.unk5bc.ai_speedLinear >>= 3;
-			driverVictim->botData.ai_posBackup[1] += 0x4000;
+			driverVictim->botData.ai_posBackup[1] += FPS_HALF(0x4000);
 		}
 
 		driverVictim->botData.ai_progress_cooldown = 0;

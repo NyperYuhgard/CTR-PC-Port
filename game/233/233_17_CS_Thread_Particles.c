@@ -4,9 +4,8 @@
 void CS_Thread_Particles(struct Thread *t)
 {
 #ifdef CTR_NATIVE
-	extern int g_cfg_60fpsMode;
 	static int s_60fpsCutsceneToggle = 0;
-	if (g_cfg_60fpsMode && !(s_60fpsCutsceneToggle ^= 1))
+	if (IS_NATIVE_60FPS && !(s_60fpsCutsceneToggle ^= 1))
 		return;
 #endif
 	struct CutsceneObj *cs = t->object;

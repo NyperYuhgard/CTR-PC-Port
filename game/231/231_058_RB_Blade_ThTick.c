@@ -14,7 +14,14 @@ void RB_Blade_ThTick(struct Thread *t)
 	rot[1] = bladeInst->instDef->rot[1] + 0x400;
 	rot[2] = bladeObj->angle;
 
+	// 60fps: gate rotation to maintain 30fps rotation speed
+#ifdef CTR_NATIVE
+	static int s_60fpsBladeRotToggle = 0;
+	if (!IS_NATIVE_60FPS || (s_60fpsBladeRotToggle ^= 1))
+		bladeObj->angle += 0x100;
+#else
 	bladeObj->angle += 0x100;
+#endif
 
 	// converted to TEST in rebuildPS1
 	ConvertRotToMatrix(&bladeInst->matrix, &rot[0]);

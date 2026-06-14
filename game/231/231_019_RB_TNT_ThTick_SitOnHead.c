@@ -132,7 +132,7 @@ LAB_800ad5f8:
 		// add to the frame counter (60fps: increment every other frame)
 #ifdef CTR_NATIVE
 		static int s_60fpsTntToggle = 0;
-		if (!g_cfg_60fpsMode || (s_60fpsTntToggle ^= 1))
+		if (!IS_NATIVE_60FPS || (s_60fpsTntToggle ^= 1))
 		{
 			mw->numFramesOnHead += 1;
 			numFrames = mw->numFramesOnHead;

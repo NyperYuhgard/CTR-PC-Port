@@ -12,7 +12,7 @@ void RB_RainCloud_FadeAway(struct Thread *t)
 	parentInst = t->parentThread->inst;
 
 	// offset upward before averaging
-	inst->matrix.t[1] += 0x80;
+	inst->matrix.t[1] += FPS_HALF(0x80);
 
 	// X, Y, Z
 	for (int i = 0; i < 3; i++)

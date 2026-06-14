@@ -141,7 +141,7 @@ void RB_MaskWeapon_ThTick(struct Thread *maskTh)
 	}
 
 	// adjust rotation
-	mask->rot[1] += -0x100;
+	mask->rot[1] += FPS_HALF(-0x100);
 
 	// If duration is over
 	if (mask->duration == 0)

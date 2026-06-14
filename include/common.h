@@ -96,4 +96,22 @@ static inline void *CTR_PsyqMemmove(void *dest, const void *src, s32 count)
 #define memmove(dest, src, count) CTR_PsyqMemmove((dest), (src), (s32)(count))
 #endif
 
+// 60fps helpers: at runtime halve/double values when 60fps mode is active
+// g_cfg_60fpsMode: 0=30fps, 1=Native 60fps, 2=Interpolated 60fps
+// FPS_HALF/FRAME_GATE only apply in Native 60fps mode (1).
+// Interpolated mode (2) runs game at 30fps native, no halving needed.
+#ifdef CTR_NATIVE
+#define IS_NATIVE_60FPS (g_cfg_60fpsMode == 1)
+#define IS_INTERP_60FPS (g_cfg_60fpsMode == 2)
+#define FPS_HALF(x) (IS_NATIVE_60FPS ? ((x) >> 1) : (x))
+#define FPS_DOUBLE(x) (IS_NATIVE_60FPS ? ((x) << 1) : (x))
+#define FRAME_GATE(s_toggle) (!IS_NATIVE_60FPS || ((s_toggle) ^= 1))
+#else
+#define IS_NATIVE_60FPS (0)
+#define IS_INTERP_60FPS (0)
+#define FPS_HALF(x) (x)
+#define FPS_DOUBLE(x) (x)
+#define FRAME_GATE(s_toggle) (1)
+#endif
+
 #endif

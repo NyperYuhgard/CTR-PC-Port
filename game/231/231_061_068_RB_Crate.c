@@ -170,9 +170,9 @@ void RB_CrateAny_ThTick_Grow(struct Thread *t)
 
 	if (crateInst->scale[0] < 0x1000)
 	{
-		crateInst->scale[0] += 0x100;
-		crateInst->scale[1] += 0x100;
-		crateInst->scale[2] += 0x100;
+		crateInst->scale[0] += FPS_HALF(0x100);
+		crateInst->scale[1] += FPS_HALF(0x100);
+		crateInst->scale[2] += FPS_HALF(0x100);
 	}
 	else
 	{

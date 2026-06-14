@@ -21,7 +21,7 @@ void UI_ThTick_CtrLetters(struct Thread *bucket)
 	// that's why the lighting changes in the HUD
 
 	// Rotate on the Y axis
-	obj->rot[1] += 0x40;
+	obj->rot[1] += FPS_HALF(0x40);
 
 	Vector_SpecLightSpin2D(inst, (s16 *)obj->rot, (s16 *)obj->lightDir);
 

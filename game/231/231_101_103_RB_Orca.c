@@ -172,7 +172,7 @@ void RB_Orca_ThTick(struct Thread *t)
 	orcaObj->cooldown = 0x5A;
 	orcaInst->animFrame = 0;
 	orcaObj->direction = direction ^ 1;
-	orcaObj->instDefRot[1] += 0x800;
+	orcaObj->instDefRot[1] += FPS_HALF(0x800);
 	ConvertRotToMatrix(&orcaInst->matrix, &orcaObj->instDefRot[0]);
 }
 

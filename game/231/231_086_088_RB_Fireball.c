@@ -183,7 +183,7 @@ void RB_Fireball_ThTick(struct Thread *t)
 		// fire particles
 #ifdef CTR_NATIVE
 	static int s_60fpsFireToggle = 0;
-	if (g_cfg_60fpsMode && !(s_60fpsFireToggle ^= 1))
+	if (IS_NATIVE_60FPS && !(s_60fpsFireToggle ^= 1))
 		return;
 #endif
 	particle = Particle_Init(0, gGT->iconGroup[0xA], &emSet_Fireball[0]);

@@ -141,9 +141,8 @@ static void VehEmitter_MudSplash(struct Driver *d)
 static void VehEmitter_TerrainEffects(struct Thread *thread, struct Driver *d, struct Terrain *terrain, u32 terrainFlags, int absSpeedApprox)
 {
 #ifdef CTR_NATIVE
-	extern int g_cfg_60fpsMode;
 	static int s_60fpsTeToggle = 0;
-	if (g_cfg_60fpsMode && !(s_60fpsTeToggle ^= 1))
+	if (IS_NATIVE_60FPS && !(s_60fpsTeToggle ^= 1))
 		return;
 #endif
 	struct GameTracker *gGT = sdata->gGT;
@@ -192,7 +191,7 @@ static void VehEmitter_TerrainEffects(struct Thread *thread, struct Driver *d, s
 		VehEmitter_SetRotTransMatrix(m);
 		VehEmitter_Sparks_Wall(d, &data.emSet_WallSparks[0]);
 
-		engineVol += 0x14;
+		engineVol += FPS_HALF(0x14);
 		if (engineVol > 0xff)
 			engineVol = 0xff;
 	}
@@ -201,7 +200,7 @@ static void VehEmitter_TerrainEffects(struct Thread *thread, struct Driver *d, s
 		if (d->set_0xF0_OnWallRub == 0)
 			d->frameAgainstWall = 0;
 
-		engineVol -= 0x14;
+		engineVol -= FPS_HALF(0x14);
 		if (engineVol < 0)
 			engineVol = 0;
 

@@ -754,7 +754,7 @@ CheckJumpButtons:
 				{
 					driverSpeedOrSmth = driverBaseSpeed * -driverSpeedOrSmth;
 					if (driverSpeedOrSmth < 0)
-						driverSpeedOrSmth += 0xff;
+						driverSpeedOrSmth += FPS_HALF(0xff);
 					driverSpeedSmth2 = driverSpeedOrSmth >> 8;
 
 					// gas and brake together
@@ -767,7 +767,7 @@ CheckJumpButtons:
 				{
 					driverSpeedOrSmth = driver->const_BackwardSpeed * -driverSpeedOrSmth;
 					if (driverSpeedOrSmth < 0)
-						driverSpeedOrSmth += 0xff;
+						driverSpeedOrSmth += FPS_HALF(0xff);
 					driverSpeedSmth2 = driverSpeedOrSmth >> 8;
 
 					// reversing, and gas+brake
