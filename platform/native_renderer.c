@@ -81,6 +81,7 @@ int g_dbg_texturelessMode = 0;
 int g_cfg_bilinearFiltering = 0;
 int g_cfg_60fpsMode = 0;
 int g_cfg_aspectMode = 0;
+int g_cfg_fullscreen = 0;
 
 global_variable int s_vramNeedsUpdate = 1;
 global_variable int s_framebufferNeedsUpdate = 0;
@@ -295,12 +296,12 @@ void NativeRenderer_SetAspectMode(int mode)
 		s_presentAspectW = 4;
 		s_presentAspectH = 3;
 	}
-	else if (mode == 1)
-	{
-		s_presentAspectW = 16;
-		s_presentAspectH = 9;
-	}
-	else
+    else if (mode == 1 || mode == 3)
+    {
+        s_presentAspectW = 16;
+        s_presentAspectH = 9;
+    }
+    else
 	{
 		s_presentAspectW = g_windowWidth;
 		s_presentAspectH = g_windowHeight;

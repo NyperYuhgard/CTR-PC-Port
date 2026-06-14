@@ -29,6 +29,7 @@ int Platform_PollInput(void);
 
 #if defined(CTR_NATIVE)
 int NikoGetEnterKey(void);
+void Platform_ToggleFullscreen(void);
 #endif
 
 #endif

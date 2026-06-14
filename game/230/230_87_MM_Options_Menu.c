@@ -1,7 +1,7 @@
 #include <common.h>
 #include <platform/native_mods.h>
 
-#define OPTIONS_MENU_VISIBLE_ROWS 7
+#define OPTIONS_MENU_VISIBLE_ROWS 8
 #define OPTIONS_MENU_CENTER_X     0x100
 #define OPTIONS_MENU_PANEL_W      0x1C0
 #define OPTIONS_MENU_TITLE_Y      0x1C
@@ -20,18 +20,22 @@
 #define OPTION_ROW_ASPECT    4
 #define OPTION_ROW_FPS       5
 #define OPTION_ROW_FILTER    6
-#define OPTION_ROW_COUNT     7
+#define OPTION_ROW_FULLSCREEN 7
+#define OPTION_ROW_COUNT     8
 
 #define ASPECT_4_3     0
 #define ASPECT_16_9    1
 #define ASPECT_STRETCH 2
+#define ASPECT_16_9_WS 3
 
 static int s_optionsSelectedIndex = 0;
 
 extern int g_cfg_bilinearFiltering;
 extern int g_cfg_aspectMode;
+extern int g_cfg_fullscreen;
 extern void NativeRenderer_UpdateSwapIntervalState(int swapInterval);
 extern void NativeRenderer_SetAspectMode(int mode);
+extern void Platform_ToggleFullscreen(void);
 
 void MM_Options_Init(void)
 {
@@ -105,6 +109,7 @@ void MM_Options_MenuProc(struct RectMenu *menu)
 
     {
         char *label = g_cfg_aspectMode == ASPECT_STRETCH ? "STRETCH" :
+                      g_cfg_aspectMode == ASPECT_16_9_WS ? "16:9 WS" :
                       g_cfg_aspectMode == ASPECT_16_9 ? "16:9" : "4:3";
         int color = g_cfg_aspectMode == ASPECT_4_3 ? WHITE : TINY_GREEN;
         DecalFont_DrawLineOT("ASPECT", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
@@ -123,6 +128,12 @@ void MM_Options_MenuProc(struct RectMenu *menu)
     {
         DecalFont_DrawLineOT("FILTER", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
         DecalFont_DrawLineOT(g_cfg_bilinearFiltering ? "SMOOTH" : "PIXEL", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, g_cfg_bilinearFiltering ? TINY_GREEN : WHITE, ot);
+        y += OPTIONS_MENU_ROW_HEIGHT;
+    }
+
+    {
+        DecalFont_DrawLineOT("FULLSCREEN", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+        DecalFont_DrawLineOT(g_cfg_fullscreen ? "ON" : "OFF", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, g_cfg_fullscreen ? TINY_GREEN : WHITE, ot);
         y += OPTIONS_MENU_ROW_HEIGHT;
     }
 
@@ -190,7 +201,7 @@ void MM_Options_MenuProc(struct RectMenu *menu)
         }
         else if (s_optionsSelectedIndex == OPTION_ROW_ASPECT)
         {
-            g_cfg_aspectMode = (g_cfg_aspectMode + 1) % 3;
+            g_cfg_aspectMode = (g_cfg_aspectMode + 1) % 4;
             NativeRenderer_SetAspectMode(g_cfg_aspectMode);
         }
         else if (s_optionsSelectedIndex == OPTION_ROW_FPS)
@@ -201,6 +212,11 @@ void MM_Options_MenuProc(struct RectMenu *menu)
         else if (s_optionsSelectedIndex == OPTION_ROW_FILTER)
         {
             g_cfg_bilinearFiltering = !g_cfg_bilinearFiltering;
+        }
+        else if (s_optionsSelectedIndex == OPTION_ROW_FULLSCREEN)
+        {
+            g_cfg_fullscreen = !g_cfg_fullscreen;
+            Platform_ToggleFullscreen();
         }
     }
 

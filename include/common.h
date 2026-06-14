@@ -4,6 +4,8 @@
 #if defined(CTR_NATIVE)
 #include <string.h>
 extern int g_cfg_60fpsMode;
+extern int g_cfg_aspectMode;
+extern int g_cfg_fullscreen;
 #endif
 
 // Not native host

@@ -99,6 +99,11 @@ internal void Platform_HandleFullscreenToggle(void)
 	NativeRenderer_ResetDevice();
 }
 
+void Platform_ToggleFullscreen(void)
+{
+	Platform_HandleFullscreenToggle();
+}
+
 #if defined(CTR_INTERNAL)
 internal void Platform_TakeScreenshot(void)
 {

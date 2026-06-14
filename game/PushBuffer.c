@@ -436,6 +436,17 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 	// scale Y axis (3)
 	pb->matrix_ViewProj.m[1][2] = pb->matrix_ViewProj.m[1][2] * r360 / r600;
 
+#ifdef CTR_NATIVE
+	// widen horizontal FOV for native 16:9 widescreen (4:3 -> 16:9 = 4/3 wider)
+	if (g_cfg_aspectMode == 3)
+	{
+		pb->matrix_ViewProj.t[0] = pb->matrix_ViewProj.t[0] * 3 / 4;
+		pb->matrix_ViewProj.m[0][0] = pb->matrix_ViewProj.m[0][0] * 3 / 4;
+		pb->matrix_ViewProj.m[0][1] = pb->matrix_ViewProj.m[0][1] * 3 / 4;
+		pb->matrix_ViewProj.m[0][2] = pb->matrix_ViewProj.m[0][2] * 3 / 4;
+	}
+#endif
+
 	// store camera matrix,
 	// otherwise oxide intro cutscene bugs out,
 	// when crash is sleeping on the grassy hill
@@ -602,6 +613,11 @@ void PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 
 	val_X = pb->rect.w;
 	val_X = val_X / 2;
+
+#ifdef CTR_NATIVE
+	if (g_cfg_aspectMode == 3)
+		val_X = val_X * 16 / 9;
+#endif
 
 	val_Y = ((pb->rect.h * 0x600) / 0x360);
 	val_Y = val_Y / 2;

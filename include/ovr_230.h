@@ -166,7 +166,7 @@ struct OverlayDATA_230
 	// 800b4c4c - EurRetail
 	// 800b7f68 - JpnRetail
 #if defined(CTR_NATIVE)
-	struct MenuRow rowsMainMenuBasic[9];
+	struct MenuRow rowsMainMenuBasic[10];
 #elif BUILD == EurRetail
 	struct MenuRow rowsMainMenuBasic[8];
 #else
@@ -178,7 +178,7 @@ struct OverlayDATA_230
 	// 800b4c7c - EurRetail
 	// 800b7f94 - JpnRetail
 #if defined(CTR_NATIVE)
-	struct MenuRow rowsMainMenuWithScrapbook[11];
+	struct MenuRow rowsMainMenuWithScrapbook[12];
 #elif BUILD == EurRetail
 	struct MenuRow rowsMainMenuWithScrapbook[9];
 	char padding800b4cb2[2];

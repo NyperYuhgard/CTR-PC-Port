@@ -1,5 +1,6 @@
 #include <common.h>
 #include <platform/native_mods.h>
+#include <stdlib.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800acff4-0x800ad448.
 void MM_MenuProc_Main(struct RectMenu *mainMenu)
@@ -231,6 +232,13 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 	{
 		D230.MM_State = 2;
 		D230.desiredMenuIndex = 7;
+		return;
+	}
+
+	// Quit
+	if (choose == 0x003)
+	{
+		exit(0);
 		return;
 	}
 #endif
