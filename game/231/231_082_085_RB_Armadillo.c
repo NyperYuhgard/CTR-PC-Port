@@ -97,19 +97,13 @@ armObj->timeAtEdge--;
 		// 32ms, 30fps
 		armObj->timeRolling += FPS_HALF(0x20);
 
-#ifdef CTR_NATIVE
-		{ static int s_60fpsArmadilloMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsArmadilloMove ^= 1)) {
-#endif
 		if (armObj->direction == 0)
 			armObj->distFromSpawn++;
 		else
 			armObj->distFromSpawn--;
 
-		armInst->matrix.t[0] += armObj->velX;
-		armInst->matrix.t[2] += armObj->velZ;
-#ifdef CTR_NATIVE
-		} }
-#endif
+		armInst->matrix.t[0] += (armObj->velX * sdata->gGT->elapsedTimeMS) >> 5;
+		armInst->matrix.t[2] += (armObj->velZ * sdata->gGT->elapsedTimeMS) >> 5;
 
 		// if animation is not over
 		if ((armInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(armInst, 1))
