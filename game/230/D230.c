@@ -2,6 +2,8 @@
 
 #ifdef CTR_NATIVE
 void MM_Options_MenuProc(struct RectMenu *menu);
+void MM_TimeTrialMode_MenuProc(struct RectMenu *menu);
+void MM_TimeTrialMode_Init(void);
 #endif
 
 #define CHEAT_N BTN_UP
@@ -242,6 +244,15 @@ struct OverlayDATA_230 D230 = {
             .state = 0x28,
             .funcPtr = MM_Options_MenuProc,
         },
+
+    .menuTimeTrialMode =
+        {
+            .stringIndexTitle = -1,
+            .posX_curr = 0x100,
+            .posY_curr = 0x6c,
+            .state = 0x28,
+            .funcPtr = MM_TimeTrialMode_MenuProc,
+        },
 #endif
 
     .arrayMenuPtrs = {&D230.menuMainMenu, &D230.menuPlayers1P2P, &D230.menuPlayers2P3P4P, &D230.menuAdventure, &D230.menuCharacterSelect, &D230.menuTrackSelect,
@@ -249,6 +260,7 @@ struct OverlayDATA_230 D230 = {
 #ifdef CTR_NATIVE
                       &D230.menuMods,
                       &D230.menuOptions,
+                      &D230.menuTimeTrialMode,
 #endif
     },
 

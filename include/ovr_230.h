@@ -312,6 +312,7 @@ struct OverlayDATA_230
 	// 800b47b0+sizeof - UsaRetail
 	struct RectMenu menuMods;
 	struct RectMenu menuOptions;
+	struct RectMenu menuTimeTrialMode;
 #endif
 
 	// 800b47dc - UsaRetail
@@ -319,7 +320,7 @@ struct OverlayDATA_230
 	// 800b8260 - JpnRetail
 	// array of menu pointers
 #if defined(CTR_NATIVE)
-	struct RectMenu *arrayMenuPtrs[11];
+	struct RectMenu *arrayMenuPtrs[12];
 #elif BUILD == EurRetail
 	struct RectMenu *arrayMenuPtrs[10];
 #else

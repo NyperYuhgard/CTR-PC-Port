@@ -1,6 +1,8 @@
 #ifdef CTR_NATIVE
 void MM_Options_MenuProc(struct RectMenu *menu);
 void MM_Options_Init(void);
+void MM_TimeTrialMode_MenuProc(struct RectMenu *menu);
+void MM_TimeTrialMode_Init(void);
 #endif
 
 #include "230_00_MM_Battle_DrawIcon_Character.c"
@@ -62,6 +64,7 @@ void MM_Options_Init(void);
 #ifdef CTR_NATIVE
 #include "230_86_MM_Mods_Menu.c"
 #include "230_87_MM_Options_Menu.c"
+#include "230_88_MM_TimeTrialMode_MenuProc.c"
 #endif
 
 // NOTE(aalhendi): Native track previews use platform/native_str.c; the retail

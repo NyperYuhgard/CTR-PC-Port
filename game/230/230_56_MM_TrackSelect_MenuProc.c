@@ -1,5 +1,7 @@
 #include <common.h>
 
+extern void MM_TimeTrialMode_Init(void);
+
 void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 {
 	char bVar1;
@@ -98,23 +100,23 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 
 				// if you are not in battle mode
 
-				// if you are in time trial mode
-				if ((gGT->gameMode1 & TIME_TRIAL) != 0)
-				{
-					// allocate room at the end of RAM for ghosts
-					sdata->ptrGhostTapePlaying = MEMPACK_AllocHighMem(0x3e00 /*, R230.s_loaded_ghost_data*/);
+			// if you are in time trial mode
+			if ((gGT->gameMode1 & TIME_TRIAL) != 0)
+			{
+				// allocate room at the end of RAM for ghosts
+				sdata->ptrGhostTapePlaying = MEMPACK_AllocHighMem(0x3e00 /*, R230.s_loaded_ghost_data*/);
 
-					memset(sdata->ptrGhostTapePlaying, 0, 0x28);
+				memset(sdata->ptrGhostTapePlaying, 0, 0x28);
 
-					// by default, dont show ghost in race
-					sdata->boolReplayHumanGhost = 0;
+				// by default, dont show ghost in race
+				sdata->boolReplayHumanGhost = 0;
 
-					SelectProfile_ToggleMode(0x30);
+				MM_TimeTrialMode_Init();
 
-					// open the ghost selection menu
-					sdata->ptrDesiredMenu = &data.menuGhostSelection;
-					return;
-				}
+				// open the time trial mode selection menu
+				sdata->ptrDesiredMenu = &D230.menuTimeTrialMode;
+				return;
+			}
 
 				// passthrough Menu for the function
 				// QueueLoadTrack

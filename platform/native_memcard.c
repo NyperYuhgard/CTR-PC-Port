@@ -703,6 +703,27 @@ enum NativeMemcardResult NativeMemcard_ReadSaveData(const char *save_name, unsig
 	return read_bytes == (size_t)byte_count ? NATIVE_MEMCARD_OK : NATIVE_MEMCARD_IO_ERROR;
 }
 
+enum NativeMemcardResult NativeMemcard_ReadFileDirect(const char *file_path, unsigned char *dst, int byte_count, int data_offset)
+{
+	FILE *file;
+	size_t read_bytes;
+
+	file = fopen(file_path, "rb");
+	if (file == NULL)
+		return NATIVE_MEMCARD_NOT_FOUND;
+
+	if (fseek(file, data_offset, SEEK_SET) != 0)
+	{
+		fclose(file);
+		return NATIVE_MEMCARD_IO_ERROR;
+	}
+
+	read_bytes = fread(dst, 1, byte_count, file);
+	fclose(file);
+
+	return read_bytes == (size_t)byte_count ? NATIVE_MEMCARD_OK : NATIVE_MEMCARD_IO_ERROR;
+}
+
 enum NativeMemcardResult NativeMemcard_WriteSaveData(const char *save_name, const void *icon, int icon_byte_count, const unsigned char *src, int byte_count)
 {
 	const char *path = NativeMemcard_PathFromDeviceName(save_name, 1);
