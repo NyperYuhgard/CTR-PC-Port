@@ -133,7 +133,11 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	}
 
 	if (0 < driver->jump_TenBuffer)
+#ifdef CTR_NATIVE
+	{ static int s_60fpsJumpBuffer = 0; if (!IS_NATIVE_60FPS || (s_60fpsJumpBuffer ^= 1)) driver->jump_TenBuffer--; }
+#else
 		driver->jump_TenBuffer--;
+#endif
 	if (9 < driver->numWumpas)
 		driver->timeSpentInTenWumpa += msPerFrame;
 	if (driver->currentTerrain == 0xE)
@@ -317,7 +321,11 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 
 		// if Item roll is not done
 		else
+#ifdef CTR_NATIVE
+		{ static int s_60fpsItemRollTimer = 0; if (!IS_NATIVE_60FPS || (s_60fpsItemRollTimer ^= 1)) driver->itemRollTimer--; }
+#else
 			driver->itemRollTimer--;
+#endif
 	}
 
 
@@ -342,7 +350,11 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 			driver->heldItemID = 0xf;
 		}
 
+#ifdef CTR_NATIVE
+	{ static int s_60fpsNoItemTimer = 0; if (!IS_NATIVE_60FPS || (s_60fpsNoItemTimer ^= 1)) driver->noItemTimer = noItemTimer - 1; }
+#else
 		driver->noItemTimer = noItemTimer - 1;
+#endif
 	}
 
 	if (driver->invincibleTimer != 0)
@@ -1481,7 +1493,11 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 		// if drifting right
 		if (iVar15 < 1)
 		{
+#ifdef CTR_NATIVE
+			{ static int s_60fpsNumFramesDriftingDec = 0; if (!IS_NATIVE_60FPS || (s_60fpsNumFramesDriftingDec ^= 1)) driver->KartStates.Drifting.numFramesDrifting--; }
+#else
 			driver->KartStates.Drifting.numFramesDrifting--;
+#endif
 
 			if (driver->KartStates.Drifting.numFramesDrifting > 0)
 				driver->KartStates.Drifting.numFramesDrifting = 0;
@@ -1490,7 +1506,11 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 		// if drifting left
 		else
 		{
+#ifdef CTR_NATIVE
+			{ static int s_60fpsNumFramesDriftingInc = 0; if (!IS_NATIVE_60FPS || (s_60fpsNumFramesDriftingInc ^= 1)) driver->KartStates.Drifting.numFramesDrifting++; }
+#else
 			driver->KartStates.Drifting.numFramesDrifting++;
+#endif
 
 			if (driver->KartStates.Drifting.numFramesDrifting < 0)
 				driver->KartStates.Drifting.numFramesDrifting = 0;
@@ -1649,7 +1669,11 @@ LAB_800632cc:
 	// frames counting down
 	else
 	{
+#ifdef CTR_NATIVE
+		{ static int s_60fpsUnk3D4 = 0; if (!IS_NATIVE_60FPS || (s_60fpsUnk3D4 ^= 1)) driver->unk3D4[2]--; }
+#else
 		driver->unk3D4[2]--;
+#endif
 
 		// move up each frame
 		sVar5 = driver->unk3D4[0] + driver->unk3D4[1];
@@ -2017,7 +2041,11 @@ void VehPhysProc_SlamWall_Animate(struct Thread *t, struct Driver *d)
 {
 	struct Instance *inst = t->inst;
 
+#ifdef CTR_NATIVE
+	{ static int s_60fpsAnimFrameVeh = 0; if (!IS_NATIVE_60FPS || (s_60fpsAnimFrameVeh ^= 1)) inst->animFrame++; }
+#else
 	inst->animFrame++;
+#endif
 
 	d->matrixIndex++;
 
@@ -2416,7 +2444,11 @@ void VehPhysProc_SpinStop_Animate(struct Thread *t, struct Driver *d)
 		// steer from left to right, to exaggerate the force when steering stops abruptly
 		if (d->KartStates.Spinning.spinDir == -1)
 		{
+#ifdef CTR_NATIVE
+			{ static int s_60fpsAnimFrame5 = 0; if (!IS_NATIVE_60FPS || (s_60fpsAnimFrame5 ^= 1)) inst->animFrame += 5; }
+#else
 			inst->animFrame += 5;
+#endif
 
 			if (inst->animFrame < numFrames)
 				return;
@@ -2440,7 +2472,11 @@ void VehPhysProc_SpinStop_Animate(struct Thread *t, struct Driver *d)
 		}
 
 		int targetFrame = VehFrameInst_GetStartFrame(0, numFrames);
+#ifdef CTR_NATIVE
+	{ static int s_60fpsInterpBySpeed = 0; if (!IS_NATIVE_60FPS || (s_60fpsInterpBySpeed ^= 1)) inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 2, targetFrame); }
+#else
 		inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 2, targetFrame);
+#endif
 
 		if (inst->animFrame != targetFrame)
 			return;

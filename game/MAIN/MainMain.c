@@ -369,7 +369,11 @@ u32 main(void)
 				// To see 30-second timer in Main Menu, go to FUN_00001604 in 230.c
 				// pressing (or holding) any button sets it to zero
 
-				gGT->demoCountdownTimer--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsDemoCountdown = 0; if (!IS_NATIVE_60FPS || (s_60fpsDemoCountdown ^= 1)) gGT->demoCountdownTimer--; }
+#else
+gGT->demoCountdownTimer--;
+#endif
 
 				// check to see if time ran out
 				if (gGT->demoCountdownTimer < 1)

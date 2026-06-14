@@ -55,7 +55,11 @@ void RB_Follower_ThTick(struct Thread *t)
 	d = fObj->driver;
 	kartState = d->kartState;
 
-	fObj->frameCount--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsFollowerFrame = 0; if (!IS_NATIVE_60FPS || (s_60fpsFollowerFrame ^= 1)) fObj->frameCount--; }
+#else
+fObj->frameCount--;
+#endif
 
 	if ((fObj->frameCount > 0) && ((kartState == KS_NORMAL) || (kartState == KS_DRIFTING)) &&
 

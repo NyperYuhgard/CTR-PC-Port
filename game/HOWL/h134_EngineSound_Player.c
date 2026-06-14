@@ -108,7 +108,11 @@ void EngineSound_Player(struct Driver *driver)
 				if (driver->turbo_MeterRoomLeft == 0)
 				{
 					if (driver->sfxDistortOffset != 0)
-						driver->sfxDistortOffset--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsSfxDistort = 0; if (!IS_NATIVE_60FPS || (s_60fpsSfxDistort ^= 1)) driver->sfxDistortOffset--; }
+#else
+driver->sfxDistortOffset--;
+#endif
 				}
 				else
 				{

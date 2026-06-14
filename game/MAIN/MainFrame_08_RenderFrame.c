@@ -339,7 +339,11 @@ void DrawFinalLap(struct GameTracker *gGT)
 		// and by doing this, "FINAL LAP" draws under the character icons instead
 		DecalFont_DrawLineOT(sdata->lngStrings[LNG_FINAL_LAP], resultPos[0], resultPos[1], FONT_BIG, (JUSTIFY_CENTER | ORANGE), pb->ptrOT);
 
-		sdata->finalLapTextTimer[i]--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsFinalLap = 0; if (!IS_NATIVE_60FPS || (s_60fpsFinalLap ^= 1)) sdata->finalLapTextTimer[i]--; }
+#else
+sdata->finalLapTextTimer[i]--;
+#endif
 	}
 }
 
@@ -533,7 +537,11 @@ void RenderAllHUD(struct GameTracker *gGT)
 				// and load the 232 overlay
 				if (gGT->overlayTransition > 1)
 				{
-					gGT->overlayTransition--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsOverlayTrans = 0; if (!IS_NATIVE_60FPS || (s_60fpsOverlayTrans ^= 1)) gGT->overlayTransition--; }
+#else
+gGT->overlayTransition--;
+#endif
 					if (gGT->overlayTransition == 1)
 						LOAD_OvrThreads(2);
 				}

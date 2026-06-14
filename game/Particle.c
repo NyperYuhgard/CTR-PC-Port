@@ -335,7 +335,11 @@ void Particle_UpdateList(struct Particle **listHead, struct Particle *p)
 		u16 activeFlags;
 		struct ParticleOscillator *osc;
 
-		p->framesLeftInLife = (s16)(p->framesLeftInLife - 1);
+#ifdef CTR_NATIVE
+{ static int s_60fpsParticleLife = 0; if (!IS_NATIVE_60FPS || (s_60fpsParticleLife ^= 1)) p->framesLeftInLife = (s16)(p->framesLeftInLife - 1); }
+#else
+p->framesLeftInLife = (s16)(p->framesLeftInLife - 1);
+#endif
 		if (p->framesLeftInLife == -1)
 			goto destroyParticle;
 

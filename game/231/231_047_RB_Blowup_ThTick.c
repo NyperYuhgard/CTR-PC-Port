@@ -12,7 +12,11 @@ static void RB_Blowup_UpdateSlot(int *slot)
 	nextFrame = inst->animFrame + 1;
 	if (nextFrame < INSTANCE_GetNumAnimFrames(inst, 0))
 	{
+#ifdef CTR_NATIVE
+		{ static int s_60fpsBlowupToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsBlowupToggle ^= 1)) inst->animFrame++; }
+#else
 		inst->animFrame++;
+#endif
 		return;
 	}
 

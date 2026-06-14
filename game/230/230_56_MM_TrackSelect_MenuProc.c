@@ -59,7 +59,11 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 			}
 			else
 			{
+#ifdef CTR_NATIVE
+				{ static int s_60fpsTrackSelToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsTrackSelToggle ^= 1)) elapsedFrames--; }
+#else
 				elapsedFrames--;
+#endif
 			}
 		}
 		// transitioning out

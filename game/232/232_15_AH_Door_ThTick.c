@@ -210,7 +210,11 @@ void AH_Door_ThTick(struct Thread *t)
 	{
 		if (door->camTimer_unused != 0)
 		{
+#ifdef CTR_NATIVE
+			{ static int s_60fpsDoorToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsDoorToggle ^= 1)) door->camTimer_unused--; }
+#else
 			door->camTimer_unused--;
+#endif
 			return;
 		}
 

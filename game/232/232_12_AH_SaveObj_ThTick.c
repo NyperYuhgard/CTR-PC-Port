@@ -187,7 +187,11 @@ LAB_800af72c:
 		if ((int)sVar1 < iVar7 - 1)
 		{
 			// increment animation frame
+#ifdef CTR_NATIVE
+			{ static int s_60fpsSaveAnimToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsSaveAnimToggle ^= 1)) saveInst->animFrame += 1; }
+#else
 			saveInst->animFrame += 1;
+#endif
 		}
 
 		// if animation is finished,

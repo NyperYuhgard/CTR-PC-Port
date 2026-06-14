@@ -1437,7 +1437,11 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, s16 *pushBu
 			*(int *)(scratchpad + 0x260) += (cDC->BlastedLerp.desiredRot[2] * cDC->BlastedLerp.framesRemaining) >> 3;
 
 			// decrease frame countdown
-			cDC->BlastedLerp.framesRemaining--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsBlastedLerp = 0; if (!IS_NATIVE_60FPS || (s_60fpsBlastedLerp ^= 1)) cDC->BlastedLerp.framesRemaining--; }
+#else
+cDC->BlastedLerp.framesRemaining--;
+#endif
 		}
 	}
 
@@ -1770,7 +1774,11 @@ LAB_8001ab04:
 
 	Countdown8E:
 
-		cDC->unk8E--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsCamUnk8E = 0; if (!IS_NATIVE_60FPS || (s_60fpsCamUnk8E ^= 1)) cDC->unk8E--; }
+#else
+cDC->unk8E--;
+#endif
 		if (cDC->unk8E < 0)
 		{
 			// This is normally not here,

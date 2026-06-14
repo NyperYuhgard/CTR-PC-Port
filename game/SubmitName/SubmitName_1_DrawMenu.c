@@ -64,7 +64,11 @@ s16 SubmitName_DrawMenu(u16 string)
 		cursorPosition = 38;
 	}
 
-	sdata->typeTimer++;
+#ifdef CTR_NATIVE
+{ static int s_60fpsTypeTimer = 0; if (!IS_NATIVE_60FPS || (s_60fpsTypeTimer ^= 1)) sdata->typeTimer++; }
+#else
+sdata->typeTimer++;
+#endif
 	letterID = 0;
 
 	// grid of letters, 13x3

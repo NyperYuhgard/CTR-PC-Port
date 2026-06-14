@@ -34,7 +34,11 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 
 			if (psVar9->clockSend)
 			{
-				psVar9->clockSend--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsClockSend = 0; if (!IS_NATIVE_60FPS || (s_60fpsClockSend ^= 1)) psVar9->clockSend--; }
+#else
+psVar9->clockSend--;
+#endif
 			}
 			uVar3 = psVar9->clockFlash;
 			if (uVar3 == 0)
@@ -67,7 +71,11 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 #if defined(CTR_NATIVE)
 				DISPLAY_Blur_Main(pushBuffer, -uVar3);
 #endif
-				psVar9->clockFlash--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsClockFlash = 0; if (!IS_NATIVE_60FPS || (s_60fpsClockFlash ^= 1)) psVar9->clockFlash--; }
+#else
+psVar9->clockFlash--;
+#endif
 			}
 		LAB_80034e74:
 			pushBuffer = pushBuffer + 1;
@@ -318,8 +326,12 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 			}
 			else
 			{
-				gGT->cooldownfromPauseUntilUnpause--;
-			}
+#ifdef CTR_NATIVE
+{ static int s_60fpsCooldownPause = 0; if (!IS_NATIVE_60FPS || (s_60fpsCooldownPause ^= 1)) gGT->cooldownfromPauseUntilUnpause--; }
+#else
+gGT->cooldownfromPauseUntilUnpause--;
+#endif
+		}
 		}
 		else if (gGT->cooldownFromUnpauseUntilPause == 0)
 		{
@@ -351,7 +363,11 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		}
 		else
 		{
-			gGT->cooldownFromUnpauseUntilPause--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsCooldownUnpause = 0; if (!IS_NATIVE_60FPS || (s_60fpsCooldownUnpause ^= 1)) gGT->cooldownFromUnpauseUntilPause--; }
+#else
+gGT->cooldownFromUnpauseUntilPause--;
+#endif
 		}
 	}
 	else if (gGT->timerEndOfRaceVS == 0)
@@ -403,7 +419,11 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 				gGT->gameModeEnd &= ~(NEW_BEST_LAP | NEW_HIGH_SCORE);
 				return;
 			}
-			gGT->unk_timerCooldown_similarTo_1d36--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsTimerCooldown = 0; if (!IS_NATIVE_60FPS || (s_60fpsTimerCooldown ^= 1)) gGT->unk_timerCooldown_similarTo_1d36--; }
+#else
+gGT->unk_timerCooldown_similarTo_1d36--;
+#endif
 		}
 	}
 	else if ((uVar3 & ARCADE_MODE) == 0)
@@ -417,7 +437,11 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		}
 		if (0x1e < gGT->timerEndOfRaceVS)
 		{
-			gGT->timerEndOfRaceVS--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsTimerEndRace = 0; if (!IS_NATIVE_60FPS || (s_60fpsTimerEndRace ^= 1)) gGT->timerEndOfRaceVS--; }
+#else
+gGT->timerEndOfRaceVS--;
+#endif
 		}
 	}
 	else

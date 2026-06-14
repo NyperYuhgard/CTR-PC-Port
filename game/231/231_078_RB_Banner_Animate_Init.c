@@ -66,7 +66,11 @@ int RB_Banner_Animate_Init(struct ModelHeader *mh)
 				RB_Banner_SaveVertex(stackIndex, vertex);
 				xQuarter = vertex[0] >> 2;
 				vertex += 3;
+#ifdef CTR_NATIVE
+				{ static int s_60fpsBannerToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsBannerToggle ^= 1)) count++; }
+#else
 				count++;
+#endif
 				*cmd = RB_Banner_RewriteCommandX(command, xQuarter, 0);
 			}
 			else
@@ -90,7 +94,11 @@ int RB_Banner_Animate_Init(struct ModelHeader *mh)
 				RB_Banner_SaveVertex(stackIndex, vertex);
 				xQuarter = vertex[0] >> 2;
 				vertex += 3;
+#ifdef CTR_NATIVE
+				{ static int s_60fpsBannerToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsBannerToggle ^= 1)) count++; }
+#else
 				count++;
+#endif
 				*cmd = RB_Banner_RewriteCommandX(command, xQuarter, 0);
 			}
 			else

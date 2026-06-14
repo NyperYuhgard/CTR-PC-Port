@@ -83,7 +83,11 @@ void AH_Pause_Update()
 
 	// page is flipping
 	if (D232.pausePageTimer > 0)
+#ifdef CTR_NATIVE
+		{ static int s_60fpsPauseToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPauseToggle ^= 1)) D232.pausePageTimer--; }
+#else
 		D232.pausePageTimer--;
+#endif
 
 	// page is not flipping, flip desired
 	else if (gGT->advPausePage != D232.pausePageCurr)

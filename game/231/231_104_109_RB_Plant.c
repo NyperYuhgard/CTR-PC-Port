@@ -40,7 +40,11 @@ void RB_Plant_ThTick_Eat(struct Thread *t)
 		if ((plantInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(plantInst, PlantAnim_StartEat))
 		{
 			// increment frame
+#ifdef CTR_NATIVE
+			{ static int s_60fpsPlantEatToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantEatToggle ^= 1)) plantInst->animFrame = plantInst->animFrame + 1; }
+#else
 			plantInst->animFrame = plantInst->animFrame + 1;
+#endif
 		}
 
 		// if animation is over
@@ -64,7 +68,11 @@ void RB_Plant_ThTick_Eat(struct Thread *t)
 		if ((plantInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(plantInst, PlantAnim_Chew))
 		{
 			// increment frame
+#ifdef CTR_NATIVE
+			{ static int s_60fpsPlantEatToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantEatToggle ^= 1)) plantInst->animFrame = plantInst->animFrame + 1; }
+#else
 			plantInst->animFrame = plantInst->animFrame + 1;
+#endif
 
 			// last frame
 			if (plantInst->animFrame == 0xf)
@@ -97,7 +105,11 @@ void RB_Plant_ThTick_Eat(struct Thread *t)
 		if ((plantInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(plantInst, PlantAnim_Spit))
 		{
 			// increment frame
+#ifdef CTR_NATIVE
+			{ static int s_60fpsPlantEatToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantEatToggle ^= 1)) plantInst->animFrame = plantInst->animFrame + 1; }
+#else
 			plantInst->animFrame = plantInst->animFrame + 1;
+#endif
 
 			// last frame
 			if (plantInst->animFrame == 0x19)
@@ -174,7 +186,11 @@ void RB_Plant_ThTick_Grab(struct Thread *t)
 		if ((plantInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(plantInst, PlantAnim_GrabDriver))
 		{
 			// increment frame
+#ifdef CTR_NATIVE
+			{ static int s_60fpsPlantGrabToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantGrabToggle ^= 1)) plantInst->animFrame = plantInst->animFrame + 1; }
+#else
 			plantInst->animFrame = plantInst->animFrame + 1;
+#endif
 
 			plantBoxDescLocal.bucket = gGT->threadBuckets[MINE].thread;
 			hitInst = LinkedCollide_Hitbox_Desc(&plantBoxDescLocal);
@@ -202,7 +218,11 @@ void RB_Plant_ThTick_Grab(struct Thread *t)
 	{
 		if ((plantInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(plantInst, PlantAnim_GrabMine))
 		{
+#ifdef CTR_NATIVE
+			{ static int s_60fpsPlantGrabToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantGrabToggle ^= 1)) plantInst->animFrame = plantInst->animFrame + 1; }
+#else
 			plantInst->animFrame = plantInst->animFrame + 1;
+#endif
 		}
 		else
 		{
@@ -222,7 +242,11 @@ void RB_Plant_ThTick_Transition_HungryToRest(struct Thread *t)
 	if ((plantInst->animFrame - 1) > 0)
 	{
 		// increment frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsPlantTransitionBack = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantTransitionBack ^= 1)) plantInst->animFrame = plantInst->animFrame - 1; }
+#else
 		plantInst->animFrame = plantInst->animFrame - 1;
+#endif
 	}
 
 	// animation is done
@@ -258,7 +282,11 @@ void RB_Plant_ThTick_Hungry(struct Thread *t)
 	if ((plantInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(plantInst, PlantAnim_Hungry))
 	{
 		// increment frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsPlantHungryToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantHungryToggle ^= 1)) plantInst->animFrame = plantInst->animFrame + 1; }
+#else
 		plantInst->animFrame = plantInst->animFrame + 1;
+#endif
 	}
 
 	// if animation is done
@@ -351,17 +379,25 @@ void RB_Plant_ThTick_Rest(struct Thread *t)
 
 	if (plantObj->cooldown != 0)
 	{
-		plantObj->cooldown--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsPlantCooldown = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantCooldown ^= 1)) plantObj->cooldown--; }
+#else
+plantObj->cooldown--;
+#endif
 		return;
 	}
 
-	if (plantInst->animIndex == PlantAnim_Rest)
+		if (plantInst->animIndex == PlantAnim_Rest)
 	{
 		// if animation is not over
 		if ((plantInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(plantInst, PlantAnim_Rest))
 		{
 			// increment frame
+#ifdef CTR_NATIVE
+			{ static int s_60fpsPlantRestToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantRestToggle ^= 1)) plantInst->animFrame = plantInst->animFrame + 1; }
+#else
 			plantInst->animFrame = plantInst->animFrame + 1;
+#endif
 		}
 
 		// if animation is done
@@ -386,7 +422,11 @@ void RB_Plant_ThTick_Rest(struct Thread *t)
 		if ((plantInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(plantInst, PlantAnim_TransitionRestHungry))
 		{
 			// increment frame
+#ifdef CTR_NATIVE
+			{ static int s_60fpsPlantRestToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPlantRestToggle ^= 1)) plantInst->animFrame = plantInst->animFrame + 1; }
+#else
 			plantInst->animFrame = plantInst->animFrame + 1;
+#endif
 		}
 
 		// animation is done

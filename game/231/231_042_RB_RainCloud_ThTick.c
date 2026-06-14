@@ -30,7 +30,11 @@ void RB_RainCloud_ThTick(struct Thread *t)
 	if ((int)animFrame < numFrames - 1)
 	{
 		// increment animation frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsRainCloudToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsRainCloudToggle ^= 1)) inst->animFrame++; }
+#else
 		inst->animFrame++;
+#endif
 	}
 
 	// if animation is done
@@ -49,7 +53,7 @@ void RB_RainCloud_ThTick(struct Thread *t)
 	}
 
 	// offset upward before averaging
-	inst->matrix.t[1] += (inst->scale[1] * 5 >> 7);
+	inst->matrix.t[1] += FPS_HALF(inst->scale[1] * 5 >> 7);
 
 	// X, Y, Z
 	for (int i = 0; i < 3; i++)

@@ -123,7 +123,11 @@ void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d)
 			UI_Lerp2D_HUD(&posXY[0], d->PickupTimeboxHUD.startX, d->PickupTimeboxHUD.startY, (int)posX, (int)posY, d->PickupTimeboxHUD.cooldown, 5);
 
 			// subtract one from timer
-			d->PickupTimeboxHUD.cooldown--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsWeaponTimebox = 0; if (!IS_NATIVE_60FPS || (s_60fpsWeaponTimebox ^= 1)) d->PickupTimeboxHUD.cooldown--; }
+#else
+d->PickupTimeboxHUD.cooldown--;
+#endif
 		}
 
 		iconID = itemID + 5;

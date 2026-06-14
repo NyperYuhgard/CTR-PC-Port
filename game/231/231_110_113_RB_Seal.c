@@ -101,7 +101,11 @@ void RB_Seal_ThTick_TurnAround(struct Thread *t)
 	if ((sealInst->animFrame + 2) < INSTANCE_GetNumAnimFrames(sealInst, 0))
 	{
 		// increment frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsSealTurnToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsSealTurnToggle ^= 1)) sealInst->animFrame = sealInst->animFrame + 2; }
+#else
 		sealInst->animFrame = sealInst->animFrame + 2;
+#endif
 	}
 
 	// if animation is done
@@ -163,7 +167,11 @@ void RB_Seal_ThTick_Move(struct Thread *t)
 	if ((sealInst->animFrame + 2) < INSTANCE_GetNumAnimFrames(sealInst, 0))
 	{
 		// increment frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsSealMoveToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsSealMoveToggle ^= 1)) sealInst->animFrame = sealInst->animFrame + 2; }
+#else
 		sealInst->animFrame = sealInst->animFrame + 2;
+#endif
 	}
 
 	// if animation is done
@@ -186,7 +194,11 @@ void RB_Seal_ThTick_Move(struct Thread *t)
 	{
 		if (sealObj->distFromSpawn > 0)
 		{
+#ifdef CTR_NATIVE
+			{ static int s_60fpsSealMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsSealMove ^= 1)) sealObj->distFromSpawn--; }
+#else
 			sealObj->distFromSpawn--;
+#endif
 			Seal_CheckColl(sealInst, t, 1, 0x4000, 0x78);
 			return;
 		}
@@ -205,7 +217,11 @@ void RB_Seal_ThTick_Move(struct Thread *t)
 	{
 		if (sealObj->distFromSpawn < 0x2d)
 		{
+#ifdef CTR_NATIVE
+			{ static int s_60fpsSealMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsSealMove ^= 1)) sealObj->distFromSpawn++; }
+#else
 			sealObj->distFromSpawn++;
+#endif
 			Seal_CheckColl(sealInst, t, 1, 0x4000, 0x78);
 			return;
 		}

@@ -254,7 +254,11 @@ void AH_MaskHint_Update()
 
 		AH_MaskHint_LerpVol(0);
 
+#ifdef CTR_NATIVE
+		{ static int s_60fpsMaskWarppadToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsMaskWarppadToggle ^= 1)) D232.maskWarppadDelayFrames--; }
+#else
 		D232.maskWarppadDelayFrames--;
+#endif
 
 		if (D232.maskWarppadDelayFrames < 1)
 		{

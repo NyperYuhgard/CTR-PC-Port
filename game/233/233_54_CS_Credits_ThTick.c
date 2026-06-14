@@ -46,7 +46,11 @@ void CS_Credits_ThTick(void)
 
 	if (co->countdown > 0)
 	{
+#ifdef CTR_NATIVE
+		{ static int s_60fpsCreditsCountdownToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsCreditsCountdownToggle ^= 1)) co->countdown--; }
+#else
 		co->countdown--;
+#endif
 	}
 
 	CS_Credits_DrawNames(co);

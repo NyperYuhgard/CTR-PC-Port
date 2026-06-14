@@ -315,7 +315,11 @@ void UI_RenderFrame_Racing()
 					*(u32 *)&curr->flags &= 0xffffff7f;
 
 					// reduce frame counter
-					playerStruct->PickupLetterHUD.cooldown--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsLetterHUD = 0; if (!IS_NATIVE_60FPS || (s_60fpsLetterHUD ^= 1)) playerStruct->PickupLetterHUD.cooldown--; }
+#else
+playerStruct->PickupLetterHUD.cooldown--;
+#endif
 
 					// PickupLetterHUD.startX and PickupLetterHUD.startY are start position of animation
 
@@ -358,7 +362,11 @@ void UI_RenderFrame_Racing()
 					              playerStruct->PickupTimeboxHUD.cooldown, 10);
 
 					// Decrease remaining number of frames for this to be on screen
-					playerStruct->PickupTimeboxHUD.cooldown--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsTimeboxHUD = 0; if (!IS_NATIVE_60FPS || (s_60fpsTimeboxHUD ^= 1)) playerStruct->PickupTimeboxHUD.cooldown--; }
+#else
+playerStruct->PickupTimeboxHUD.cooldown--;
+#endif
 
 					// Put string on the screen
 					// This happens for 10 frames
@@ -415,7 +423,11 @@ void UI_RenderFrame_Racing()
 					              (int)(hudStructPtr[0xD].x + 0x20), (int)(hudStructPtr[0xD].y + 8), playerStruct->BattleHUD.cooldown, 5);
 
 					// subtract one from the number of frames that the animation lasts
-					playerStruct->BattleHUD.cooldown--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsBattleHUD = 0; if (!IS_NATIVE_60FPS || (s_60fpsBattleHUD ^= 1)) playerStruct->BattleHUD.cooldown--; }
+#else
+playerStruct->BattleHUD.cooldown--;
+#endif
 
 					// print the string that shows the change in your score
 					DecalFont_DrawLine((char *)&string[0], (int)wumpaModel_Pos[0], (int)wumpaModel_Pos[1], FONT_SMALL, RED);

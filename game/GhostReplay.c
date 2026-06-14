@@ -38,7 +38,11 @@ void GhostReplay_ThTick(struct Thread *t)
 		DecalFont_DrawLine(sdata->lngStrings[LNG_GHOST_DATA_OVERFLOW], 0x100, 0x28, 2, color);
 		DecalFont_DrawLine(sdata->lngStrings[LNG_CAN_NOT_SAVE_GHOST_DATA], 0x100, 0x32, 2, color);
 
-		sdata->ghostOverflowTextTimer--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsGhostOverflow = 0; if (!IS_NATIVE_60FPS || (s_60fpsGhostOverflow ^= 1)) sdata->ghostOverflowTextTimer--; }
+#else
+sdata->ghostOverflowTextTimer--;
+#endif
 	}
 
 	gGT = sdata->gGT;

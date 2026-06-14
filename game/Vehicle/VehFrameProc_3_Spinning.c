@@ -35,7 +35,11 @@ void VehFrameProc_Spinning(struct Thread *t, struct Driver *d)
 
 		if (inst->animIndex != 0)
 		{
-			inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 4, targetFrame);
+#ifdef CTR_NATIVE
+{ static int s_60fpsAnimSpin1 = 0; if (!IS_NATIVE_60FPS || (s_60fpsAnimSpin1 ^= 1)) inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 4, targetFrame); }
+#else
+inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 4, targetFrame);
+#endif
 			return;
 		}
 	}
@@ -46,5 +50,9 @@ void VehFrameProc_Spinning(struct Thread *t, struct Driver *d)
 		targetFrame = numFrames - 1;
 	}
 
-	inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 4, targetFrame);
+#ifdef CTR_NATIVE
+{ static int s_60fpsAnimSpin2 = 0; if (!IS_NATIVE_60FPS || (s_60fpsAnimSpin2 ^= 1)) inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 4, targetFrame); }
+#else
+inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 4, targetFrame);
+#endif
 }

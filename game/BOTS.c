@@ -1376,11 +1376,15 @@ give_this_label_a_better_name2:
 					}
 					botVelocity = (accel * botTerrain->unk_0x34[3]) >> 8;
 
-					if (botDriver->botData.botAccel != 0)
-					{
-						botDriver->botData.botAccel--;
-						botVelocity = (botVelocity * (0x100 - (sdata->AI_AccelFrameSteps * sdata->accelerateOrder[botDriver->driverID]))) >> 8;
-					}
+				if (botDriver->botData.botAccel != 0)
+				{
+#ifdef CTR_NATIVE
+{ static int s_60fpsBotAccel = 0; if (!IS_NATIVE_60FPS || (s_60fpsBotAccel ^= 1)) botDriver->botData.botAccel--; }
+#else
+botDriver->botData.botAccel--;
+#endif
+					botVelocity = (botVelocity * (0x100 - (sdata->AI_AccelFrameSteps * sdata->accelerateOrder[botDriver->driverID]))) >> 8;
+				}
 
 					botDriver->botData.unk5bc.ai_speedLinear += botVelocity;
 				}
@@ -1474,7 +1478,11 @@ give_this_label_a_better_name2:
 
 		if (botDriver->botData.ai_progress_cooldown != 0)
 		{
-			botDriver->botData.ai_progress_cooldown--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsAiProgress = 0; if (!IS_NATIVE_60FPS || (s_60fpsAiProgress ^= 1)) botDriver->botData.ai_progress_cooldown--; }
+#else
+botDriver->botData.ai_progress_cooldown--;
+#endif
 		}
 
 		deltaPosThisFrame = botDriver->botData.unk5a8;

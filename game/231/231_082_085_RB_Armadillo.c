@@ -26,7 +26,11 @@ void RB_Armadillo_ThTick_TurnAround(struct Thread *t)
 		// if animation is not over
 		if ((armInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(armInst, 0))
 		{
+#ifdef CTR_NATIVE
+			{ static int s_60fpsArmadilloTurnToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsArmadilloTurnToggle ^= 1)) armInst->animFrame = armInst->animFrame + 1; }
+#else
 			armInst->animFrame = armInst->animFrame + 1;
+#endif
 		}
 
 		// === End of TurnAround ===
@@ -58,7 +62,11 @@ void RB_Armadillo_ThTick_TurnAround(struct Thread *t)
 		ConvertRotToMatrix(&armInst->matrix, &armObj->rotCurr[0]);
 
 		// increment frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsArmadilloTurnToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsArmadilloTurnToggle ^= 1)) armInst->animFrame = armInst->animFrame + 1; }
+#else
 		armInst->animFrame = armInst->animFrame + 1;
+#endif
 	}
 
 	Seal_CheckColl(armInst, t, 1, 0x2400, 0x71);
@@ -76,7 +84,11 @@ void RB_Armadillo_ThTick_Rolling(struct Thread *t)
 
 	if (armObj->timeAtEdge != 0)
 	{
-		armObj->timeAtEdge--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsTimeAtEdge = 0; if (!IS_NATIVE_60FPS || (s_60fpsTimeAtEdge ^= 1)) armObj->timeAtEdge--; }
+#else
+armObj->timeAtEdge--;
+#endif
 		return;
 	}
 
@@ -85,6 +97,9 @@ void RB_Armadillo_ThTick_Rolling(struct Thread *t)
 		// 32ms, 30fps
 		armObj->timeRolling += FPS_HALF(0x20);
 
+#ifdef CTR_NATIVE
+		{ static int s_60fpsArmadilloMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsArmadilloMove ^= 1)) {
+#endif
 		if (armObj->direction == 0)
 			armObj->distFromSpawn++;
 		else
@@ -92,12 +107,19 @@ void RB_Armadillo_ThTick_Rolling(struct Thread *t)
 
 		armInst->matrix.t[0] += armObj->velX;
 		armInst->matrix.t[2] += armObj->velZ;
+#ifdef CTR_NATIVE
+		} }
+#endif
 
 		// if animation is not over
 		if ((armInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(armInst, 1))
 		{
 			// increment frame
+#ifdef CTR_NATIVE
+			{ static int s_60fpsArmadilloRollToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsArmadilloRollToggle ^= 1)) armInst->animFrame = armInst->animFrame + 1; }
+#else
 			armInst->animFrame = armInst->animFrame + 1;
+#endif
 		}
 
 		// if animation is done

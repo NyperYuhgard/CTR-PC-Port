@@ -11,7 +11,11 @@ void UI_Weapon_DrawBG(s16 param_1, s16 param_2, s16 param_3, struct Driver *d)
 	// reduce frame timer until it hits zero (unused?)
 	if (d->BattleHUD.juicedUpCooldown != 0)
 	{
-		d->BattleHUD.juicedUpCooldown--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsJuicedUp = 0; if (!IS_NATIVE_60FPS || (s_60fpsJuicedUp ^= 1)) d->BattleHUD.juicedUpCooldown--; }
+#else
+d->BattleHUD.juicedUpCooldown--;
+#endif
 	}
 
 	iVar2 = (int)param_3;

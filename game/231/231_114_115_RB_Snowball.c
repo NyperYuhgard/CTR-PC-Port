@@ -52,7 +52,11 @@ void RB_Snowball_ThTick(struct Thread *t)
 		RB_Minecart_CheckColl(snowInst, t);
 	}
 
+#ifdef CTR_NATIVE
+	{ static int s_60fpsSnowballMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsSnowballMove ^= 1)) snowObj->pointIndex = (snowObj->pointIndex + 1) % (snowObj->numPoints * 2); }
+#else
 	snowObj->pointIndex = (snowObj->pointIndex + 1) % (snowObj->numPoints * 2);
+#endif
 }
 
 void RB_Snowball_LInB(struct Instance *inst)

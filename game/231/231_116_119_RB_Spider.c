@@ -158,7 +158,11 @@ void RB_Spider_ThTick(struct Thread *t)
 
 	if (spider->delay != 0)
 	{
-		spider->delay--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsSpiderDelay = 0; if (!IS_NATIVE_60FPS || (s_60fpsSpiderDelay ^= 1)) spider->delay--; }
+#else
+spider->delay--;
+#endif
 		return;
 	}
 
@@ -221,7 +225,11 @@ void RB_Spider_ThTick(struct Thread *t)
 
 			if (sVar2 + 1 < iVar3)
 			{
+#ifdef CTR_NATIVE
+				{ static int s_60fpsSpiderAnimToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsSpiderAnimToggle ^= 1)) spiderInst->animFrame++; }
+#else
 				spiderInst->animFrame++;
+#endif
 			}
 			else
 			{
@@ -263,7 +271,11 @@ void RB_Spider_ThTick(struct Thread *t)
 		}
 	}
 
+#ifdef CTR_NATIVE
+	{ static int s_60fpsSpiderAnimToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsSpiderAnimToggle ^= 1)) spiderInst->animFrame++; }
+#else
 	spiderInst->animFrame++;
+#endif
 
 checkCollision:
 	gGT = sdata->gGT;

@@ -109,7 +109,11 @@ LAB_8004fe8c:
 
 	if (timer != 0)
 	{
-		data.trackerTimer[driverid]--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsTrackerTimer = 0; if (!IS_NATIVE_60FPS || (s_60fpsTrackerTimer ^= 1)) data.trackerTimer[driverid]--; }
+#else
+data.trackerTimer[driverid]--;
+#endif
 	}
 
 	MATRIX *m = &gGT->pushBuffer[driverid].matrix_ViewProj;

@@ -103,7 +103,11 @@ void UI_RenderFrame_CrystChall(void)
 		              5);
 
 		// reduce cooldown between getting each wumpa (or crystal)
-		player->PickupWumpaHUD.cooldown--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsCrystalCooldown = 0; if (!IS_NATIVE_60FPS || (s_60fpsCrystalCooldown ^= 1)) player->PickupWumpaHUD.cooldown--; }
+#else
+player->PickupWumpaHUD.cooldown--;
+#endif
 	}
 
 	struct Instance *hudCrystal = sdata->ptrHudCrystal;

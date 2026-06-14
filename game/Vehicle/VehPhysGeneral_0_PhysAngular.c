@@ -225,7 +225,11 @@ void VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *driver)
 		// driver->unk44e is const val 0x80
 		turnResistMinBitshift = driver->unk44e * turnResistMinBitshift >> 8;
 
+#ifdef CTR_NATIVE
+		{ static int s_60fpsNumFramesSteering = 0; if (!IS_NATIVE_60FPS || (s_60fpsNumFramesSteering ^= 1)) driver->numFramesSpentSteering++; }
+#else
 		driver->numFramesSpentSteering++;
+#endif
 
 		// the higher the value of turnResistMaxBitshift the more steering is "locked up"
 		// try setting mov r3, xxxx at 80060170 for proof

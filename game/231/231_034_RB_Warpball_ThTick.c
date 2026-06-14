@@ -54,7 +54,11 @@ void RB_Warpball_ThTick(struct Thread *t)
 
 	if ((int)inst->animFrame + 1 < INSTANCE_GetNumAnimFrames(inst, 0))
 	{
+#ifdef CTR_NATIVE
+		{ static int s_60fpsWarpballToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsWarpballToggle ^= 1)) inst->animFrame++; }
+#else
 		inst->animFrame++;
+#endif
 	}
 	else
 	{
@@ -400,6 +404,10 @@ void RB_Warpball_ThTick(struct Thread *t)
 
 	if (tw->frameCount_DontHurtParent != 0)
 	{
-		tw->frameCount_DontHurtParent--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsWarpDontHurt = 0; if (!IS_NATIVE_60FPS || (s_60fpsWarpDontHurt ^= 1)) tw->frameCount_DontHurtParent--; }
+#else
+tw->frameCount_DontHurtParent--;
+#endif
 	}
 }

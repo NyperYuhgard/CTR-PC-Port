@@ -754,11 +754,23 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 			}
 
 			if (pad->shockFrameFreq != 0)
-				pad->shockFrameFreq--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsShockFreq = 0; if (!IS_NATIVE_60FPS || (s_60fpsShockFreq ^= 1)) pad->shockFrameFreq--; }
+#else
+pad->shockFrameFreq--;
+#endif
 			if (pad->shockFrameForce1 != 0)
-				pad->shockFrameForce1--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsShockForce1 = 0; if (!IS_NATIVE_60FPS || (s_60fpsShockForce1 ^= 1)) pad->shockFrameForce1--; }
+#else
+pad->shockFrameForce1--;
+#endif
 			if (pad->shockFrameForce2 != 0)
-				pad->shockFrameForce2--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsShockForce2 = 0; if (!IS_NATIVE_60FPS || (s_60fpsShockForce2 ^= 1)) pad->shockFrameForce2--; }
+#else
+pad->shockFrameForce2--;
+#endif
 		}
 
 		else
@@ -784,7 +796,11 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 		}
 
 		if (pad->unk44 != 0)
-			pad->unk44--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsPadUnk44 = 0; if (!IS_NATIVE_60FPS || (s_60fpsPadUnk44 ^= 1)) pad->unk44--; }
+#else
+pad->unk44--;
+#endif
 
 		// Calculate Total Power
 		// 1 standard DualShock uses 30 units of power

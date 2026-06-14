@@ -107,7 +107,11 @@ void RB_Turtle_ThTick(struct Thread *t)
 			if (currTimer < INSTANCE_GetNumAnimFrames(turtleInst, 0))
 			{
 				// increment frame (make turtle fall)
+#ifdef CTR_NATIVE
+				{ static int s_60fpsTurtleToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsTurtleToggle ^= 1)) turtleInst->animFrame = currTimer; }
+#else
 				turtleInst->animFrame = currTimer;
+#endif
 			}
 
 			// finished animation

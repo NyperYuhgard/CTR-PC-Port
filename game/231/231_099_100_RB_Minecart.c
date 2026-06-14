@@ -71,7 +71,11 @@ void RB_Minecart_ThTick(struct Thread *t)
 	if ((minecartInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(minecartInst, 0))
 	{
 		// increment frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsMinecartToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsMinecartToggle ^= 1)) minecartInst->animFrame = minecartInst->animFrame + 1; }
+#else
 		minecartInst->animFrame = minecartInst->animFrame + 1;
+#endif
 	}
 
 	// if animation is done
@@ -91,7 +95,11 @@ void RB_Minecart_ThTick(struct Thread *t)
 	// between two points
 	if (minecartObj->betweenPoints_currFrame < minecartObj->betweenPoints_numFrames)
 	{
+#ifdef CTR_NATIVE
+		{ static int s_60fpsMinecartMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsMinecartMove ^= 1)) minecartObj->betweenPoints_currFrame++; }
+#else
 		minecartObj->betweenPoints_currFrame++;
+#endif
 	}
 
 	// reached point

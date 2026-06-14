@@ -8,8 +8,12 @@ void CS_Podium_Prize_ThTick3(struct Thread *th)
 	s16 *prize = th->object;
 	s16 framesLeft;
 
+#ifdef CTR_NATIVE
+	{ static int s_60fpsPodiumToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsPodiumToggle ^= 1)) { framesLeft = prize[0x13] - 1; prize[0x13] = framesLeft; } else { framesLeft = prize[0x13]; } }
+#else
 	framesLeft = prize[0x13] - 1;
 	prize[0x13] = framesLeft;
+#endif
 
 	if (framesLeft != 0)
 	{

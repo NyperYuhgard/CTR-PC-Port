@@ -101,7 +101,11 @@ LAB_800adc08:;
 	    (driverTarget == 0) || (tw->frameCount_Blind != 0))
 	{
 		if (tw->frameCount_Blind != 0)
-			tw->frameCount_Blind--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsFrameBlind = 0; if (!IS_NATIVE_60FPS || (s_60fpsFrameBlind ^= 1)) tw->frameCount_Blind--; }
+#else
+tw->frameCount_Blind--;
+#endif
 	}
 	else
 	{
@@ -121,7 +125,11 @@ LAB_800adc08:;
 		// if seeking mine
 		else
 		{
-			tw->framesSeekMine--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsSeekMine = 0; if (!IS_NATIVE_60FPS || (s_60fpsSeekMine ^= 1)) tw->framesSeekMine--; }
+#else
+tw->framesSeekMine--;
+#endif
 
 			// if target shot a TNT
 			struct Instance *instTNT = tw->driverTarget->instTntSend;
@@ -191,7 +199,11 @@ LAB_800adc08:;
 	if ((int)sVar3 + 1 < iVar8)
 	{
 		// increment animation frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsMovingExplosiveToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsMovingExplosiveToggle ^= 1)) inst->animFrame += 1; }
+#else
 		inst->animFrame += 1;
+#endif
 	}
 
 	// if animation finished
@@ -390,7 +402,11 @@ LAB_800adc08:;
 			{
 			LAB_800ae440:
 				if (tw->frameCount_DontHurtParent != 0)
-					tw->frameCount_DontHurtParent--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsDontHurtParent = 0; if (!IS_NATIVE_60FPS || (s_60fpsDontHurtParent ^= 1)) tw->frameCount_DontHurtParent--; }
+#else
+tw->frameCount_DontHurtParent--;
+#endif
 
 				return;
 			}

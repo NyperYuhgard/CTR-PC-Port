@@ -34,7 +34,11 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 			// if no buttons pressed, check demo mode
 			if (sdata->gGamepads->anyoneHeldCurr == 0)
 			{
-				gGT->demoCountdownTimer--;
+#ifdef CTR_NATIVE
+			{ static int s_60fpsDemoToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsDemoToggle ^= 1)) gGT->demoCountdownTimer--; }
+#else
+			gGT->demoCountdownTimer--;
+#endif
 
 				// If time runs out
 				if (gGT->demoCountdownTimer < 1)

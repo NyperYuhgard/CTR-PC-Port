@@ -63,7 +63,11 @@ void RB_GenericMine_ThTick(struct Thread *t)
 	if (inst->animFrame < numFrames - 1)
 	{
 		// increment animation frame
+#ifdef CTR_NATIVE
+		{ static int s_60fpsMineAnimToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsMineAnimToggle ^= 1)) inst->animFrame++; }
+#else
 		inst->animFrame++;
+#endif
 	}
 	// if animation is over
 	else
@@ -343,7 +347,11 @@ void RB_GenericMine_ThTick(struct Thread *t)
 LAB_800ad17c:
 
 	if (mw->frameCount_DontHurtParent != 0)
-		mw->frameCount_DontHurtParent--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsMineDontHurt = 0; if (!IS_NATIVE_60FPS || (s_60fpsMineDontHurt ^= 1)) mw->frameCount_DontHurtParent--; }
+#else
+mw->frameCount_DontHurtParent--;
+#endif
 
 	// if mineWeapon->boolDestroyed == 0
 	if (mw->boolDestroyed == 0)

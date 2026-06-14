@@ -13,7 +13,11 @@ void Level_RandomFX(int *cooldown, u32 soundID, int baseCooldown, u32 randomRang
 
 	if (cooldownValue > 0)
 	{
-		*cooldown = cooldownValue - 1;
+#ifdef CTR_NATIVE
+{ static int s_60fpsLevelRndFX = 0; if (!IS_NATIVE_60FPS || (s_60fpsLevelRndFX ^= 1)) *cooldown = cooldownValue - 1; }
+#else
+*cooldown = cooldownValue - 1;
+#endif
 		cooldownValue = *cooldown;
 	}
 

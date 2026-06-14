@@ -27,7 +27,11 @@ int DriverIndex_GetDamageColor(int iVar14)
 		local_30 += strength * 0x10000;
 
 		// one frame closer to zero
-		d->damageColorTimer += 1;
+#ifdef CTR_NATIVE
+{ static int s_60fpsDamageColorInc = 0; if (!IS_NATIVE_60FPS || (s_60fpsDamageColorInc ^= 1)) d->damageColorTimer += 1; }
+#else
+d->damageColorTimer += 1;
+#endif
 	}
 
 	// 30 to 1
@@ -40,7 +44,11 @@ int DriverIndex_GetDamageColor(int iVar14)
 		local_30 += strength * 0x10000;
 
 		// one frame closer to zero
-		d->damageColorTimer -= 1;
+#ifdef CTR_NATIVE
+{ static int s_60fpsDamageColorDec = 0; if (!IS_NATIVE_60FPS || (s_60fpsDamageColorDec ^= 1)) d->damageColorTimer -= 1; }
+#else
+d->damageColorTimer -= 1;
+#endif
 	}
 
 	return local_30;

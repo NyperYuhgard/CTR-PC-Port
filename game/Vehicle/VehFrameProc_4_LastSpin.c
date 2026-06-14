@@ -34,5 +34,9 @@ void VehFrameProc_LastSpin(struct Thread *t, struct Driver *d)
 		targetFrame = 0;
 	}
 
-	inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 3, targetFrame);
+#ifdef CTR_NATIVE
+{ static int s_60fpsAnimLastSpin = 0; if (!IS_NATIVE_60FPS || (s_60fpsAnimLastSpin ^= 1)) inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 3, targetFrame); }
+#else
+inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 3, targetFrame);
+#endif
 }

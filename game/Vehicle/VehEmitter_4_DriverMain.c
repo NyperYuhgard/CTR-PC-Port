@@ -343,7 +343,11 @@ static int VehEmitter_ShouldSkipExhaust(struct Thread *thread, struct Driver *d)
 	}
 
 	if (d->unk381 != 0)
-		d->unk381--;
+#ifdef CTR_NATIVE
+{ static int s_60fpsUnk381 = 0; if (!IS_NATIVE_60FPS || (s_60fpsUnk381 ^= 1)) d->unk381--; }
+#else
+d->unk381--;
+#endif
 
 	return 0;
 }
