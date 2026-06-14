@@ -1,5 +1,15 @@
 #include <common.h>
 
+#define GHOST_VISIBLE_ROWS 7
+
+static int s_showOnlyDevGhosts = 0;
+static int s_ghostScrollOffset = 0;
+
+void SelectProfile_SetShowOnlyDevGhosts(int val)
+{
+    s_showOnlyDevGhosts = val;
+}
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047da8-0x80047dfc.
 void SelectProfile_QueueLoadHub_MenuProc(struct RectMenu *menu)
 {
@@ -468,6 +478,10 @@ void SelectProfile_ToggleMode(u32 mode)
 	*(s16 *)&sdata->data10_bbb[10] = 0;
 	*SelectProfile_TimerSaveComplete() = 0;
 
+	// Reset ghost scroll offset when entering ghost mode
+	if ((mode & 0xf0) == 0x30)
+		s_ghostScrollOffset = 0;
+
 	SelectProfile_UnMuteCursors();
 
 	data.menuFourAdvProfiles.drawStyle &= ~0x10;
@@ -501,24 +515,87 @@ u32 SelectProfile_InputLogic(struct RectMenu *menu, s16 numRows, u32 confirmFlag
 		u16 nextRow = oldRow - 2;
 		s16 selectedRow;
 
-		if ((tap & BTN_UP) != 0)
+		// Ghost mode with scrolling support (30 items, 8 visible)
+		if (sdata->data10_bbb[0] == 0x30 && numRows > GHOST_VISIBLE_ROWS)
 		{
-			menu->rowSelected = nextRow;
+			int maxRows = numRows;
+			int itemsPerPage = GHOST_VISIBLE_ROWS;
+			int totalPages = (maxRows + itemsPerPage - 1) / itemsPerPage;
+			int currentPage = s_ghostScrollOffset / itemsPerPage;
+			int pageStart = currentPage * itemsPerPage;
+			int pageEnd = pageStart + itemsPerPage;
+			if (pageEnd > maxRows) pageEnd = maxRows;
+			int itemsOnPage = pageEnd - pageStart;
+
+			if ((tap & BTN_UP) != 0)
+			{
+				if (menu->rowSelected >= pageStart + 2)
+				{
+					menu->rowSelected -= 2;
+				}
+				else
+				{
+					menu->rowSelected = pageStart;
+				}
+			}
+			else if ((tap & BTN_DOWN) != 0)
+			{
+				if (menu->rowSelected < pageEnd - 2)
+				{
+					menu->rowSelected += 2;
+				}
+				else
+				{
+					menu->rowSelected = pageEnd - 1;
+				}
+			}
+			else if ((tap & BTN_LEFT) != 0)
+			{
+				if (menu->rowSelected > pageStart && (menu->rowSelected & 1) != 0)
+				{
+					menu->rowSelected--;
+				}
+				else if (currentPage > 0)
+				{
+					s_ghostScrollOffset -= itemsPerPage;
+					menu->rowSelected = s_ghostScrollOffset + (itemsOnPage - 1);
+				}
+			}
+			else if ((tap & BTN_RIGHT) != 0)
+			{
+				if (menu->rowSelected < pageEnd - 1 && (menu->rowSelected & 1) == 0)
+				{
+					menu->rowSelected++;
+				}
+				else if (currentPage < totalPages - 1)
+				{
+					s_ghostScrollOffset += itemsPerPage;
+					menu->rowSelected = s_ghostScrollOffset;
+				}
+			}
 		}
 		else
 		{
-			nextRow = oldRow + 2;
-
-			if ((tap & BTN_DOWN) != 0)
+			// Original navigation for other modes
+			if ((tap & BTN_UP) != 0)
 			{
 				menu->rowSelected = nextRow;
 			}
 			else
 			{
-				nextRow = oldRow ^ 1;
+				nextRow = oldRow + 2;
 
-				if ((tap & (BTN_LEFT | BTN_RIGHT)) != 0)
+				if ((tap & BTN_DOWN) != 0)
+				{
 					menu->rowSelected = nextRow;
+				}
+				else
+				{
+					nextRow = oldRow ^ 1;
+
+					if ((tap & (BTN_LEFT | BTN_RIGHT)) != 0)
+						menu->rowSelected = nextRow;
+				}
 			}
 		}
 
@@ -527,6 +604,7 @@ u32 SelectProfile_InputLogic(struct RectMenu *menu, s16 numRows, u32 confirmFlag
 		{
 			menu->rowSelected = 0;
 			selectedRow = menu->rowSelected;
+			s_ghostScrollOffset = 0;
 		}
 
 		if (numRows <= selectedRow)
@@ -693,8 +771,8 @@ static int SelectProfile_GhostRowCount(int *savedCount, int *canChooseEmptySlot)
 	if (count < 0)
 		count = 0;
 
-	if (count > 7)
-		count = 7;
+	if (count > 30)
+		count = 30;
 
 	*savedCount = count;
 
@@ -703,9 +781,9 @@ static int SelectProfile_GhostRowCount(int *savedCount, int *canChooseEmptySlot)
 		*canChooseEmptySlot = sdata->memoryCard_SizeRemaining >= 0x3e00;
 		count += *canChooseEmptySlot;
 
-		if (count > 7)
+		if (count > 30)
 		{
-			count = 7;
+			count = 30;
 			*canChooseEmptySlot = 0;
 		}
 	}
@@ -778,37 +856,112 @@ static void SelectProfile_DrawGhostRows(struct RectMenu *menu, int rowCount, int
 		titleEndY += lineGap;
 	}
 
-	for (i = 0; i < rowCountWithEmpty; i++)
+	// Page-based scrolling: clamp to page boundaries
+	int itemsPerPage = GHOST_VISIBLE_ROWS;
+	int totalPages = (rowCountWithEmpty + itemsPerPage - 1) / itemsPerPage;
+	if (totalPages < 1) totalPages = 1;
+	if (s_ghostScrollOffset < 0)
+		s_ghostScrollOffset = 0;
+	if (s_ghostScrollOffset > (totalPages - 1) * itemsPerPage)
+		s_ghostScrollOffset = (totalPages - 1) * itemsPerPage;
+
+	// Calculate current page and visible items
+	int currentPage = s_ghostScrollOffset / itemsPerPage;
+	int pageStart = currentPage * itemsPerPage;
+	int pageEnd = pageStart + itemsPerPage;
+	if (pageEnd > rowCountWithEmpty) pageEnd = rowCountWithEmpty;
+	int itemsOnPage = pageEnd - pageStart;
+
+	// Scroll up indicator (previous page)
+	if (currentPage > 0)
 	{
-		int pair = i >> 1;
+		DecalFont_DrawLine("<", 0x30, titleEndY + 6 + 0x10, FONT_SMALL, WHITE);
+	}
+
+	// Draw ghost profiles for current page only
+	int displayedIndex = 0;
+	int visibleCount = 0;
+	for (i = 0; i < rowCountWithEmpty && visibleCount < itemsOnPage; i++)
+	{
+		int pair = displayedIndex >> 1;
 		int x;
 		int y;
 		int drawStyle = menu->drawStyle;
 		int isWrongTrack = 0;
 
-		if ((i == savedCount) && (i < rowCountWithEmpty))
+		// s_showOnlyDevGhosts = 1: only show NYDEV (Vs Nyper mode)
+		// s_showOnlyDevGhosts = 0: hide NYDEV (Classic mode)
+		if (profile != NULL)
+		{
+			int isDev = (strcmp(profile->SubmitName_name, "NYDEV") == 0);
+			if (s_showOnlyDevGhosts)
+			{
+				if (!isDev)
+				{
+					profile++;
+					continue;
+				}
+			}
+			else
+			{
+				if (isDev)
+				{
+					profile++;
+					continue;
+				}
+			}
+		}
+
+		if (displayedIndex < pageStart)
+		{
+			if (profile != NULL)
+				profile++;
+			displayedIndex++;
+			continue;
+		}
+
+		if (displayedIndex >= pageEnd)
+			break;
+
+		if ((displayedIndex == savedCount) && (displayedIndex < rowCountWithEmpty))
 			profile = NULL;
 
-		if ((i < rowCount - 1) || ((i & 1) != 0))
-			x = ((i & 1) * 0xd4) + 0x2e;
+		if ((visibleCount < itemsOnPage - 1) || ((visibleCount & 1) != 0))
+			x = ((visibleCount & 1) * 0xd4) + 0x2e;
 		else
 			x = 0x98;
 
-		y = titleEndY + 6 + (pair * ((rowCount > 6) ? 0x2b : 0x2f));
+		y = titleEndY + 6 + ((visibleCount >> 1) * ((rowCount > 6) ? 0x2b : 0x2f));
 
 		if (rowCount > 6)
 			drawStyle |= 0x40;
 
-		// NOTE(aalhendi): Retail compares against GameTracker.currLEV
-		// (0x1eb0). Ghost selection happens before QueueLoadTrack, so
-		// levelID still refers to the previously loaded level.
 		if ((profile != NULL) && (profile->trackID != sdata->gGT->currLEV))
 			isWrongTrack = sdata->memcardAction != 1;
 
-		SelectProfile_DrawGhostProfile(profile, x, y, i == menu->rowSelected, i, drawStyle, sdata->memcardAction == 0, isWrongTrack);
+		SelectProfile_DrawGhostProfile(profile, x, y, displayedIndex == menu->rowSelected, displayedIndex, drawStyle, sdata->memcardAction == 0, isWrongTrack);
 
 		if (profile != NULL)
 			profile++;
+
+		displayedIndex++;
+		visibleCount++;
+	}
+
+	// Scroll down indicator (next page)
+	if (currentPage < totalPages - 1)
+	{
+		DecalFont_DrawLine(">", 0x1d0, titleEndY + 6 + 0x10, FONT_SMALL, WHITE);
+	}
+
+	// Page indicator
+	if (totalPages > 1)
+	{
+		char pageBuf[32];
+		snprintf(pageBuf, sizeof(pageBuf), "%d / %d", currentPage + 1, totalPages);
+		int rowsOnPage = (itemsOnPage + 1) >> 1;
+		int lastY = titleEndY + 6 + rowsOnPage * ((rowCount > 6) ? 0x2b : 0x2f);
+		DecalFont_DrawLine(pageBuf, 0x100, lastY + 0x20, FONT_SMALL, JUSTIFY_CENTER | GRAY);
 	}
 }
 

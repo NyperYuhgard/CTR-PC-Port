@@ -4913,7 +4913,7 @@ struct sData
 	int numGhostProfilesSaved;
 
 	// 8009aa60
-	struct GhostProfile ghostProfile_memcard[7];
+	struct GhostProfile ghostProfile_memcard[30];
 
 	// 8009ABCC
 	struct GhostProfile ghostProfile_current;

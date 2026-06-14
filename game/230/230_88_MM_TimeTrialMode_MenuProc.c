@@ -3,6 +3,8 @@
 #include <platform/native_memcard.h>
 #include <platform/native_assets.h>
 
+extern void SelectProfile_SetShowOnlyDevGhosts(int val);
+
 #define TTMODE_MENU_VISIBLE_ROWS 2
 #define TTMODE_MENU_CENTER_X     0x100
 #define TTMODE_MENU_PANEL_W      0x1C0
@@ -34,7 +36,6 @@ void MM_TimeTrialMode_MenuProc(struct RectMenu *menu)
     u_long *ot = &gGT->backBuffer->otMem.startPlusFour[3];
     int y;
     RECT highlight, borders;
-    int selected = s_ttModeSelectedIndex;
 
     if (menu->rowSelected == -1)
     {
@@ -52,7 +53,7 @@ void MM_TimeTrialMode_MenuProc(struct RectMenu *menu)
         FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
 
     highlight.x = TTMODE_MENU_LEFT_X + 4;
-    highlight.y = TTMODE_MENU_LIST_TOP_Y + (selected * TTMODE_MENU_ROW_HEIGHT) - 1;
+    highlight.y = TTMODE_MENU_LIST_TOP_Y + (s_ttModeSelectedIndex * TTMODE_MENU_ROW_HEIGHT) - 1;
     highlight.w = TTMODE_MENU_HIGHLIGHT_W;
     highlight.h = TTMODE_MENU_ROW_HEIGHT + 1;
     CTR_Box_DrawClearBox(&highlight, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot);
@@ -61,13 +62,13 @@ void MM_TimeTrialMode_MenuProc(struct RectMenu *menu)
 
     {
         DecalFont_DrawLineOT("Classic", TTMODE_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-        DecalFont_DrawLineOT("Normal Time Trial", TTMODE_MENU_VALUE_X, y, FONT_SMALL, selected == TTMODE_ROW_CLASSIC ? TINY_GREEN : WHITE, ot);
+        DecalFont_DrawLineOT("Normal Time Trial", TTMODE_MENU_VALUE_X, y, FONT_SMALL, s_ttModeSelectedIndex == TTMODE_ROW_CLASSIC ? TINY_GREEN : WHITE, ot);
         y += TTMODE_MENU_ROW_HEIGHT;
     }
 
     {
         DecalFont_DrawLineOT("Vs Nyper", TTMODE_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-        DecalFont_DrawLineOT("Race vs Dev Ghosts", TTMODE_MENU_VALUE_X, y, FONT_SMALL, selected == TTMODE_ROW_VS_NYPER ? TINY_GREEN : WHITE, ot);
+        DecalFont_DrawLineOT("Race vs Dev Ghosts", TTMODE_MENU_VALUE_X, y, FONT_SMALL, s_ttModeSelectedIndex == TTMODE_ROW_VS_NYPER ? TINY_GREEN : WHITE, ot);
         y += TTMODE_MENU_ROW_HEIGHT;
     }
 
@@ -98,28 +99,15 @@ void MM_TimeTrialMode_MenuProc(struct RectMenu *menu)
 
         if (s_ttModeSelectedIndex == TTMODE_ROW_CLASSIC)
         {
+            SelectProfile_SetShowOnlyDevGhosts(0);
             SelectProfile_ToggleMode(0x30);
             sdata->ptrDesiredMenu = &data.menuGhostSelection;
         }
         else if (s_ttModeSelectedIndex == TTMODE_ROW_VS_NYPER)
         {
-            // Load Dev Ghost for selected track
-            struct MainMenu_LevelRow *selectMenu = &D230.arcadeTracks[0];
-            int currTrack = sdata->trackSelBackup;
-            s16 levID = selectMenu[currTrack].levID;
-
-            // Try to load Dev Ghost from DevGhost/track_XX.ghost
-            if (MM_TimeTrialMode_LoadDevGhost(levID))
-            {
-                sdata->boolReplayHumanGhost = 1;
-                sdata->ptrDesiredMenu = &data.menuQueueLoadTrack;
-            }
-            else
-            {
-                // Fallback: no ghost
-                sdata->boolReplayHumanGhost = 0;
-                sdata->ptrDesiredMenu = &data.menuQueueLoadTrack;
-            }
+            SelectProfile_SetShowOnlyDevGhosts(1);
+            SelectProfile_ToggleMode(0x30);
+            sdata->ptrDesiredMenu = &data.menuGhostSelection;
         }
         return;
     }

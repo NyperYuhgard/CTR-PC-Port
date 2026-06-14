@@ -613,7 +613,7 @@ void RefreshCard_Unknown4(void)
 
 		while (fileName != NULL)
 		{
-			if (totalGhosts < 7)
+			if (totalGhosts < 30)
 			{
 				RefreshCard_GhostDecodeProfile(&sdata->ghostProfile_memcard[totalGhosts], fileName);
 				sdata->numGhostProfilesSaved++;
