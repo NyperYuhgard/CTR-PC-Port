@@ -16,7 +16,8 @@ static int PickupBots_IsCloseToPlayer(struct Driver *player, struct Driver *bot)
 
 static void PickupBots_SetCooldown(struct Driver *bot)
 {
-	bot->botData.weaponCooldown = (MixRNG_Scramble() & 0xff) + 0xf0;
+	// Meta value is in 30fps frames. Convert to milliseconds using 32ms (30fps frame time)
+	bot->botData.weaponCooldown = ((MixRNG_Scramble() & 0xff) + 0xf0) * 32;
 }
 
 static void PickupBots_PlayVoice(u32 voiceID, struct Driver *attacker, struct Driver *victim)
@@ -147,21 +148,11 @@ static void PickupBots_SetBossCooldown(struct MetaDataBOSS *bossMeta)
 {
 	struct GameTracker *gGT = sdata->gGT;
 
-#ifdef CTR_NATIVE
-	if (g_cfg_60fpsMode)
-	{
-		sdata->bossWeaponCooldown =
-		    ((RngDeadCoed((u32 *)&sdata->const_0x30215400) & 0x10) + bossMeta->weaponCooldown + 0xc + ((s8)sdata->advProgress.timesLostBossRace[gGT->bossID] * 4)) * 2;
-	}
-	else
-	{
-		sdata->bossWeaponCooldown =
-		    (RngDeadCoed((u32 *)&sdata->const_0x30215400) & 0x10) + bossMeta->weaponCooldown + 0xc + ((s8)sdata->advProgress.timesLostBossRace[gGT->bossID] * 4);
-	}
-#else
-	sdata->bossWeaponCooldown =
-	    (RngDeadCoed((u32 *)&sdata->const_0x30215400) & 0x10) + bossMeta->weaponCooldown + 0xc + ((s8)sdata->advProgress.timesLostBossRace[gGT->bossID] * 4);
-#endif
+	int baseFrames = (RngDeadCoed((u32 *)&sdata->const_0x30215400) & 0x10) + bossMeta->weaponCooldown + 0xc + ((s8)sdata->advProgress.timesLostBossRace[gGT->bossID] * 4);
+
+	// Meta data values are in 30fps frames. Convert to milliseconds using 30fps frame time (32ms)
+	// This gives same real-time cooldown at both 30fps and 60fps
+	sdata->bossWeaponCooldown = baseFrames * 32;
 }
 
 static struct MetaDataBOSS *PickupBots_GetInitialBossMeta(void)
@@ -392,11 +383,9 @@ static void PickupBots_UpdateBoss(void)
 
 	if (sdata->bossWeaponCooldown > 0)
 	{
-#ifdef CTR_NATIVE
-		sdata->bossWeaponCooldown -= g_cfg_60fpsMode ? 2 : 1;
-#else
-		sdata->bossWeaponCooldown--;
-#endif
+		sdata->bossWeaponCooldown -= gGT->elapsedTimeMS;
+		if (sdata->bossWeaponCooldown < 0)
+			sdata->bossWeaponCooldown = 0;
 		return;
 	}
 

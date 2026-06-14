@@ -773,16 +773,22 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 
 	botInstance->flags &= 0xffff9fff;
 
+	int weaponCooldownStep = gGT->elapsedTimeMS;
+
 	if (botDriver->botData.weaponCooldown != 0)
 	{
-		botDriver->botData.weaponCooldown--;
+		botDriver->botData.weaponCooldown -= weaponCooldownStep;
+		if (botDriver->botData.weaponCooldown < 0)
+			botDriver->botData.weaponCooldown = 0;
 	}
 
 	if (botDriver->ChangeState_param2 == 0)
 	{
 		if (((botDriver->actionsFlagSet & 0x2000000) == 0) && (botDriver->botData.weaponCooldown != 0))
 		{
-			botDriver->botData.weaponCooldown--;
+			botDriver->botData.weaponCooldown -= weaponCooldownStep;
+			if (botDriver->botData.weaponCooldown < 0)
+				botDriver->botData.weaponCooldown = 0;
 		}
 	}
 	else
@@ -2964,7 +2970,8 @@ void BOTS_GotoStartingLine(struct Driver *d)
 
 	// cooldown before next weapon
 	int rng = RngDeadCoed(&sdata->const_0x30215400);
-	d->botData.weaponCooldown = ((rng >> 8) & 0xff) + 300;
+	// Meta value is in 30fps frames. Convert to milliseconds using 32ms (30fps frame time)
+	d->botData.weaponCooldown = (((rng >> 8) & 0xff) + 300) * 32;
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80017164-0x80017318.
