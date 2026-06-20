@@ -11,6 +11,7 @@
 #include <psx/libgte.h>
 
 #include <assert.h>
+#include <string.h>
 #include <stdio.h>
 
 #include "native_gte_rcossin_tbl.h"
@@ -811,12 +812,16 @@ MATRIX *ScaleMatrix(MATRIX *m, VECTOR *v)
 
 void SetDQA(int iDQA)
 {
-	CTC2(*(u32 *)&iDQA, 27);
+	u32 tmp;
+	memcpy(&tmp, &iDQA, sizeof(tmp));
+	CTC2(tmp, 27);
 }
 
 void SetDQB(int iDQB)
 {
-	CTC2(*(u32 *)&iDQB, 28);
+	u32 tmp;
+	memcpy(&tmp, &iDQB, sizeof(tmp));
+	CTC2(tmp, 28);
 }
 
 void SetFogNear(int a, int h)
