@@ -541,7 +541,10 @@ struct Plant
 	// 0x6
 	s16 boolEatingPlayer;
 
-	// 0x8 bytes large
+	// 0x8
+	s16 s_60fpsToggle;
+
+	// 0xA bytes large
 };
 
 struct Seal
