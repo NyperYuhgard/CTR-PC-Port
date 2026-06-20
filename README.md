@@ -1,6 +1,6 @@
 # CTR Native
 
-A native PC port of Crash Team Racing (PS1, 1999), built on top of the [CTR-ModSDK](https://github.com/CTR-tools/CTR-ModSDK) decompilation project.
+A native PC port of Crash Team Racing (PS1, 1999), built on top of the [CTR-ModSDK](https://github.com/CTR-tools/CTR-ModSDK) decompilation project BUT with mod support and more extras
 
 ## Philosophy
 
@@ -143,3 +143,8 @@ main.c (entrypoint)
 - [PsyCross](https://github.com/OpenDriver2/PsyCross) — original PS1 compatibility code from which parts of CTR Native's owned platform layer and PsyQ facade headers are derived
 - [SDL3](https://github.com/libsdl-org/SDL) — cross-platform multimedia
 - Crash Team Racing is a trademark of Sony Computer Entertainment / Naughty Dog
+- Faradise Team for the principal fork and more help
+- LoloTheSamurai for testing
+- TDYU for testing
+- Yostifu for testing
+- CTR Community
