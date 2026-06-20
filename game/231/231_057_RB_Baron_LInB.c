@@ -45,4 +45,5 @@ void RB_Baron_LInB(struct Instance *inst)
 		inst->flags |= 0x80;
 
 	baronObj->soundID_flags = 0;
+	baronObj->toggle60 = 0;
 }

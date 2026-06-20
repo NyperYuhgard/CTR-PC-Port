@@ -302,7 +302,7 @@ struct Baron
 
 	// 0x2c
 	s16 pointIndex;
-	s16 footerPaddingUnused;
+	s16 toggle60;
 
 	// 0x30 bytes large
 };
@@ -363,8 +363,8 @@ struct Armadillo
 	s16 timeRolling;
 
 	// 0x12
-	// unused
-	s16 numFramesSpinning;
+	// per-instance 60fps frame gate toggle
+	s16 s_60fpsToggle;
 
 	// 0x14
 	// starts at zero, rolls, gets to high number,
@@ -600,7 +600,10 @@ struct Snowball
 	// 0xC
 	int audioPtr;
 
-	// 0x10 bytes large
+	// 0x10
+	s16 toggle60;
+
+	// 0x12 bytes large
 };
 
 struct Spider

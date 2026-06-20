@@ -21,18 +21,13 @@ void RB_Snowball_ThTick(struct Thread *t)
 	{
 		ptrSpawnType2 = &sdata->gGT->level1->ptrSpawnType2_PosRot[snowObj->snowID];
 
-		// Retail checks DYNAMIC_SNOWBALL, but Blizzard Bluff uses TEMP_SNOWBALL.
 		if (modelID == DYNAMIC_SNOWBALL)
 		{
-			// snowball roll
 			soundID = 0x73;
 			PlaySound3D_Flags(&snowObj->audioPtr, soundID, snowInst);
 		}
-
-		// sewer speedway barrel
 		else if (modelID == DYNAMIC_BARREL)
 		{
-			// barrel roll
 			soundID = 0x74;
 			PlaySound3D_Flags(&snowObj->audioPtr, soundID, snowInst);
 		}
@@ -52,11 +47,8 @@ void RB_Snowball_ThTick(struct Thread *t)
 		RB_Minecart_CheckColl(snowInst, t);
 	}
 
-#ifdef CTR_NATIVE
-	{ static int s_60fpsSnowballMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsSnowballMove ^= 1)) snowObj->pointIndex = (snowObj->pointIndex + 1) % (snowObj->numPoints * 2); }
-#else
-	snowObj->pointIndex = (snowObj->pointIndex + 1) % (snowObj->numPoints * 2);
-#endif
+	if (!IS_NATIVE_60FPS || (snowObj->toggle60 ^= 1))
+		snowObj->pointIndex = (snowObj->pointIndex + 1) % (snowObj->numPoints * 2);
 }
 
 void RB_Snowball_LInB(struct Instance *inst)
@@ -95,4 +87,5 @@ void RB_Snowball_LInB(struct Instance *inst)
 	snowObj->rot_unused[1] = inst->matrix.m[0][2] >> 2;
 	snowObj->rot_unused[2] = inst->matrix.m[2][2] >> 2;
 	snowObj->audioPtr = 0;
+	snowObj->toggle60 = 0;
 }

@@ -2,7 +2,6 @@
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b5984-0x800b5f50.
 
-
 int RB_Armadillo_ThCollide(struct Thread *armadilloThread, struct Thread *driverTh, void *funcThCollide, struct ScratchpadStruct *sps)
 {
 	(void)armadilloThread;
@@ -16,57 +15,40 @@ void RB_Armadillo_ThTick_TurnAround(struct Thread *t)
 {
 	struct Instance *armInst;
 	struct Armadillo *armObj;
-	int i;
 
 	armInst = t->inst;
 	armObj = (struct Armadillo *)t->object;
 
 	if (armObj->rotCurr[1] == armObj->rotDesired[1])
 	{
-		// if animation is not over
 		if ((armInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(armInst, 0))
 		{
-#ifdef CTR_NATIVE
-			{ static int s_60fpsArmadilloTurnToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsArmadilloTurnToggle ^= 1)) armInst->animFrame = armInst->animFrame + 1; }
-#else
-			armInst->animFrame = armInst->animFrame + 1;
-#endif
+			if (!IS_NATIVE_60FPS || (armObj->s_60fpsToggle ^= 1))
+				armInst->animFrame = armInst->animFrame + 1;
 		}
-
-		// === End of TurnAround ===
 		else
 		{
 			armObj->velX = -armObj->velX;
-			armObj->numFramesSpinning = 0;
 			armObj->velZ = -armObj->velZ;
 
 			armObj->direction = (armObj->direction == 0) ? 1 : 0;
 
-			// play roll sound
 			PlaySound3D(0x70, armInst);
 
-			// rolling animation
 			armInst->animIndex = 1;
 			armInst->animFrame = 0;
 
 			ThTick_SetAndExec(t, RB_Armadillo_ThTick_Rolling);
 		}
 	}
-
 	else
 	{
-		// spin rotCurrY 180 degrees (turn around)
 		armObj->rotCurr[1] = RB_Hazard_InterpolateValue(armObj->rotCurr[1], armObj->rotDesired[1], 0x100);
 
-		// converted to TEST in rebuildPS1
 		ConvertRotToMatrix(&armInst->matrix, &armObj->rotCurr[0]);
 
-		// increment frame
-#ifdef CTR_NATIVE
-		{ static int s_60fpsArmadilloTurnToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsArmadilloTurnToggle ^= 1)) armInst->animFrame = armInst->animFrame + 1; }
-#else
-		armInst->animFrame = armInst->animFrame + 1;
-#endif
+		if (!IS_NATIVE_60FPS || (armObj->s_60fpsToggle ^= 1))
+			armInst->animFrame = armInst->animFrame + 1;
 	}
 
 	Seal_CheckColl(armInst, t, 1, 0x2400, 0x71);
@@ -77,24 +59,21 @@ void RB_Armadillo_ThTick_Rolling(struct Thread *t)
 	struct Instance *armInst;
 	struct Armadillo *armObj;
 	SVECTOR rot;
-	int i;
 
 	armInst = t->inst;
 	armObj = (struct Armadillo *)t->object;
 
 	if (armObj->timeAtEdge != 0)
 	{
-#ifdef CTR_NATIVE
-{ static int s_60fpsTimeAtEdge = 0; if (!IS_NATIVE_60FPS || (s_60fpsTimeAtEdge ^= 1)) armObj->timeAtEdge--; }
-#else
-armObj->timeAtEdge--;
-#endif
+		if (!IS_NATIVE_60FPS || (armObj->s_60fpsToggle ^= 1))
+			armObj->timeAtEdge--;
 		return;
 	}
 
+	int doTick = !IS_NATIVE_60FPS || (armObj->s_60fpsToggle ^= 1);
+
 	if (armObj->timeRolling < 0x500)
 	{
-		// 32ms, 30fps
 		armObj->timeRolling += FPS_HALF(0x20);
 
 		if (armObj->direction == 0)
@@ -102,43 +81,33 @@ armObj->timeAtEdge--;
 		else
 			armObj->distFromSpawn--;
 
-		armInst->matrix.t[0] += (armObj->velX * sdata->gGT->elapsedTimeMS) >> 5;
-		armInst->matrix.t[2] += (armObj->velZ * sdata->gGT->elapsedTimeMS) >> 5;
-
-		// if animation is not over
-		if ((armInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(armInst, 1))
+		if (doTick)
 		{
-			// increment frame
-#ifdef CTR_NATIVE
-			{ static int s_60fpsArmadilloRollToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsArmadilloRollToggle ^= 1)) armInst->animFrame = armInst->animFrame + 1; }
-#else
-			armInst->animFrame = armInst->animFrame + 1;
-#endif
+			armInst->matrix.t[0] += armObj->velX;
+			armInst->matrix.t[2] += armObj->velZ;
 		}
 
-		// if animation is done
+		if ((armInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(armInst, 1))
+		{
+			if (doTick)
+				armInst->animFrame = armInst->animFrame + 1;
+		}
 		else
 		{
-			// reset animation
 			armInst->animFrame = 0;
-
-			// no sound here
 		}
 
 		Seal_CheckColl(armInst, t, 1, 0x2400, 0x71);
 		return;
 	}
 
-	// == End of Rolling ===
 	CTR_MatrixToRot(&rot, &armInst->matrix, 0x11);
 
-	// reset
 	armObj->rotCurr[0] = rot.vy;
 	armObj->rotCurr[1] = rot.vx;
 	armObj->rotCurr[2] = rot.vz;
 	armObj->timeRolling = 0;
 
-	// jumping animation
 	armInst->animIndex = 0;
 	armInst->animFrame = 0;
 
@@ -159,12 +128,10 @@ void RB_Armadillo_LInB(struct Instance *inst)
 		return;
 
 	t = PROC_BirthWithObject(
-	    // creation flags
 	    SIZE_RELATIVE_POOL_BUCKET(sizeof(struct Armadillo), NONE, SMALL, STATIC),
-
-	    RB_Armadillo_ThTick_Rolling, // behavior
-	    "armadillo",                 // debug name
-	    0                            // thread relative
+	    RB_Armadillo_ThTick_Rolling,
+	    "armadillo",
+	    0
 	);
 
 	if (t == 0)
@@ -173,12 +140,11 @@ void RB_Armadillo_LInB(struct Instance *inst)
 	t->inst = inst;
 	t->funcThCollide = (void (*)(struct Thread *))RB_Armadillo_ThCollide;
 
-	// rolling animation
 	inst->animIndex = 1;
 
 	armObj = ((struct Armadillo *)t->object);
 	armObj->timeRolling = 0;
-	armObj->numFramesSpinning = 0;
+	armObj->s_60fpsToggle = 0;
 	armObj->timeAtEdge = 0;
 
 	CTR_MatrixToRot(&rot, &inst->matrix, 0x11);

@@ -41,12 +41,13 @@ void RB_Baron_ThTick(struct Thread *t)
 	gGT = sdata->gGT;
 	level = gGT->level1;
 
+	int doTick = !IS_NATIVE_60FPS || (baronObj->toggle60 ^= 1);
+
 	if ((baronInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(baronInst, 0))
-#ifdef CTR_NATIVE
-		{ static int s_60fpsBaronToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsBaronToggle ^= 1)) baronInst->animFrame++; }
-#else
-		baronInst->animFrame++;
-#endif
+	{
+		if (doTick)
+			baronInst->animFrame++;
+	}
 	else
 		baronInst->animFrame = 0;
 
@@ -54,14 +55,11 @@ void RB_Baron_ThTick(struct Thread *t)
 		return;
 
 	spawn = &level->ptrSpawnType2_PosRot[0];
-#ifdef CTR_NATIVE
-	{ static int s_60fpsBaronMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsBaronMove ^= 1)) {
-#endif
-	pointIndex = (baronObj->pointIndex + 1) % spawn->numCoords;
-	baronObj->pointIndex = pointIndex;
-#ifdef CTR_NATIVE
-	} }
-#endif
+	if (doTick)
+	{
+		baronObj->pointIndex = (baronObj->pointIndex + 1) % spawn->numCoords;
+	}
+	pointIndex = baronObj->pointIndex;
 	modelID = baronInst->model->id;
 
 	if (modelID == DYNAMIC_DRUM)
