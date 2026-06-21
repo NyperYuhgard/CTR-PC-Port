@@ -35,6 +35,7 @@
 #include "platform/native_replay_scheduler.h"
 #include "platform/native_savestate.h"
 #include "platform/native_mods.h"
+#include "platform/native_netplay.h"
 
 #ifndef __GNUC__
 #define _Static_assert(x)
@@ -95,6 +96,7 @@ typedef enum
 #include "platform/native_state.c"
 #include "platform/native_str.c"
 #include "platform/native_mods.c"
+#include "platform/native_netplay.c"
 
 #ifndef CC
 #if __GNUC__
@@ -165,15 +167,90 @@ static int NativeArg_IsVersion(const char *arg)
         return (arg != NULL) && ((strcmp(arg, "--version") == 0) || (strcmp(arg, "-v") == 0));
 }
 
+struct NativeNetplayArgs
+{
+        int  enable;
+        int  isHost;
+        char connectAddress[64];
+        u16  port;
+        char playerName[32];
+        int  playerCount;
+};
+
+internal void NativeArg_DefaultNetplayArgs(struct NativeNetplayArgs *args)
+{
+        args->enable = 0;
+        args->isHost = 0;
+        memset(args->connectAddress, 0, sizeof(args->connectAddress));
+        args->port = NETPLAY_DEFAULT_PORT;
+        memset(args->playerName, 0, sizeof(args->playerName));
+        args->playerCount = 2;
+        snprintf(args->playerName, sizeof(args->playerName) - 1, "Player");
+}
 
 int main(int argc, char *argv[])
 {
+        struct NativeNetplayArgs netplayArgs;
+
+        NativeArg_DefaultNetplayArgs(&netplayArgs);
+
         for (int argIndex = 1; argIndex < argc; argIndex++)
         {
                 if (NativeArg_IsVersion(argv[argIndex]))
                 {
                         printf("CTR Native %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
                         return 0;
+                }
+
+                if (strcmp(argv[argIndex], "--host") == 0)
+                {
+                        netplayArgs.enable = 1;
+                        netplayArgs.isHost = 1;
+                        if (argIndex + 1 < argc && argv[argIndex + 1][0] >= '0' && argv[argIndex + 1][0] <= '9')
+                        {
+                                netplayArgs.port = (u16)atoi(argv[++argIndex]);
+                        }
+                }
+                else if (strcmp(argv[argIndex], "--connect") == 0)
+                {
+                        if (argIndex + 1 < argc)
+                        {
+                                netplayArgs.enable = 1;
+                                netplayArgs.isHost = 0;
+
+                                const char *addrArg = argv[++argIndex];
+                                const char *colon = strchr(addrArg, ':');
+
+                                if (colon != NULL)
+                                {
+                                        size_t addrLen = (size_t)(colon - addrArg);
+                                        if (addrLen >= sizeof(netplayArgs.connectAddress))
+                                                addrLen = sizeof(netplayArgs.connectAddress) - 1;
+                                        memcpy(netplayArgs.connectAddress, addrArg, addrLen);
+                                        netplayArgs.connectAddress[addrLen] = '\0';
+                                        netplayArgs.port = (u16)atoi(colon + 1);
+                                }
+                                else
+                                {
+                                        strncpy(netplayArgs.connectAddress, addrArg, sizeof(netplayArgs.connectAddress) - 1);
+                                }
+                        }
+                }
+                else if (strcmp(argv[argIndex], "--name") == 0)
+                {
+                        if (argIndex + 1 < argc)
+                        {
+                                strncpy(netplayArgs.playerName, argv[++argIndex], sizeof(netplayArgs.playerName) - 1);
+                        }
+                }
+                else if (strcmp(argv[argIndex], "--players") == 0)
+                {
+                        if (argIndex + 1 < argc)
+                        {
+                                int count = atoi(argv[++argIndex]);
+                                if (count >= 2 && count <= NETPLAY_MAX_PLAYERS)
+                                        netplayArgs.playerCount = count;
+                        }
                 }
         }
 
@@ -238,6 +315,44 @@ int main(int argc, char *argv[])
         Platform_InitScratchpad();
         Platform_RepairResidentPointers(0);
 
+	// Initialize netplay if requested
+	if (netplayArgs.enable)
+	{
+		Netplay_SetPlayerName(netplayArgs.playerName);
+		Netplay_Init();
+
+		if (netplayArgs.isHost)
+		{
+			if (!Netplay_Host(netplayArgs.port))
+			{
+				fprintf(stderr, "[CTR Native] Failed to host netplay on port %u\n", netplayArgs.port);
+				Netplay_Shutdown();
+			}
+			else
+			{
+				printf("[CTR Native] Netplay host on port %u, waiting for %d players...\n",
+				       netplayArgs.port, netplayArgs.playerCount);
+			}
+		}
+		else if (netplayArgs.connectAddress[0] != '\0')
+		{
+			if (!Netplay_Connect(netplayArgs.connectAddress, netplayArgs.port))
+			{
+				fprintf(stderr, "[CTR Native] Failed to connect to %s:%u\n",
+				        netplayArgs.connectAddress, netplayArgs.port);
+				Netplay_Shutdown();
+			}
+			else
+			{
+				printf("[CTR Native] Netplay connecting to %s:%u...\n",
+				       netplayArgs.connectAddress, netplayArgs.port);
+			}
+		}
+
+		g_NetplayAutoJoin = 1;
+		fflush(stdout);
+	}
+
 #if defined(CTR_INTERNAL)
         if (NativeReplayScheduler_ConfigureFromArgs(argc, argv) != 0)
         {
@@ -252,6 +367,9 @@ int main(int argc, char *argv[])
 
         int result = CTR_Main();
 
+        if (Netplay_GetState() != NETPLAY_STATE_DISCONNECTED)
+                Netplay_Disconnect();
+        Netplay_Shutdown();
         NativeMods_Shutdown();
         Platform_Shutdown();
         return NativeConsole_Return(result);

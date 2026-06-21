@@ -11,6 +11,7 @@
 #include "platform/native_renderer.h"
 #include "platform/native_replay_scheduler.h"
 #include "platform/native_savestate.h"
+#include "platform/native_netplay.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -418,6 +419,7 @@ int Platform_PollInput(void)
 {
 	Platform_PollHostEvents();
 	Platform_InputUpdate();
+	Netplay_Poll();
 	return 1;
 }
 

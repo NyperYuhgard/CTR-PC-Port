@@ -7,6 +7,7 @@
 #endif
 #ifdef CTR_NATIVE
 #include <platform/native_mods.h>
+#include <platform/native_netplay.h>
 #endif
 
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
@@ -350,6 +351,91 @@ u32 main(void)
 
 #ifdef CTR_NATIVE
 			NativeMods_CallHook(NATIVE_MOD_HOOK_ON_INPUT);
+
+			// Netplay: sync gamepad state between host and client during a race
+			{
+				if (g_NetplayRacing)
+				{
+					int localId = Netplay_GetLocalPlayerId();
+					u32 hHeld = 0, hTapped = 0, hRel = 0;
+					u32 cHeld = 0, cTapped = 0, cRel = 0;
+					s16 hLX = 0x80, hLY = 0x80, hRX = 0x80, hRY = 0x80;
+					s16 cLX = 0x80, cLY = 0x80, cRX = 0x80, cRY = 0x80;
+
+					// gamepad[0] always has the local physical controller
+					struct GamepadBuffer *physPad = &gGS->gamepad[0];
+
+					if (localId == 0)
+					{
+						hHeld = physPad->buttonsHeldCurrFrame;
+						hTapped = physPad->buttonsTapped;
+						hRel = physPad->buttonsReleased;
+						hLX = physPad->stickLX; hLY = physPad->stickLY;
+						hRX = physPad->stickRX; hRY = physPad->stickRY;
+
+						Netplay_SendGamepadState(gGT->frameTimer_VsyncCallback,
+						                         hHeld, hTapped, hRel,
+						                         hLX, hLY, hRX, hRY);
+
+						struct NetplayInput inputs[4];
+						int count = Netplay_ReceiveInputs(inputs, 4);
+						for (int i = 0; i < count; i++)
+						{
+							if (inputs[i].playerId == 1)
+							{
+								cHeld = inputs[i].buttonsHeld;
+								cTapped = inputs[i].buttonsTapped;
+								cRel = inputs[i].buttonsReleased;
+								cLX = inputs[i].stickLX;
+								cLY = inputs[i].stickLY;
+								cRX = inputs[i].stickRX;
+								cRY = inputs[i].stickRY;
+							}
+						}
+					}
+					else
+					{
+						cHeld = physPad->buttonsHeldCurrFrame;
+						cTapped = physPad->buttonsTapped;
+						cRel = physPad->buttonsReleased;
+						cLX = physPad->stickLX; cLY = physPad->stickLY;
+						cRX = physPad->stickRX; cRY = physPad->stickRY;
+
+						Netplay_SendGamepadState(gGT->frameTimer_VsyncCallback,
+						                         cHeld, cTapped, cRel,
+						                         cLX, cLY, cRX, cRY);
+
+						struct NetplayInput inputs[4];
+						int count = Netplay_ReceiveInputs(inputs, 4);
+						for (int i = 0; i < count; i++)
+						{
+							if (inputs[i].playerId == 0)
+							{
+								hHeld = inputs[i].buttonsHeld;
+								hTapped = inputs[i].buttonsTapped;
+								hRel = inputs[i].buttonsReleased;
+								hLX = inputs[i].stickLX;
+								hLY = inputs[i].stickLY;
+								hRX = inputs[i].stickRX;
+								hRY = inputs[i].stickRY;
+							}
+						}
+					}
+
+					// On BOTH machines: gamepad[0] = host input, gamepad[1] = client input
+					gGS->gamepad[0].buttonsHeldCurrFrame = hHeld;
+					gGS->gamepad[0].buttonsTapped = hTapped;
+					gGS->gamepad[0].buttonsReleased = hRel;
+					gGS->gamepad[0].stickLX = hLX; gGS->gamepad[0].stickLY = hLY;
+					gGS->gamepad[0].stickRX = hRX; gGS->gamepad[0].stickRY = hRY;
+
+					gGS->gamepad[1].buttonsHeldCurrFrame = cHeld;
+					gGS->gamepad[1].buttonsTapped = cTapped;
+					gGS->gamepad[1].buttonsReleased = cRel;
+					gGS->gamepad[1].stickLX = cLX; gGS->gamepad[1].stickLY = cLY;
+					gGS->gamepad[1].stickRX = cRX; gGS->gamepad[1].stickRY = cRY;
+				}
+			}
 #endif
 
 			// Start new frame (ClearOTagR)
@@ -696,6 +782,9 @@ void StateZero()
 	LOAD_LangFile((int)sdata->ptrBigfile1, 1);
 #ifdef CTR_NATIVE
 	NativeMods_OnLanguageLoaded(sdata->lngStrings, sdata->numLngStrings);
+
+	if (0x015 < sdata->numLngStrings)
+		sdata->lngStrings[0x015] = "ONLINE";
 #endif
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;

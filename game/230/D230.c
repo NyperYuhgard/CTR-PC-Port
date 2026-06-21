@@ -4,6 +4,8 @@
 void MM_Options_MenuProc(struct RectMenu *menu);
 void MM_TimeTrialMode_MenuProc(struct RectMenu *menu);
 void MM_TimeTrialMode_Init(void);
+void MM_Online_Init(void);
+void MM_Online_MenuProc(struct RectMenu *menu);
 #endif
 
 #define CHEAT_N BTN_UP
@@ -30,9 +32,10 @@ struct OverlayDATA_230 D230 = {
             {0x50, 3, 5, 4, 4},
             {0x51, 4, 6, 5, 5},
 #ifdef CTR_NATIVE
-            {0x014, 5, 7, 6, 6},
-            {0x00e, 6, 8, 7, 7},
-            {0x003, 7, 8, 8, 8},
+            {0x015, 5, 7, 6, 6},
+            {0x014, 6, 8, 7, 7},
+            {0x00e, 7, 9, 8, 8},
+            {0x003, 8, 9, 9, 9},
 #endif
             {-1},
         },
@@ -47,9 +50,10 @@ struct OverlayDATA_230 D230 = {
             {0x51, 4, 6, 5, 5},
             {0x234, 5, 7, 6, 6},
 #ifdef CTR_NATIVE
-            {0x014, 6, 8, 7, 7},
-            {0x00e, 7, 9, 8, 8},
-            {0x003, 8, 9, 9, 9},
+            {0x015, 6, 8, 7, 7},
+            {0x014, 7, 9, 8, 8},
+            {0x00e, 8, 10, 9, 9},
+            {0x003, 9, 10, 10, 10},
 #endif
             {-1},
         },
@@ -253,6 +257,15 @@ struct OverlayDATA_230 D230 = {
             .state = 0x28,
             .funcPtr = MM_TimeTrialMode_MenuProc,
         },
+
+    .menuOnline =
+        {
+            .stringIndexTitle = -1,
+            .posX_curr = 0x100,
+            .posY_curr = 0x6c,
+            .state = 0x28,
+            .funcPtr = MM_Online_MenuProc,
+        },
 #endif
 
     .arrayMenuPtrs = {&D230.menuMainMenu, &D230.menuPlayers1P2P, &D230.menuPlayers2P3P4P, &D230.menuAdventure, &D230.menuCharacterSelect, &D230.menuTrackSelect,
@@ -261,6 +274,7 @@ struct OverlayDATA_230 D230 = {
                       &D230.menuMods,
                       &D230.menuOptions,
                       &D230.menuTimeTrialMode,
+                      &D230.menuOnline,
 #endif
     },
 

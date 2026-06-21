@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_netplay.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800abcac-0x800ac178.
 void MM_Title_MenuUpdate(void)
@@ -16,6 +17,15 @@ void MM_Title_MenuUpdate(void)
 	// If main menu is in focus
 	if (D230.MM_State == 1)
 	{
+#ifdef CTR_NATIVE
+		// Auto-join Online menu when started with --connect or --host
+		if (g_NetplayAutoJoin)
+		{
+			g_NetplayAutoJoin = 0;
+			D230.MM_State = 2;
+			D230.desiredMenuIndex = 8;
+		}
+#endif
 		// no transitioning action is needed,
 		// skip to end of function
 		goto END_FUNCTION;
@@ -244,6 +254,12 @@ void MM_Title_MenuUpdate(void)
 	case 7:
 		MM_Options_Init();
 		sdata->ptrDesiredMenu = &D230.menuOptions;
+		break;
+
+	// online lobby
+	case 8:
+		MM_Online_Init();
+		sdata->ptrDesiredMenu = &D230.menuOnline;
 		break;
 #endif
 }

@@ -22,7 +22,7 @@ enum LngStringId
 	LNG_TIME = 0x012,                       // TIME
 	LNG_TIMING_OUT_EXITING_DEMO = 0x013,    // Timing Out - Exiting Demo
 	LNG_UNUSED_014 = 0x014,                 //
-	LNG_UNUSED_015 = 0x015,                 //
+	LNG_ONLINE = 0x015,                     // ONLINE (overridden at runtime by Native Netplay)
 	LNG_HITPTS = 0x016,                     // HITPTS
 	LNG_POINTS = 0x017,                     // POINTS
 	LNG_LAP = 0x018,                        // LAP

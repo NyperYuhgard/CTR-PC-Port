@@ -219,6 +219,14 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 	}
 
 #ifdef CTR_NATIVE
+	// Online
+	if (choose == 0x015)
+	{
+		D230.MM_State = 2;
+		D230.desiredMenuIndex = 8;
+		return;
+	}
+
 	// Mods
 	if (choose == 0x014)
 	{
