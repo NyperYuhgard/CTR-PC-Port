@@ -183,32 +183,10 @@ void RB_Seal_ThTick_Move(struct Thread *t)
 		// no sound here
 	}
 
-	// move seal (with 60fps sub-step interpolation)
-#ifdef CTR_NATIVE
-	if (IS_NATIVE_60FPS)
+	// move seal (FPS_DOUBLE adjusts denominator for 60fps smooth movement)
+	for (i = 0; i < 3; i++)
 	{
-		static int s_60fpsSealSubStep = 0;
-		int halfStep = (s_60fpsSealSubStep ^= 1);
-		int distNum = sealObj->distFromSpawn * 2;
-		if (!halfStep)
-		{
-			if (sealObj->direction == 0)
-				distNum += 1;
-			else
-				distNum -= 1;
-		}
-		for (i = 0; i < 3; i++)
-		{
-			sealInst->matrix.t[i] = (int)sealObj->spawnPos[i] - (distNum * (int)sealObj->vel[i]) / (0x2d * 2);
-		}
-	}
-	else
-#endif
-	{
-		for (i = 0; i < 3; i++)
-		{
-			sealInst->matrix.t[i] = (int)sealObj->spawnPos[i] - (sealObj->distFromSpawn * (int)sealObj->vel[i]) / 0x2d;
-		}
+		sealInst->matrix.t[i] = (int)sealObj->spawnPos[i] - (sealObj->distFromSpawn * (int)sealObj->vel[i]) / FPS_DOUBLE(0x2d);
 	}
 
 	// moving towards spawn (0)
@@ -216,11 +194,7 @@ void RB_Seal_ThTick_Move(struct Thread *t)
 	{
 		if (sealObj->distFromSpawn > 0)
 		{
-#ifdef CTR_NATIVE
-			{ static int s_60fpsSealMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsSealMove ^= 1)) sealObj->distFromSpawn--; }
-#else
 			sealObj->distFromSpawn--;
-#endif
 			Seal_CheckColl(sealInst, t, 1, 0x4000, 0x78);
 			return;
 		}
@@ -237,18 +211,14 @@ void RB_Seal_ThTick_Move(struct Thread *t)
 	// moving away from spawn (1)
 	else
 	{
-		if (sealObj->distFromSpawn < 0x2d)
+		if (sealObj->distFromSpawn < FPS_DOUBLE(0x2d))
 		{
-#ifdef CTR_NATIVE
-			{ static int s_60fpsSealMove = 0; if (!IS_NATIVE_60FPS || (s_60fpsSealMove ^= 1)) sealObj->distFromSpawn++; }
-#else
 			sealObj->distFromSpawn++;
-#endif
 			Seal_CheckColl(sealInst, t, 1, 0x4000, 0x78);
 			return;
 		}
 
-		if (sealObj->distFromSpawn != 0x2d)
+		if (sealObj->distFromSpawn != FPS_DOUBLE(0x2d))
 		{
 			Seal_CheckColl(sealInst, t, 1, 0x4000, 0x78);
 			return;
