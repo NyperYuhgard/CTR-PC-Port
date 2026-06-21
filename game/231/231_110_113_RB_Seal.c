@@ -183,10 +183,32 @@ void RB_Seal_ThTick_Move(struct Thread *t)
 		// no sound here
 	}
 
-	// move seal
-	for (i = 0; i < 3; i++)
+	// move seal (with 60fps sub-step interpolation)
+#ifdef CTR_NATIVE
+	if (IS_NATIVE_60FPS)
 	{
-		sealInst->matrix.t[i] = (int)sealObj->spawnPos[i] - (sealObj->distFromSpawn * (int)sealObj->vel[i]) / 0x2d;
+		static int s_60fpsSealSubStep = 0;
+		int halfStep = (s_60fpsSealSubStep ^= 1);
+		int distNum = sealObj->distFromSpawn * 2;
+		if (!halfStep)
+		{
+			if (sealObj->direction == 0)
+				distNum += 1;
+			else
+				distNum -= 1;
+		}
+		for (i = 0; i < 3; i++)
+		{
+			sealInst->matrix.t[i] = (int)sealObj->spawnPos[i] - (distNum * (int)sealObj->vel[i]) / (0x2d * 2);
+		}
+	}
+	else
+#endif
+	{
+		for (i = 0; i < 3; i++)
+		{
+			sealInst->matrix.t[i] = (int)sealObj->spawnPos[i] - (sealObj->distFromSpawn * (int)sealObj->vel[i]) / 0x2d;
+		}
 	}
 
 	// moving towards spawn (0)
