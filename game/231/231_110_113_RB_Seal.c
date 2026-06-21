@@ -98,14 +98,10 @@ void RB_Seal_ThTick_TurnAround(struct Thread *t)
 	sealObj = (struct Seal *)t->object;
 
 	// if animation is not over
-	if ((sealInst->animFrame + 2) < INSTANCE_GetNumAnimFrames(sealInst, 0))
+	if ((sealInst->animFrame + FPS_HALF(2)) < INSTANCE_GetNumAnimFrames(sealInst, 0))
 	{
 		// increment frame
-#ifdef CTR_NATIVE
-		{ static int s_60fpsSealTurnToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsSealTurnToggle ^= 1)) sealInst->animFrame = sealInst->animFrame + 2; }
-#else
-		sealInst->animFrame = sealInst->animFrame + 2;
-#endif
+		sealInst->animFrame = sealInst->animFrame + FPS_HALF(2);
 	}
 
 	// if animation is done
@@ -164,14 +160,10 @@ void RB_Seal_ThTick_Move(struct Thread *t)
 	sealObj = (struct Seal *)t->object;
 
 	// if animation is not over
-	if ((sealInst->animFrame + 2) < INSTANCE_GetNumAnimFrames(sealInst, 0))
+	if ((sealInst->animFrame + FPS_HALF(2)) < INSTANCE_GetNumAnimFrames(sealInst, 0))
 	{
 		// increment frame
-#ifdef CTR_NATIVE
-		{ static int s_60fpsSealMoveToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsSealMoveToggle ^= 1)) sealInst->animFrame = sealInst->animFrame + 2; }
-#else
-		sealInst->animFrame = sealInst->animFrame + 2;
-#endif
+		sealInst->animFrame = sealInst->animFrame + FPS_HALF(2);
 	}
 
 	// if animation is done
