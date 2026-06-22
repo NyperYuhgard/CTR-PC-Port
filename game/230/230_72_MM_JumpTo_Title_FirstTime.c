@@ -1,5 +1,9 @@
 #include <common.h>
 
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
+
 // NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 230 0x800b4364-0x800b43f4.
 void MM_JumpTo_Title_FirstTime(void)
 {
@@ -24,6 +28,10 @@ void MM_JumpTo_Title_FirstTime(void)
 #else
 	// open Main Menu for the first time
 	sdata->ptrActiveMenu = &D230.menuMainMenu;
+#endif
+
+#ifdef CTR_NATIVE
+	g_NetplayRacing = 0;
 #endif
 
 	D230.timerInTitle = 0;

@@ -116,6 +116,9 @@ global_variable struct NetplayInput s_inputQueue[NETPLAY_FRAME_HISTORY * NETPLAY
 global_variable int s_inputQueueHead;
 global_variable int s_inputQueueTail;
 
+// Ping tracking
+global_variable u32 s_lastPingTime;
+
 // Callbacks
 global_variable NetplayEventFn s_onPlayerJoin;
 global_variable NetplayEventFn s_onPlayerLeave;
@@ -601,10 +604,19 @@ internal int Netplay_ReceivePacket(void)
 		break;
 
 	case NETPLAY_PACKET_CHARACTER_SELECT:
-		if (Netplay_IsHost() && header->payloadSize >= 1)
+		if (header->payloadSize >= 1)
 		{
-			g_NetplayClientCharacter = buffer[sizeof(*header)];
-			fprintf(stdout, "[Netplay] Client chose character %d\n", g_NetplayClientCharacter);
+			u8 charId = buffer[sizeof(*header)];
+			if (Netplay_IsHost())
+			{
+				g_NetplayClientCharacter = charId;
+				fprintf(stdout, "[Netplay] Client chose character %d\n", charId);
+			}
+			else
+			{
+				g_NetplayHostCharacter = charId;
+				fprintf(stdout, "[Netplay] Host chose character %d\n", charId);
+			}
 			fflush(stdout);
 		}
 		break;
@@ -646,10 +658,11 @@ int Netplay_Init(void)
 	s_nextFrameToSend = 0;
 	s_onPlayerJoin = NULL;
 	s_onPlayerLeave = NULL;
+	s_lastPingTime = Netplay_GetTimestampMs();
 	g_NetplayAutoJoin = 0;
 	g_NetplayRaceStarting = 0;
-	g_NetplayHostCharacter = 0;
-	g_NetplayClientCharacter = 0;
+	g_NetplayHostCharacter = -1;
+	g_NetplayClientCharacter = -1;
 	g_NetplayTrackId = 0;
 	g_NetplayNumLaps = 3;
 
@@ -859,6 +872,7 @@ void Netplay_Disconnect(void)
 		s_netplayState = NETPLAY_STATE_DISCONNECTED;
 		s_localPlayerId = 0;
 		s_playerCount = 0;
+		g_NetplayRacing = 0;
 
 		memset(s_peers, 0, sizeof(s_peers));
 		s_inputQueueHead = 0;
@@ -1035,6 +1049,30 @@ void Netplay_Poll(void)
 		}
 	}
 
-	// Periodically send pings to measure latency (every 60 frames ~1 second)
-	// TODO: implement periodic ping
+	// Periodically send pings to measure latency (every 1 second)
+	{
+		u32 now = Netplay_GetTimestampMs();
+
+		if (now - s_lastPingTime >= 1000)
+		{
+			s_lastPingTime = now;
+
+			if (s_netplayState == NETPLAY_STATE_HOSTING || s_netplayState == NETPLAY_STATE_CONNECTED)
+			{
+				int i;
+
+				for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
+				{
+					if (s_peers[i].active)
+					{
+						struct NetplayPingPongPayload ping;
+
+						ping.timestamp = now;
+						s_peers[i].pingTimestamp = now;
+						Netplay_SendPacket(NETPLAY_PACKET_PING, sizeof(ping), &ping, &s_peers[i].addr);
+					}
+				}
+			}
+		}
+	}
 }

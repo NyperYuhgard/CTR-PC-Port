@@ -600,7 +600,20 @@ gGT->demoCountdownTimer--;
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 			NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
 #endif
+#ifdef CTR_NATIVE
+			int savedNumPlyr = gGT->numPlyrCurrGame;
+			if (g_NetplayRacing)
+			{
+				gGT->numPlyrCurrGame = 1;
+			}
+#endif
 			MainFrame_RenderFrame(gGT, gGS);
+#ifdef CTR_NATIVE
+			if (g_NetplayRacing)
+			{
+				gGT->numPlyrCurrGame = savedNumPlyr;
+			}
+#endif
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 			NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
 #endif

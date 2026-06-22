@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 void MainInit_FinalizeInit(struct GameTracker *gGT)
 {
@@ -125,6 +128,24 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 			}
 		}
 	}
+
+#ifdef CTR_NATIVE
+	if (g_NetplayRacing)
+	{
+		int localId = Netplay_GetLocalPlayerId();
+
+		// Client machine: swap cameras so camera 0 follows the local (client) driver
+		if (localId != 0)
+		{
+			struct Driver *tmp = gGT->cameraDC[0].driverToFollow;
+			gGT->cameraDC[0].driverToFollow = gGT->cameraDC[1].driverToFollow;
+			gGT->cameraDC[1].driverToFollow = tmp;
+		}
+
+		// Force full-screen (1P) rect for single-viewport rendering
+		PushBuffer_Init(&gGT->pushBuffer[0], 0, 1);
+	}
+#endif
 
 	if (gGT->levelID == MAIN_MENU_LEVEL)
 	{

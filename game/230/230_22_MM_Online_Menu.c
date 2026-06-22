@@ -68,6 +68,7 @@ static void Online_StartRace(struct GameTracker *gGT, int playerCount, int hostC
 	data.characterIDs[1] = (s16)clientChar;
 
 	gGT->numPlyrCurrGame = playerCount;
+	gGT->numPlyrNextGame = playerCount;
 	gGT->numLaps = numLaps;
 	gGT->currLEV = (s16)trackId;
 	gGT->gameMode1 &= ~(ADVENTURE_MODE | TIME_TRIAL | BATTLE_MODE);
@@ -87,8 +88,8 @@ void MM_Online_Init(void)
 	s_onlineCursor = 0;
 	s_onlineScroll = 0;
 	g_charNamesInited = 0;
-	g_NetplayHostCharacter = 0;
-	g_NetplayClientCharacter = 0;
+	g_NetplayHostCharacter = -1;
+	g_NetplayClientCharacter = -1;
 	g_NetplayTrackId = 0;
 	g_NetplayNumLaps = 3;
 }
@@ -310,16 +311,29 @@ void MM_Online_MenuProc(struct RectMenu *menu)
 	{
 		y = ONLINE_MENU_BODY_Y + 0x14;
 
-		DecalFont_DrawLineOT("El host esta eligiendo la pista...", ONLINE_MENU_CENTER_X, y,
-		                     FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+		if (g_NetplayHostCharacter >= 0)
+		{
+			snprintf(buf, sizeof(buf), "Host: %s", g_charNames[g_NetplayHostCharacter]);
+			DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
+			                     FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
+			y += 0x10;
+
+			DecalFont_DrawLineOT("Host is choosing a track...", ONLINE_MENU_CENTER_X, y,
+			                     FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+		}
+		else
+		{
+			DecalFont_DrawLineOT("Waiting for host's character...", ONLINE_MENU_CENTER_X, y,
+			                     FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+		}
 		y += 0x14;
 
 		snprintf(buf, sizeof(buf), "Your character: %s", g_charNames[g_NetplayClientCharacter]);
 		DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
 		                     FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
 
-		// Check if host sent track select
-		if (g_NetplayRaceStarting)
+		// Check if host sent track select AND we have the host's character
+		if (g_NetplayRaceStarting && g_NetplayHostCharacter >= 0)
 		{
 			g_NetplayRaceStarting = 0;
 			OtherFX_Play(1, 1);
@@ -400,6 +414,11 @@ void MM_Online_MenuProc(struct RectMenu *menu)
 			if (isHost)
 			{
 				g_NetplayHostCharacter = chosenChar;
+				// Send host's character choice to client
+				{
+					u8 payload = (u8)chosenChar;
+					Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT, sizeof(payload), &payload);
+				}
 				// If client already picked, go to track select
 				if (g_NetplayClientCharacter >= 0)
 				{
