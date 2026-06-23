@@ -199,18 +199,10 @@ global_variable struct NetplayInterface s_ifaceList[NETPLAY_IFACE_LIST_MAX];
 global_variable int s_ifaceCount;
 global_variable int s_ifaceSelected;
 
-/* Chat window state */
+/* Chat window state (SDL-based) */
 global_variable int s_chatWindowOpen;
 global_variable char s_chatLineBuf[NETPLAY_CHAT_MSG_MAX];
 global_variable int s_chatLineLen;
-#if defined(_WIN32)
-global_variable HANDLE s_hChatOut;
-global_variable HANDLE s_hChatIn;
-global_variable int s_chatOldStdinFlags; /* not used on Win but kept for symmetry */
-#elif defined(__GNUC__)
-global_variable int s_chatUseStdio;
-global_variable int s_chatStdinWasNonblock;
-#endif
 
 /* Pause sync (one-shot consumer flags) */
 global_variable int s_remotePausePending;
@@ -2300,6 +2292,21 @@ void Netplay_SetExpectedPlayerCount(int count)
         s_expectedPlayerCount = (u8)count;
 }
 
+/* === Local-player-count helper === */
+
+int Netplay_GetLocalPlayerCount(void)
+{
+        /* During a netplay race, each instance is single-player locally.
+         * The engine's numPlyrCurrGame is set to 2-8 to represent the
+         * connected peers (so the spawn logic in MainInit_Drivers creates
+         * the right number of driver slots), but everything RENDER-related
+         * (camera, LOD, pushBuffer, JitPool, HUD layout) should treat us
+         * as 1P. */
+        if (g_NetplayRacing)
+                return 1;
+        return 0; /* 0 = "use gGT->numPlyrCurrGame" — see inline macro */
+}
+
 /* === Item sync handlers === */
 
 internal void Netplay_HandleItemPickup(const struct NetplayPacketHeader *header,
@@ -2451,26 +2458,40 @@ int Netplay_ConsumeRngSeed(u32 *outSeed, u32 *outFrameNum)
         return 1;
 }
 
-/* === Chat window (separate OS window) === */
+/* === Chat window (separate OS window, SDL-based) === */
+
+#if defined(CTR_NATIVE)
+#include <SDL3/SDL.h>
+#endif
+
+#define NETPLAY_CHAT_HISTORY_MAX 50
+#define NETPLAY_CHAT_LINE_MAX    80
+
+global_variable SDL_Window *s_chatWindow;
+global_variable SDL_Renderer *s_chatRenderer;
+global_variable SDL_Texture *s_chatTexture;
+global_variable char s_chatHistory[NETPLAY_CHAT_HISTORY_MAX][NETPLAY_CHAT_LINE_MAX];
+global_variable int s_chatHistoryCount;
+global_variable int s_chatScrollOffset;
 
 void Netplay_ChatPrint(const char *text)
 {
         if (!s_chatWindowOpen || text == NULL)
                 return;
-#if defined(_WIN32)
-        if (s_hChatOut != NULL)
+
+        /* Shift history up if full */
+        if (s_chatHistoryCount >= NETPLAY_CHAT_HISTORY_MAX)
         {
-                DWORD written;
-                WriteFile(s_hChatOut, text, (DWORD)strlen(text), &written, NULL);
-                WriteFile(s_hChatOut, "\r\n", 2, &written, NULL);
+                int i;
+                for (i = 1; i < NETPLAY_CHAT_HISTORY_MAX; i++)
+                        memcpy(s_chatHistory[i - 1], s_chatHistory[i], NETPLAY_CHAT_LINE_MAX);
+                s_chatHistoryCount = NETPLAY_CHAT_HISTORY_MAX - 1;
         }
-#elif defined(__GNUC__) && !defined(_WIN32)
-        if (s_chatUseStdio)
-        {
-                fprintf(stdout, "%s\n", text);
-                fflush(stdout);
-        }
-#endif
+
+        /* Add new line, truncated to fit */
+        snprintf(s_chatHistory[s_chatHistoryCount], NETPLAY_CHAT_LINE_MAX, "%.79s", text);
+        s_chatHistoryCount++;
+        s_chatScrollOffset = 0; /* auto-scroll to bottom on new message */
 }
 
 int Netplay_IsChatWindowOpen(void)
@@ -2485,74 +2506,40 @@ int Netplay_OpenChatWindow(void)
 
         s_chatLineLen = 0;
         s_chatLineBuf[0] = '\0';
+        s_chatHistoryCount = 0;
+        s_chatScrollOffset = 0;
 
-#if defined(_WIN32)
-        /* Detach from any parent console, then allocate a fresh one.
-         * This gives us a dedicated chat window that doesn't interleave
-         * with whatever terminal launched the game. */
-        FreeConsole();
-        if (!AllocConsole())
+        /* Create a dedicated SDL window for chat.
+         * SDL gives us a native OS window with proper text input support
+         * (SDL_StartTextInput / SDL_EVENT_TEXT_INPUT) which is much cleaner
+         * than the previous AllocConsole approach on Windows. */
+        s_chatWindow = SDL_CreateWindow("CTR Netplay Chat", 480, 400, 0);
+        if (s_chatWindow == NULL)
         {
-                /* If AllocConsole fails, try just re-attaching to parent */
-                AttachConsole(ATTACH_PARENT_PROCESS);
-        }
-        SetConsoleTitle("CTR Netplay Chat");
-
-        s_hChatOut = GetStdHandle(STD_OUTPUT_HANDLE);
-        s_hChatIn = GetStdHandle(STD_INPUT_HANDLE);
-
-        if (s_hChatOut == NULL || s_hChatIn == NULL)
-        {
-                s_chatWindowOpen = 0;
+                fprintf(stderr, "[Netplay] Failed to create chat window: %s\n", SDL_GetError());
                 return 0;
         }
 
-        /* Set input handle to non-overlapped so ReadConsoleInput works.
-         * Also set the console mode to process input events. */
-        SetConsoleMode(s_hChatIn, ENABLE_PROCESSED_INPUT | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT);
+        s_chatRenderer = SDL_CreateRenderer(s_chatWindow, NULL);
+        if (s_chatRenderer == NULL)
+        {
+                fprintf(stderr, "[Netplay] Failed to create chat renderer: %s\n", SDL_GetError());
+                SDL_DestroyWindow(s_chatWindow);
+                s_chatWindow = NULL;
+                return 0;
+        }
+
+        /* Start accepting text input. SDL will send SDL_EVENT_TEXT_INPUT
+         * events for each character typed, and SDL_EVENT_KEY_DOWN for
+         * special keys (Enter, Backspace, etc.). These are polled in
+         * Netplay_PollChatInput() without blocking the game. */
+        SDL_StartTextInput(s_chatWindow);
 
         s_chatWindowOpen = 1;
 
         Netplay_ChatPrint("=== CTR Netplay Chat ===");
         Netplay_ChatPrint("Type a message and press Enter to send.");
-        Netplay_ChatPrint("");
-
-#elif defined(__GNUC__) && !defined(_WIN32)
-        /* Linux: if we have a TTY, use it. Otherwise try to spawn xterm. */
-        if (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO))
-        {
-                s_chatUseStdio = 1;
-                s_chatWindowOpen = 1;
-
-                /* Set stdin to non-blocking so we can poll it without
-                 * stalling the game loop. */
-                {
-                        int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-                        if (flags != -1)
-                        {
-                                s_chatStdinWasNonblock = (flags & O_NONBLOCK) != 0;
-                                if (!s_chatStdinWasNonblock)
-                                        fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-                        }
-                }
-
-                Netplay_ChatPrint("=== CTR Netplay Chat ===");
-                Netplay_ChatPrint("Type a message and press Enter to send.");
-                Netplay_ChatPrint("");
-        }
-        else
-        {
-                /* No TTY available. Try spawning xterm as a last resort.
-                 * This is best-effort; if it fails, chat is disabled. */
-                fprintf(stderr, "[Netplay] No terminal available for chat window.\n");
-                fflush(stderr);
-                s_chatWindowOpen = 0;
-                return 0;
-        }
-#else
-        s_chatWindowOpen = 0;
-        return 0;
-#endif
+        Netplay_ChatPrint("(PageUp/PageDown to scroll, ESC to close)");
 
         return 1;
 }
@@ -2564,82 +2551,128 @@ void Netplay_CloseChatWindow(void)
 
         Netplay_ChatPrint("=== Chat closed ===");
 
-#if defined(_WIN32)
-        s_hChatOut = NULL;
-        s_hChatIn = NULL;
-        FreeConsole();
-#elif defined(__GNUC__) && !defined(_WIN32)
-        if (s_chatUseStdio && !s_chatStdinWasNonblock)
+        if (s_chatRenderer)
         {
-                /* Restore blocking stdin */
-                int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-                if (flags != -1)
-                        fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK);
+                SDL_DestroyRenderer(s_chatRenderer);
+                s_chatRenderer = NULL;
         }
-        s_chatUseStdio = 0;
-#endif
+        if (s_chatWindow)
+        {
+                SDL_StopTextInput(s_chatWindow);
+                SDL_DestroyWindow(s_chatWindow);
+                s_chatWindow = NULL;
+        }
 
         s_chatWindowOpen = 0;
         s_chatLineLen = 0;
         s_chatLineBuf[0] = '\0';
+        s_chatHistoryCount = 0;
 }
 
-/* Poll the chat window for input. Called from Netplay_Poll every frame.
- * Non-blocking: reads whatever keys are available, processes Enter to send. */
-internal void Netplay_PollChatInput(void)
+/* Render the chat window content. Called from Netplay_PollChatInput. */
+internal void Netplay_RenderChatWindow(void)
 {
-        if (!s_chatWindowOpen)
+        if (!s_chatWindowOpen || s_chatRenderer == NULL)
                 return;
 
-#if defined(_WIN32)
-        if (s_hChatIn == NULL)
-                return;
+        SDL_SetRenderDrawColor(s_chatRenderer, 20, 20, 30, 255);
+        SDL_RenderClear(s_chatRenderer);
 
-        /* Use ReadConsoleInput to grab key events. We peek at the number
-         * of events first to avoid blocking. */
-        for (;;)
+        /* Draw message history (bottom-up, newest at bottom) */
         {
-                DWORD numEvents = 0;
-                if (!GetNumberOfConsoleInputEvents(s_hChatIn, &numEvents) || numEvents == 0)
-                        break;
+                int lineHeight = 18;
+                int maxLines = (400 - 40) / lineHeight; /* leave room for input bar */
+                int startLine = s_chatHistoryCount - maxLines - s_chatScrollOffset;
+                if (startLine < 0) startLine = 0;
+                int endLine = s_chatHistoryCount - s_chatScrollOffset;
+                if (endLine > s_chatHistoryCount) endLine = s_chatHistoryCount;
+                if (endLine < 0) endLine = 0;
 
-                INPUT_RECORD rec;
-                DWORD read = 0;
-                if (!ReadConsoleInput(s_hChatIn, &rec, 1, &read) || read == 0)
-                        break;
-
-                if (rec.EventType != KEY_EVENT)
-                        continue;
-                if (!rec.Event.KeyEvent.bKeyDown)
-                        continue;
-
+                int y = 400 - 40 - lineHeight; /* start from bottom, go up */
+                int i;
+                for (i = endLine - 1; i >= startLine && y >= 0; i--)
                 {
-                        char c = rec.Event.KeyEvent.uChar.AsciiChar;
-                        if (c == '\r' || c == '\n')
-                        {
-                                if (s_chatLineLen > 0)
-                                {
-                                        s_chatLineBuf[s_chatLineLen] = '\0';
-                                        Netplay_ChatPrint("");
-                                        Netplay_SendChat(s_chatLineBuf);
-                                        {
-                                                char echo[NETPLAY_CHAT_MSG_MAX + 16];
-                                                snprintf(echo, sizeof(echo), "> %s (you)", s_chatLineBuf);
-                                                Netplay_ChatPrint(echo);
-                                        }
-                                        s_chatLineLen = 0;
-                                        s_chatLineBuf[0] = '\0';
-                                }
-                        }
-                        else if (c == '\b')
-                        {
-                                if (s_chatLineLen > 0)
-                                {
-                                        s_chatLineLen--;
-                                        s_chatLineBuf[s_chatLineLen] = '\0';
-                                }
-                        }
-                        else if (c >= 32 && c < 127)
+                        SDL_SetRenderDrawColor(s_chatRenderer, 200, 200, 200, 255);
+                        SDL_RenderDebugText(s_chatRenderer, 8.0f, (float)y, s_chatHistory[i]);
+                        y -= lineHeight;
+                }
+        }
+
+        /* Draw input bar at the bottom */
+        {
+                SDL_FRect inputBar;
+                inputBar.x = 0;
+                inputBar.y = (float)(400 - 30);
+                inputBar.w = 480;
+                inputBar.h = 30;
+                SDL_SetRenderDrawColor(s_chatRenderer, 40, 40, 50, 255);
+                SDL_RenderFillRect(s_chatRenderer, &inputBar);
+
+                /* Draw current input text + cursor */
+                {
+                        char display[NETPLAY_CHAT_MSG_MAX + 2];
+                        snprintf(display, sizeof(display), "> %s_", s_chatLineBuf);
+                        SDL_SetRenderDrawColor(s_chatRenderer, 255, 255, 100, 255);
+                        SDL_RenderDebugText(s_chatRenderer, 8.0f, (float)(400 - 22), display);
+                }
+        }
+
+        SDL_RenderPresent(s_chatRenderer);
+}
+
+/* Process an SDL event for the chat window. Returns 1 if consumed. */
+int Netplay_HandleSDLEvent(const void *sdlEvent)
+{
+        const SDL_Event *event = (const SDL_Event *)sdlEvent;
+
+        if (!s_chatWindowOpen || s_chatWindow == NULL)
+                return 0;
+
+        /* Filter to events for our chat window. Most SDL events have
+         * windowID in the same place (it's the first field of most
+         * event sub-structs). We check the common ones explicitly. */
+        {
+                Uint32 eventWindowID = 0;
+                switch (event->type)
+                {
+                case SDL_EVENT_TEXT_INPUT:
+                        eventWindowID = event->text.windowID;
+                        break;
+                case SDL_EVENT_KEY_DOWN:
+                case SDL_EVENT_KEY_UP:
+                        eventWindowID = event->key.windowID;
+                        break;
+                case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+                case SDL_EVENT_WINDOW_RESIZED:
+                        eventWindowID = event->window.windowID;
+                        break;
+                default:
+                        /* For other event types, check if they have a windowID.
+                         * SDL_EVENT_TEXT_EDITING, mouse events, etc. all have
+                         * windowID as first field. We use a safe cast. */
+                        if (event->type >= SDL_EVENT_WINDOW_FIRST && event->type <= SDL_EVENT_WINDOW_LAST)
+                                eventWindowID = event->window.windowID;
+                        else
+                                return 0; /* not a window event */
+                        break;
+                }
+
+                if (eventWindowID != SDL_GetWindowID(s_chatWindow))
+                        return 0;
+        }
+
+        /* This event is for our chat window — process it */
+        switch (event->type)
+        {
+        case SDL_EVENT_TEXT_INPUT:
+        {
+                const char *text = event->text.text;
+                int textLen = (int)strlen(text);
+                int i;
+                for (i = 0; i < textLen; i++)
+                {
+                        char c = text[i];
+                        if (c >= 32 && c < 127)
                         {
                                 if (s_chatLineLen < (int)sizeof(s_chatLineBuf) - 1)
                                 {
@@ -2648,75 +2681,77 @@ internal void Netplay_PollChatInput(void)
                                 }
                         }
                 }
+                return 1;
         }
-#elif defined(__GNUC__) && !defined(_WIN32)
-        if (!s_chatUseStdio)
-                return;
 
-        /* Use select() to check if stdin has data, with 0 timeout. */
-        for (;;)
+        case SDL_EVENT_KEY_DOWN:
         {
-                fd_set rfds;
-                struct timeval tv;
-                int ret;
-
-                FD_ZERO(&rfds);
-                FD_SET(STDIN_FILENO, &rfds);
-                tv.tv_sec = 0;
-                tv.tv_usec = 0;
-
-                ret = select(STDIN_FILENO + 1, &rfds, NULL, NULL, &tv);
-                if (ret <= 0)
-                        break;
-
+                SDL_Keycode key = event->key.key;
+                if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
                 {
-                        char buf[256];
-                        ssize_t n = read(STDIN_FILENO, buf, sizeof(buf) - 1);
-                        if (n <= 0)
-                                break;
-                        buf[n] = '\0';
-
-                        /* Process each character. Handle Enter, Backspace,
-                         * and printable chars. */
-                        int i;
-                        for (i = 0; i < (int)n; i++)
+                        if (s_chatLineLen > 0)
                         {
-                                char c = buf[i];
-                                if (c == '\n')
+                                s_chatLineBuf[s_chatLineLen] = '\0';
+                                Netplay_SendChat(s_chatLineBuf);
                                 {
-                                        if (s_chatLineLen > 0)
-                                        {
-                                                s_chatLineBuf[s_chatLineLen] = '\0';
-                                                Netplay_SendChat(s_chatLineBuf);
-                                                {
-                                                        char echo[NETPLAY_CHAT_MSG_MAX + 16];
-                                                        snprintf(echo, sizeof(echo), "> %s (you)", s_chatLineBuf);
-                                                        Netplay_ChatPrint(echo);
-                                                }
-                                                s_chatLineLen = 0;
-                                                s_chatLineBuf[0] = '\0';
-                                        }
+                                        char echo[NETPLAY_CHAT_MSG_MAX + 16];
+                                        snprintf(echo, sizeof(echo), "> %s (you)", s_chatLineBuf);
+                                        Netplay_ChatPrint(echo);
                                 }
-                                else if (c == '\b' || c == 127)
-                                {
-                                        if (s_chatLineLen > 0)
-                                        {
-                                                s_chatLineLen--;
-                                                s_chatLineBuf[s_chatLineLen] = '\0';
-                                        }
-                                }
-                                else if (c >= 32 && c < 127)
-                                {
-                                        if (s_chatLineLen < (int)sizeof(s_chatLineBuf) - 1)
-                                        {
-                                                s_chatLineBuf[s_chatLineLen++] = c;
-                                                s_chatLineBuf[s_chatLineLen] = '\0';
-                                        }
-                                }
+                                s_chatLineLen = 0;
+                                s_chatLineBuf[0] = '\0';
                         }
                 }
+                else if (key == SDLK_BACKSPACE)
+                {
+                        if (s_chatLineLen > 0)
+                        {
+                                s_chatLineLen--;
+                                s_chatLineBuf[s_chatLineLen] = '\0';
+                        }
+                }
+                else if (key == SDLK_ESCAPE)
+                {
+                        Netplay_CloseChatWindow();
+                }
+                else if (key == SDLK_PAGEUP)
+                {
+                        s_chatScrollOffset += 5;
+                        if (s_chatScrollOffset > s_chatHistoryCount)
+                                s_chatScrollOffset = s_chatHistoryCount;
+                }
+                else if (key == SDLK_PAGEDOWN)
+                {
+                        s_chatScrollOffset -= 5;
+                        if (s_chatScrollOffset < 0)
+                                s_chatScrollOffset = 0;
+                }
+                return 1;
         }
-#endif
+
+        case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+                Netplay_CloseChatWindow();
+                return 1;
+
+        case SDL_EVENT_QUIT:
+                /* Don't let the chat window's close quit the whole app.
+                 * Return 1 to consume the event. */
+                return 1;
+        }
+
+        return 0;
+}
+
+/* Render the chat window. Called from Netplay_Poll every frame.
+ * Does NOT poll SDL events — those come from the game's main loop via
+ * Netplay_HandleSDLEvent(). */
+internal void Netplay_PollChatInput(void)
+{
+        if (!s_chatWindowOpen || s_chatWindow == NULL)
+                return;
+
+        /* Just render; events are handled via Netplay_HandleSDLEvent */
+        Netplay_RenderChatWindow();
 }
 
 /* === Network interface enumeration (structured, for in-game UI) === */

@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800552a4-0x8005572c.
 void UI_VsWaitForPressX(void)
@@ -22,7 +25,7 @@ void UI_VsWaitForPressX(void)
 	struct Driver *currDriver;
 
 	struct GameTracker *gGT = sdata->gGT;
-	char numPlyr = gGT->numPlyrCurrGame;
+	char numPlyr = NUM_LOCAL_PLAYERS(gGT);
 
 	int tap;
 	int ready = 0;

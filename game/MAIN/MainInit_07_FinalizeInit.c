@@ -72,7 +72,13 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
         // if you are not in main menu
         if ((gGT->gameMode1 & MAIN_MENU) == 0)
         {
+#ifdef CTR_NATIVE
+                /* Netplay: always 1P locally even though numPlyrCurrGame
+                 * is 2-8 to represent connected peers. */
+                numPlyr = g_NetplayRacing ? 1 : gGT->numPlyrCurrGame;
+#else
                 numPlyr = gGT->numPlyrCurrGame;
+#endif
         }
 
         // Initialize four PushBuffer, 4 main screens

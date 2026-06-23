@@ -50,7 +50,7 @@ void UI_RenderFrame_Racing()
         struct GameTracker *gGT;
         gGT = sdata->gGT;
 
-        int numPlyr = gGT->numPlyrCurrGame;
+        int numPlyr = NUM_LOCAL_PLAYERS(gGT);
         int gameMode1 = gGT->gameMode1;
 
         // Get pointer to array of HUD structs

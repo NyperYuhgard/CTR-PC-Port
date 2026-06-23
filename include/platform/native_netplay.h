@@ -270,6 +270,21 @@ void Netplay_SetPeerTimeoutMs(u32 ms);
  * the count is reached. */
 void Netplay_SetExpectedPlayerCount(int count);
 
+/* ---- Local-player-count helper ---- */
+/* Returns 1 during a netplay race (each instance is single-player locally,
+ * even though numPlyrCurrGame may be 2-8 to represent the connected peers).
+ * Returns gGT->numPlyrCurrGame otherwise. Use this INSTEAD of reading
+ * numPlyrCurrGame directly when the engine needs to know "how many local
+ * viewports am I rendering" — for camera, LOD, pushBuffer, JitPool sizing,
+ * HUD layout, etc. Without this, the engine enables split-screen and
+ * low-poly LOD when it shouldn't in netplay. */
+int Netplay_GetLocalPlayerCount(void);
+
+/* Convenience macro: use NUM_LOCAL_PLAYERS(gGT) wherever the engine used
+ * to read gGT->numPlyrCurrGame for rendering/camera/LOD decisions. */
+#define NUM_LOCAL_PLAYERS(gGT) \
+        (g_NetplayRacing ? 1 : (gGT)->numPlyrCurrGame)
+
 /* ---- Item sync ---- */
 /* Called by the game (VehPhysGeneral_SetHeldItem hook) right after a driver
  * picks up an item from a crate. Broadcasts (playerId, itemId, numHeldItems)
@@ -299,16 +314,22 @@ void Netplay_BroadcastRngSeed(u32 seed, u32 frameNum);
 int  Netplay_ConsumeRngSeed(u32 *outSeed, u32 *outFrameNum);
 
 /* ---- Chat window (separate OS window, replaces ingame chat input) ---- */
-/* Opens a separate OS window (Windows: new console via AllocConsole,
- * Linux: uses existing terminal or spawns xterm) where the player can
- * type chat messages and see incoming messages. Non-blocking I/O is
- * polled from Netplay_Poll, so the game never stalls. */
+/* Opens a separate SDL window where the player can type chat messages
+ * and see incoming messages. Uses SDL_StartTextInput for native keyboard
+ * input. The game's main event loop must forward SDL events to
+ * Netplay_HandleSDLEvent() so the chat window can process its own
+ * keyboard / window events without stealing from the game. */
 int  Netplay_OpenChatWindow(void);
 void Netplay_CloseChatWindow(void);
 int  Netplay_IsChatWindowOpen(void);
-/* Write a line to the chat window (auto-appends \n). Safe to call even
- * if the window is not open (no-op). */
+/* Write a line to the chat window. Safe to call even if the window is
+ * not open (no-op). */
 void Netplay_ChatPrint(const char *text);
+/* Process an SDL event. Returns 1 if the event was for the chat window
+ * and was consumed (the caller should NOT process it further), 0 if the
+ * event is not relevant to the chat window. The game's main event loop
+ * should call this for every event from SDL_PollEvent. */
+int  Netplay_HandleSDLEvent(const void *sdlEvent);
 
 /* ---- Network interface enumeration (for in-game picker) ---- */
 /* Returns the number of interfaces found and fills out[] up to maxEntries.

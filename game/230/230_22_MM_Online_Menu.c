@@ -670,7 +670,7 @@ void MM_Online_MenuProc(struct RectMenu *menu)
 
                 /* Action bar */
                 {
-                        const char *help;
+                        char *help;
                         if (isHost && Netplay_IsEveryoneReady() && playerCount >= 2)
                                 help = "START:Race  SQR:Ready  TRI:Back";
                         else
