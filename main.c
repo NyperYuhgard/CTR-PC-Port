@@ -169,13 +169,13 @@ static int NativeArg_IsVersion(const char *arg)
 
 struct NativeNetplayArgs
 {
-	int  enable;
-	int  isHost;
-	char connectAddress[64];
-	u16  port;
-	char playerName[32];
-	int  playerCount;
-	char interfaceName[32];
+        int  enable;
+        int  isHost;
+        char connectAddress[64];
+        u16  port;
+        char playerName[32];
+        int  playerCount;
+        char interfaceName[32];
 };
 
 internal void NativeArg_DefaultNetplayArgs(struct NativeNetplayArgs *args)
@@ -185,9 +185,9 @@ internal void NativeArg_DefaultNetplayArgs(struct NativeNetplayArgs *args)
         memset(args->connectAddress, 0, sizeof(args->connectAddress));
         args->port = NETPLAY_DEFAULT_PORT;
         memset(args->playerName, 0, sizeof(args->playerName));
-	args->playerCount = 2;
-	memset(args->interfaceName, 0, sizeof(args->interfaceName));
-	snprintf(args->playerName, sizeof(args->playerName) - 1, "Player");
+        args->playerCount = 2;
+        memset(args->interfaceName, 0, sizeof(args->interfaceName));
+        snprintf(args->playerName, sizeof(args->playerName) - 1, "Player");
 }
 
 int main(int argc, char *argv[])
@@ -330,45 +330,49 @@ int main(int argc, char *argv[])
         Platform_InitScratchpad();
         Platform_RepairResidentPointers(0);
 
-	// Initialize netplay if requested
-	if (netplayArgs.enable)
-	{
-		Netplay_SetPlayerName(netplayArgs.playerName);
-		if (netplayArgs.interfaceName[0] != '\0')
-			Netplay_SetInterfaceName(netplayArgs.interfaceName);
-		Netplay_Init();
+        // Initialize netplay if requested
+        if (netplayArgs.enable)
+        {
+                Netplay_SetPlayerName(netplayArgs.playerName);
+                if (netplayArgs.interfaceName[0] != '\0')
+                        Netplay_SetInterfaceName(netplayArgs.interfaceName);
+                Netplay_Init();
 
-		if (netplayArgs.isHost)
-		{
-			if (!Netplay_Host(netplayArgs.port))
-			{
-				fprintf(stderr, "[CTR Native] Failed to host netplay on port %u\n", netplayArgs.port);
-				Netplay_Shutdown();
-			}
-			else
-			{
-				printf("[CTR Native] Netplay host on port %u, waiting for %d players...\n",
-				       netplayArgs.port, netplayArgs.playerCount);
-			}
-		}
-		else if (netplayArgs.connectAddress[0] != '\0')
-		{
-			if (!Netplay_Connect(netplayArgs.connectAddress, netplayArgs.port))
-			{
-				fprintf(stderr, "[CTR Native] Failed to connect to %s:%u\n",
-				        netplayArgs.connectAddress, netplayArgs.port);
-				Netplay_Shutdown();
-			}
-			else
-			{
-				printf("[CTR Native] Netplay connecting to %s:%u...\n",
-				       netplayArgs.connectAddress, netplayArgs.port);
-			}
-		}
+                if (netplayArgs.isHost)
+                {
+                        if (!Netplay_Host(netplayArgs.port))
+                        {
+                                fprintf(stderr, "[CTR Native] Failed to host netplay on port %u\n", netplayArgs.port);
+                                Netplay_Shutdown();
+                        }
+                        else
+                        {
+                                /* Enforce the --players N cap. The host counts as 1, so the
+                                 * expected total = N. The lobby will reject HELLOs beyond N. */
+                                Netplay_SetExpectedPlayerCount(netplayArgs.playerCount);
 
-		g_NetplayAutoJoin = 1;
-		fflush(stdout);
-	}
+                                printf("[CTR Native] Netplay host on port %u, waiting for up to %d players...\n",
+                                       netplayArgs.port, netplayArgs.playerCount);
+                        }
+                }
+                else if (netplayArgs.connectAddress[0] != '\0')
+                {
+                        if (!Netplay_Connect(netplayArgs.connectAddress, netplayArgs.port))
+                        {
+                                fprintf(stderr, "[CTR Native] Failed to connect to %s:%u\n",
+                                        netplayArgs.connectAddress, netplayArgs.port);
+                                Netplay_Shutdown();
+                        }
+                        else
+                        {
+                                printf("[CTR Native] Netplay connecting to %s:%u...\n",
+                                       netplayArgs.connectAddress, netplayArgs.port);
+                        }
+                }
+
+                g_NetplayAutoJoin = 1;
+                fflush(stdout);
+        }
 
 #if defined(CTR_INTERNAL)
         if (NativeReplayScheduler_ConfigureFromArgs(argc, argv) != 0)

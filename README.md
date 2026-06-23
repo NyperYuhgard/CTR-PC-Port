@@ -21,10 +21,10 @@ ctr_native/
   build.bat           Windows build (MinGW32)
   build.sh            Linux build
   README.md           This file
-	  game/               Our copies of all decompiled game source (943 files)
-	  include/            Project headers (structs, globals, declarations)
-	  externals/
-	    SDL/              SDL3 source (static build)
+          game/               Our copies of all decompiled game source (943 files)
+          include/            Project headers (structs, globals, declarations)
+          externals/
+            SDL/              SDL3 source (static build)
 ```
 
 ## Prerequisites
@@ -114,6 +114,35 @@ ctr_native/
 ## Bug Replays
 
 Internal builds can record a small bug report folder. See `docs/REPLAYS.md`.
+
+## Netplay
+
+CTR-Native soporta partidas online de hasta 8 jugadores vía UDP, con
+sincronización de items, chat en lobby, y selección de interfaz de red
+100% desde el menú ingame (sin tocar la consola). Ver
+[`docs/NETPLAY.md`](docs/NETPLAY.md) para el protocolo completo.
+
+### Flujo ingame (recomendado)
+
+1. Ejecutá `ctr_native.exe` (sin argumentos).
+2. Main menu → **Online**.
+3. Elegí **Host** o **Connect**.
+   - Host: te aparece la lista de interfaces de red con sus IPs. Elegís la
+     que vas a compartir con los demás.
+   - Connect: tipeás la IP del host con el teclado virtual onscreen.
+4. Lobby: `SQR` para ready. El chat se escribe en una **ventana de consola
+   separada** que se abre automáticamente (con tu teclado de PC, no con
+   el controller). El host arranca con `START` cuando todos están ready.
+5. Al terminar, el host puede mandar "volver al lobby" para jugar otra
+   pista sin reconectar.
+
+### CLI (opcional, para debug)
+
+```
+ctr_native.exe --host --name "Host" --players 4
+ctr_native.exe --connect 192.168.1.100 --name "Player2"
+ctr_native.exe --list-interfaces
+```
 
 ## Architecture
 
