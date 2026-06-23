@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 // budget: 4624
 // curr: 4380
@@ -315,6 +318,10 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 				itemSound = 0x41;
 			}
 
+#ifdef CTR_NATIVE
+			// T11: Skip roll-complete sound for remote drivers during netplay
+			if (!g_NetplayRacing || driver->driverID == Netplay_GetLocalPlayerId())
+#endif
 			// sound of getting weapon
 			OtherFX_Play(itemSound, isNumWumpas10);
 		}

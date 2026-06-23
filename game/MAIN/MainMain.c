@@ -373,13 +373,23 @@ u32 main(void)
 					// gamepad[0] always has the local physical controller
 					struct GamepadBuffer *physPad = &gGS->gamepad[0];
 
-					u32 frameNum = gGT->frameTimer_VsyncCallback;
+					// True local tap/release computed from physical held state,
+					// bypassing GAMEPAD_ProcessTapRelease which uses a
+					// contaminated buttonsHeldPrevFrame (overwritten by previous
+					// frame's netplay override on the client machine).
+					static u32 s_physicalPrevHeld = 0;
+					u32 physicalCurr = physPad->buttonsHeldCurrFrame;
+					u32 trueTapped = ~s_physicalPrevHeld & physicalCurr;
+					u32 trueReleased = s_physicalPrevHeld & ~physicalCurr;
+					s_physicalPrevHeld = physicalCurr;
+
+					u32 frameNum = sdata->frameCounter;
 
 					if (localId == 0)
 					{
-						hHeld = physPad->buttonsHeldCurrFrame;
-						hTapped = physPad->buttonsTapped;
-						hRel = physPad->buttonsReleased;
+						hHeld = physicalCurr;
+						hTapped = trueTapped;
+						hRel = trueReleased;
 						hLX = physPad->stickLX; hLY = physPad->stickLY;
 						hRX = physPad->stickRX; hRY = physPad->stickRY;
 
@@ -387,9 +397,11 @@ u32 main(void)
 						                         hHeld, hTapped, hRel,
 						                         hLX, hLY, hRX, hRY);
 
-						// Frame-matched receive: only consume inputs for the current frame
+						// Receive remote input for this frame
 						struct NetplayInput inputs[4];
 						int count = Netplay_ReceiveInputsForFrame(inputs, 4, frameNum);
+
+						int foundRemote = 0;
 						for (int i = 0; i < count; i++)
 						{
 							if (inputs[i].playerId == 1)
@@ -401,19 +413,20 @@ u32 main(void)
 								cLY = inputs[i].stickLY;
 								cRX = inputs[i].stickRX;
 								cRY = inputs[i].stickRY;
+								foundRemote = 1;
 							}
 						}
 
 						// If no matching frame arrived, use latest known remote input
-						if (count == 0)
+						if (!foundRemote)
 						{
 							struct NetplayInput latest;
 							Netplay_GetLatestRemoteInput(1, &latest);
 							if (latest.frameNum != 0)
 							{
 								cHeld = latest.buttonsHeld;
-								cTapped = latest.buttonsTapped;
-								cRel = latest.buttonsReleased;
+								cTapped = 0;
+								cRel = 0;
 								cLX = latest.stickLX;
 								cLY = latest.stickLY;
 								cRX = latest.stickRX;
@@ -423,9 +436,9 @@ u32 main(void)
 					}
 					else
 					{
-						cHeld = physPad->buttonsHeldCurrFrame;
-						cTapped = physPad->buttonsTapped;
-						cRel = physPad->buttonsReleased;
+						cHeld = physicalCurr;
+						cTapped = trueTapped;
+						cRel = trueReleased;
 						cLX = physPad->stickLX; cLY = physPad->stickLY;
 						cRX = physPad->stickRX; cRY = physPad->stickRY;
 
@@ -433,9 +446,11 @@ u32 main(void)
 						                         cHeld, cTapped, cRel,
 						                         cLX, cLY, cRX, cRY);
 
-						// Frame-matched receive: only consume inputs for the current frame
+						// Receive remote input for this frame
 						struct NetplayInput inputs[4];
 						int count = Netplay_ReceiveInputsForFrame(inputs, 4, frameNum);
+
+						int foundRemote = 0;
 						for (int i = 0; i < count; i++)
 						{
 							if (inputs[i].playerId == 0)
@@ -447,19 +462,20 @@ u32 main(void)
 								hLY = inputs[i].stickLY;
 								hRX = inputs[i].stickRX;
 								hRY = inputs[i].stickRY;
+								foundRemote = 1;
 							}
 						}
 
 						// If no matching frame arrived, use latest known remote input
-						if (count == 0)
+						if (!foundRemote)
 						{
 							struct NetplayInput latest;
 							Netplay_GetLatestRemoteInput(0, &latest);
 							if (latest.frameNum != 0)
 							{
 								hHeld = latest.buttonsHeld;
-								hTapped = latest.buttonsTapped;
-								hRel = latest.buttonsReleased;
+								hTapped = 0;
+								hRel = 0;
 								hLX = latest.stickLX;
 								hLY = latest.stickLY;
 								hRX = latest.stickRX;
@@ -493,7 +509,7 @@ u32 main(void)
 					{
 						int localId = Netplay_GetLocalPlayerId();
 						int remoteId = (localId == 0) ? 1 : 0;
-						u32 frameNum = gGT->frameTimer_VsyncCallback;
+						u32 frameNum = sdata->frameCounter;
 
 						// Send local driver state every 5 frames (or immediately if resync requested)
 						static u32 s_lastStateSend = 0;

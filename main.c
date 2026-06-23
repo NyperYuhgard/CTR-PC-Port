@@ -169,12 +169,13 @@ static int NativeArg_IsVersion(const char *arg)
 
 struct NativeNetplayArgs
 {
-        int  enable;
-        int  isHost;
-        char connectAddress[64];
-        u16  port;
-        char playerName[32];
-        int  playerCount;
+	int  enable;
+	int  isHost;
+	char connectAddress[64];
+	u16  port;
+	char playerName[32];
+	int  playerCount;
+	char interfaceName[32];
 };
 
 internal void NativeArg_DefaultNetplayArgs(struct NativeNetplayArgs *args)
@@ -184,8 +185,9 @@ internal void NativeArg_DefaultNetplayArgs(struct NativeNetplayArgs *args)
         memset(args->connectAddress, 0, sizeof(args->connectAddress));
         args->port = NETPLAY_DEFAULT_PORT;
         memset(args->playerName, 0, sizeof(args->playerName));
-        args->playerCount = 2;
-        snprintf(args->playerName, sizeof(args->playerName) - 1, "Player");
+	args->playerCount = 2;
+	memset(args->interfaceName, 0, sizeof(args->interfaceName));
+	snprintf(args->playerName, sizeof(args->playerName) - 1, "Player");
 }
 
 int main(int argc, char *argv[])
@@ -251,6 +253,19 @@ int main(int argc, char *argv[])
                                 if (count >= 2 && count <= NETPLAY_MAX_PLAYERS)
                                         netplayArgs.playerCount = count;
                         }
+                }
+                else if (strcmp(argv[argIndex], "--interface") == 0)
+                {
+                        if (argIndex + 1 < argc)
+                        {
+                                strncpy(netplayArgs.interfaceName, argv[++argIndex],
+                                        sizeof(netplayArgs.interfaceName) - 1);
+                        }
+                }
+                else if (strcmp(argv[argIndex], "--list-interfaces") == 0)
+                {
+                        Netplay_ListInterfaces();
+                        return 0;
                 }
         }
 
@@ -319,6 +334,8 @@ int main(int argc, char *argv[])
 	if (netplayArgs.enable)
 	{
 		Netplay_SetPlayerName(netplayArgs.playerName);
+		if (netplayArgs.interfaceName[0] != '\0')
+			Netplay_SetInterfaceName(netplayArgs.interfaceName);
 		Netplay_Init();
 
 		if (netplayArgs.isHost)

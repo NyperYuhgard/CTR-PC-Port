@@ -605,6 +605,19 @@ playerStruct->BattleHUD.cooldown--;
 	}
 
 #ifdef CTR_NATIVE
+	// Draw missile/warpball lock-on reticle for ALL drivers during netplay
+	// (the player loop above only processes the local player)
+	if (g_NetplayRacing)
+	{
+		int localId = Netplay_GetLocalPlayerId();
+		for (i = 0; i < gGT->numPlyrCurrGame; i++)
+		{
+			struct Driver *d = gGT->drivers[i];
+			if (d != NULL && d->driverID == localId)
+				UI_TrackerSelf(d);
+		}
+	}
+
 	// T12: Draw netplay ping/latency display
 	if (g_NetplayRacing)
 	{

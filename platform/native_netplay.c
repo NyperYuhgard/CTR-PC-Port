@@ -9,8 +9,21 @@
 #endif
 
 #if defined(_WIN32)
+/* Forzamos que NO se defina NOMSG bajo ninguna circunstancia */
+#ifdef NOMSG
+#undef NOMSG
+#endif
+
+#include <windows.h>
+#include <winuser.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+
+/* Por si iphlpapi.h se sigue poniendo tonto, definimos el tipo a mano */
+#ifndef LPMSG
+typedef struct tagMSG *LPMSG;
+#endif
+
 #include <platform/native_win32.h>
 #pragma comment(lib, "ws2_32")
 #define NETPLAY_SOCKET_ERROR       SOCKET_ERROR
@@ -26,6 +39,9 @@ typedef int socklen_t;
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#if !defined(_WIN32)
+#include <ifaddrs.h>
+#endif
 #define NETPLAY_SOCKET_ERROR       (-1)
 #define NETPLAY_SOCKET_INVALID     (-1)
 #define NETPLAY_SOCKET             int
@@ -143,6 +159,7 @@ global_variable NetplayEventFn s_onPlayerLeave;
 global_variable char s_playerNames[NETPLAY_MAX_PLAYERS][NETPLAY_PLAYER_NAME_MAX];
 global_variable char s_localPlayerName[NETPLAY_PLAYER_NAME_MAX];
 global_variable char s_addressString[64];
+global_variable char s_interfaceName[32];
 int g_NetplayAutoJoin;
 int g_NetplayRaceStarting;
 int g_NetplayRacing;
@@ -219,27 +236,7 @@ internal void Netplay_QueueInput(u8 playerId, u32 frameNum, u32 buttonsHeld,
                                  u32 buttonsTapped, u32 buttonsReleased,
                                  s16 stickLX, s16 stickLY, s16 stickRX, s16 stickRY)
 {
-	int tail = s_inputQueueTail;
-	int next = (tail + 1) % (int)len(s_inputQueue);
-
-	if (next == s_inputQueueHead)
-	{
-		fprintf(stderr, "[Netplay] Input queue overflow, dropping input for frame %u player %d\n", frameNum, playerId);
-		return;
-	}
-
-	s_inputQueue[tail].frameNum = frameNum;
-	s_inputQueue[tail].playerId = playerId;
-	s_inputQueue[tail].buttonsHeld = buttonsHeld;
-	s_inputQueue[tail].buttonsTapped = buttonsTapped;
-	s_inputQueue[tail].buttonsReleased = buttonsReleased;
-	s_inputQueue[tail].stickLX = stickLX;
-	s_inputQueue[tail].stickLY = stickLY;
-	s_inputQueue[tail].stickRX = stickRX;
-	s_inputQueue[tail].stickRY = stickRY;
-	s_inputQueueTail = next;
-
-	// Update last-known input cache (only for newer frames)
+	// Update last-known input cache FIRST (before queue, always store latest)
 	if ((int)(frameNum - s_lastRemoteFrame[playerId]) > 0)
 	{
 		s_lastRemoteFrame[playerId] = frameNum;
@@ -253,7 +250,137 @@ internal void Netplay_QueueInput(u8 playerId, u32 frameNum, u32 buttonsHeld,
 		s_lastRemoteInput[playerId].stickRX = stickRX;
 		s_lastRemoteInput[playerId].stickRY = stickRY;
 	}
+
+	// Make room if queue is full (drop oldest entries)
+	while (1)
+	{
+		int tail = s_inputQueueTail;
+		int next = (tail + 1) % (int)len(s_inputQueue);
+		if (next != s_inputQueueHead)
+			break;
+		// Queue full: advance head, dropping oldest
+		s_inputQueueHead = (s_inputQueueHead + 1) % (int)len(s_inputQueue);
+	}
+
+	int tail = s_inputQueueTail;
+	s_inputQueue[tail].frameNum = frameNum;
+	s_inputQueue[tail].playerId = playerId;
+	s_inputQueue[tail].buttonsHeld = buttonsHeld;
+	s_inputQueue[tail].buttonsTapped = buttonsTapped;
+	s_inputQueue[tail].buttonsReleased = buttonsReleased;
+	s_inputQueue[tail].stickLX = stickLX;
+	s_inputQueue[tail].stickLY = stickLY;
+	s_inputQueue[tail].stickRX = stickRX;
+	s_inputQueue[tail].stickRY = stickRY;
+	s_inputQueueTail = (tail + 1) % (int)len(s_inputQueue);
 }
+
+void Netplay_SetInterfaceName(const char *name)
+{
+	if (name != NULL)
+	{
+		strncpy(s_interfaceName, name, sizeof(s_interfaceName) - 1);
+		s_interfaceName[sizeof(s_interfaceName) - 1] = '\0';
+	}
+	else
+	{
+		s_interfaceName[0] = '\0';
+	}
+}
+
+#if defined(_WIN32)
+#include <iphlpapi.h>
+#pragma comment(lib, "iphlpapi")
+int Netplay_ListInterfaces(void)
+{
+	ULONG bufLen = 0;
+	IP_ADAPTER_ADDRESSES *addrs = NULL;
+	DWORD ret;
+
+	ret = GetAdaptersAddresses(AF_INET, 0, NULL, NULL, &bufLen);
+	if (ret != ERROR_BUFFER_OVERFLOW)
+	{
+		fprintf(stdout, "[Netplay] No network interfaces found\n");
+		return 0;
+	}
+
+	addrs = (IP_ADAPTER_ADDRESSES *)malloc(bufLen);
+	if (addrs == NULL)
+		return 0;
+
+	ret = GetAdaptersAddresses(AF_INET, 0, NULL, addrs, &bufLen);
+	if (ret != NO_ERROR)
+	{
+		free(addrs);
+		return 0;
+	}
+
+	fprintf(stdout, "[Netplay] Available network interfaces:\n");
+	int count = 0;
+	for (IP_ADAPTER_ADDRESSES *a = addrs; a != NULL; a = a->Next)
+	{
+		if (a->OperStatus != IfOperStatusUp)
+			continue;
+		IP_ADAPTER_UNICAST_ADDRESS *ua = a->FirstUnicastAddress;
+		if (ua == NULL)
+			continue;
+		struct sockaddr_in *sin = (struct sockaddr_in *)ua->Address.lpSockaddr;
+		if (sin->sin_family != AF_INET)
+			continue;
+		u32 ip = ntohl(sin->sin_addr.s_addr);
+		if ((ip & 0xFF000000) == 0x7F000000)
+			continue;
+		char adapterName[256];
+		wcstombs(adapterName, a->FriendlyName, sizeof(adapterName));
+		adapterName[sizeof(adapterName) - 1] = '\0';
+		fprintf(stdout, "  %S (%s): %u.%u.%u.%u\n",
+		        a->FriendlyName, a->AdapterName,
+		        (ip >> 24) & 0xFF, (ip >> 16) & 0xFF,
+		        (ip >> 8) & 0xFF, ip & 0xFF);
+		count++;
+	}
+	free(addrs);
+	return count;
+}
+#elif defined(__GNUC__) && !defined(_WIN32)
+int Netplay_ListInterfaces(void)
+{
+	struct ifaddrs *ifaddr, *ifa;
+	int count = 0;
+
+	if (getifaddrs(&ifaddr) == -1)
+	{
+		fprintf(stderr, "[Netplay] getifaddrs failed\n");
+		return 0;
+	}
+
+	fprintf(stdout, "[Netplay] Available network interfaces:\n");
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+	{
+		if (ifa->ifa_addr == NULL)
+			continue;
+		if (ifa->ifa_addr->sa_family != AF_INET)
+			continue;
+		struct sockaddr_in *sin = (struct sockaddr_in *)ifa->ifa_addr;
+		u32 ip = ntohl(sin->sin_addr.s_addr);
+		if ((ip & 0xFF000000) == 0x7F000000)
+			continue;
+		fprintf(stdout, "  %s: %u.%u.%u.%u\n",
+		        ifa->ifa_name,
+		        (ip >> 24) & 0xFF, (ip >> 16) & 0xFF,
+		        (ip >> 8) & 0xFF, ip & 0xFF);
+		count++;
+	}
+	freeifaddrs(ifaddr);
+	return count;
+}
+#else
+int Netplay_ListInterfaces(void)
+{
+	fprintf(stdout, "[Netplay] Interface listing not supported on this platform\n");
+	return 0;
+}
+#endif
 
 const char *Netplay_GetAddressString(void)
 {
@@ -893,41 +1020,100 @@ int Netplay_Host(u16 port)
 
 	// Resolve local IP for display
 	{
-		char hostname[256];
-		struct addrinfo hints, *res;
-
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_INET;
-		hints.ai_socktype = SOCK_DGRAM;
+		u32 resolvedIP = 0;
 
 		s_addressString[0] = '\0';
 
-		if (gethostname(hostname, sizeof(hostname)) == 0 &&
-		    getaddrinfo(hostname, NULL, &hints, &res) == 0)
+		// Try to resolve by interface name first
+		if (s_interfaceName[0] != '\0')
 		{
-			struct sockaddr_in *sin = (struct sockaddr_in *)res->ai_addr;
-			u32 ip = ntohl(sin->sin_addr.s_addr);
-
-			// Skip loopback (127.x.x.x)
-			if ((ip & 0xFF000000) != 0x7F000000)
+#if defined(_WIN32)
+			ULONG bufLen = 0;
+			IP_ADAPTER_ADDRESSES *addrs = NULL;
+			GetAdaptersAddresses(AF_INET, 0, NULL, NULL, &bufLen);
+			addrs = (IP_ADAPTER_ADDRESSES *)malloc(bufLen);
+			if (addrs != NULL)
 			{
-				snprintf(s_addressString, sizeof(s_addressString),
-				         "%u.%u.%u.%u:%u",
-				         (ip >> 24) & 0xFF, (ip >> 16) & 0xFF,
-				         (ip >> 8) & 0xFF, ip & 0xFF,
-				         port);
+				if (GetAdaptersAddresses(AF_INET, 0, NULL, addrs, &bufLen) == NO_ERROR)
+				{
+					for (IP_ADAPTER_ADDRESSES *a = addrs; a != NULL; a = a->Next)
+					{
+						char aname[256];
+						wcstombs(aname, a->FriendlyName, sizeof(aname));
+						if (strcmp(aname, s_interfaceName) != 0 &&
+						    strcmp((const char *)a->AdapterName, s_interfaceName) != 0)
+							continue;
+						IP_ADAPTER_UNICAST_ADDRESS *ua = a->FirstUnicastAddress;
+						if (ua != NULL)
+						{
+							struct sockaddr_in *sin = (struct sockaddr_in *)ua->Address.lpSockaddr;
+							if (sin->sin_family == AF_INET)
+							{
+								resolvedIP = ntohl(sin->sin_addr.s_addr);
+								break;
+							}
+						}
+					}
+				}
+				free(addrs);
 			}
-			else
+#elif defined(__GNUC__) && !defined(_WIN32)
 			{
-				// Fall back to any address
-				snprintf(s_addressString, sizeof(s_addressString),
-				         "%u.%u.%u.%u:%u",
-				         (ip >> 24) & 0xFF, (ip >> 16) & 0xFF,
-				         (ip >> 8) & 0xFF, ip & 0xFF,
-				         port);
+				struct ifaddrs *ifaddr, *ifa;
+				if (getifaddrs(&ifaddr) == 0)
+				{
+					for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+					{
+						if (ifa->ifa_addr == NULL)
+							continue;
+						if (ifa->ifa_addr->sa_family != AF_INET)
+							continue;
+						if (strcmp(ifa->ifa_name, s_interfaceName) != 0)
+							continue;
+						struct sockaddr_in *sin = (struct sockaddr_in *)ifa->ifa_addr;
+						resolvedIP = ntohl(sin->sin_addr.s_addr);
+						break;
+					}
+					freeifaddrs(ifaddr);
+				}
 			}
+#endif
+		}
 
-			freeaddrinfo(res);
+		// Fallback: resolve via hostname
+		if (resolvedIP == 0)
+		{
+			char hostname[256];
+			struct addrinfo hints, *res;
+
+			memset(&hints, 0, sizeof(hints));
+			hints.ai_family = AF_INET;
+			hints.ai_socktype = SOCK_DGRAM;
+
+			if (gethostname(hostname, sizeof(hostname)) == 0 &&
+			    getaddrinfo(hostname, NULL, &hints, &res) == 0)
+			{
+				struct sockaddr_in *sin = (struct sockaddr_in *)res->ai_addr;
+				resolvedIP = ntohl(sin->sin_addr.s_addr);
+				freeaddrinfo(res);
+			}
+		}
+
+		if (resolvedIP != 0 && (resolvedIP & 0xFF000000) != 0x7F000000)
+		{
+			snprintf(s_addressString, sizeof(s_addressString),
+			         "%u.%u.%u.%u:%u",
+			         (resolvedIP >> 24) & 0xFF, (resolvedIP >> 16) & 0xFF,
+			         (resolvedIP >> 8) & 0xFF, resolvedIP & 0xFF,
+			         port);
+		}
+		else if (resolvedIP != 0)
+		{
+			snprintf(s_addressString, sizeof(s_addressString),
+			         "%u.%u.%u.%u:%u",
+			         (resolvedIP >> 24) & 0xFF, (resolvedIP >> 16) & 0xFF,
+			         (resolvedIP >> 8) & 0xFF, resolvedIP & 0xFF,
+			         port);
 		}
 	}
 
@@ -1096,10 +1282,6 @@ void Netplay_SendGamepadState(u32 frameNum, u32 buttonsHeld, u32 buttonsTapped,
 	input.stickRX = stickRX;
 	input.stickRY = stickRY;
 
-	// Also record locally
-	Netplay_QueueInput(s_localPlayerId, frameNum, buttonsHeld, buttonsTapped,
-	                   buttonsReleased, stickLX, stickLY, stickRX, stickRY);
-
 	// Store in history
 	{
 		struct NetplayFrameInput *hist = &s_inputHistory[s_inputHistoryWrite % NETPLAY_FRAME_HISTORY];
@@ -1190,8 +1372,13 @@ void Netplay_GetLatestRemoteInput(u8 playerId, struct NetplayInput *out)
 		out->frameNum = s_lastRemoteFrame[playerId];
 		out->playerId = playerId;
 		out->buttonsHeld = s_lastRemoteInput[playerId].buttonsHeld;
-		out->buttonsTapped = s_lastRemoteInput[playerId].buttonsTapped;
-		out->buttonsReleased = s_lastRemoteInput[playerId].buttonsReleased;
+		/* buttonsTapped y buttonsReleased son señales de un solo frame.
+		   Si las reutilizáramos de un frame anterior, causarían "turbo":
+		   el tap parecería repetirse en cada frame hasta que llegue
+		   el siguiente paquete. Dejarlas en 0 evita el efecto turbo;
+		   la pérdida ocasional de un tap es preferible. */
+		out->buttonsTapped = 0;
+		out->buttonsReleased = 0;
 		out->stickLX = s_lastRemoteInput[playerId].stickLX;
 		out->stickLY = s_lastRemoteInput[playerId].stickLY;
 		out->stickRX = s_lastRemoteInput[playerId].stickRX;

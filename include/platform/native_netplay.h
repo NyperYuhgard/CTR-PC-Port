@@ -124,6 +124,10 @@ int  Netplay_IsRemoteFinished(u8 playerId);
 
 const char *Netplay_GetAddressString(void);
 
+// Interface selection
+void Netplay_SetInterfaceName(const char *name);
+int  Netplay_ListInterfaces(void);
+
 extern int g_NetplayAutoJoin;
 extern int g_NetplayRaceStarting;
 extern int g_NetplayRacing;
