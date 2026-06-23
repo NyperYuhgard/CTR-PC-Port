@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 // To do: add a header
 
@@ -83,7 +86,11 @@ void UI_RenderFrame_Racing()
 		if ((gGT->hudFlags & 0x20) == 0)
 		{
 			// If you press Triangle
-			if ((sdata->gGamepads->gamepad[0].buttonsTapped & 0x40000) != 0)
+			if (((sdata->gGamepads->gamepad[0].buttonsTapped & 0x40000) != 0)
+#ifdef CTR_NATIVE
+			    || (g_NetplayRacing && (sdata->gGamepads->gamepad[1].buttonsTapped & 0x40000) != 0)
+#endif
+			    )
 			{
 				// if & 8, remove bit 8,
 				// if !& 8, add bit 8,
@@ -136,6 +143,19 @@ void UI_RenderFrame_Racing()
 		{
 			// pointer to player structure
 			playerStruct = (struct Driver *)playerThread->object;
+
+#ifdef CTR_NATIVE
+			// Netplay: only draw HUD for the local player
+			if (g_NetplayRacing && numPlyr < 2)
+			{
+				int localId = Netplay_GetLocalPlayerId();
+				if (playerStruct != gGT->drivers[localId])
+				{
+					playerThread = playerThread->siblingThread;
+					continue;
+				}
+			}
+#endif
 
 			if (
 			    // if player has not driven backwards very far,
@@ -576,8 +596,32 @@ playerStruct->BattleHUD.cooldown--;
 			// TODO: use num where 0x14 = NUM_HUD
 			hudStructPtr += 0x14;
 
+#ifdef CTR_NATIVE
+			if (g_NetplayRacing && numPlyr < 2)
+				break;
+#endif
+
 		} while (playerThread != 0);
 	}
+
+#ifdef CTR_NATIVE
+	// T12: Draw netplay ping/latency display
+	if (g_NetplayRacing)
+	{
+		int netCount;
+		const struct NetplayPlayerInfo *players = Netplay_GetPlayers(&netCount);
+		char pingStr[32];
+		int localId = Netplay_GetLocalPlayerId();
+		for (int p = 0; p < netCount; p++)
+		{
+			if (players[p].connected && players[p].id != localId)
+			{
+				sprintf(pingStr, "%d ms", players[p].pingMs);
+				DecalFont_DrawLine(pingStr, 0x10, 0x10, 2, TINY_GREEN);
+			}
+		}
+	}
+#endif
 
 	if (sdata->WrongWayDirection_bool != cVar22)
 	{

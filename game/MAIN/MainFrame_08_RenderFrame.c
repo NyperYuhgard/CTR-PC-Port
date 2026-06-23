@@ -9,6 +9,10 @@
 #define MAINFRAME_PERF_END(bucket)   ((void)0)
 #endif
 
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
+
 #ifdef CTR_INTERNAL
 volatile int gCtrDebugSkipLevelGeometry = 0;
 #endif
@@ -215,9 +219,14 @@ void DrawUnpluggedMsg(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
 	}
 
 	// dont draw error in cutscene, if no controllers are missing currently,
-	// in demo mode, or at the highest main-menu level.
+	// in demo mode, at the highest main-menu level, or during netplay.
 	if ((gGT->gameMode1 & GAME_CUTSCENE) != 0)
 		return;
+
+#ifdef CTR_NATIVE
+	if (g_NetplayRacing)
+		return;
+#endif
 
 	if (MainFrame_HaveAllPads(gGT->numPlyrNextGame) == 1)
 		return;

@@ -116,6 +116,22 @@ global_variable struct NetplayInput s_inputQueue[NETPLAY_FRAME_HISTORY * NETPLAY
 global_variable int s_inputQueueHead;
 global_variable int s_inputQueueTail;
 
+// Last known input per player (for frame-synced consumption)
+global_variable struct NetplayInput s_lastRemoteInput[NETPLAY_MAX_PLAYERS];
+global_variable u32 s_lastRemoteFrame[NETPLAY_MAX_PLAYERS];
+
+// Latest received state snapshot per player (for position sync)
+global_variable struct NetplayStatePayload s_receivedState[NETPLAY_MAX_PLAYERS];
+global_variable u32 s_receivedStateFrame[NETPLAY_MAX_PLAYERS];
+
+// Crate hit queue (for T7)
+global_variable struct NetplayCrateHit s_crateHitQueue[NETPLAY_CRATE_QUEUE_MAX];
+global_variable int s_crateHitQueueHead;
+global_variable int s_crateHitQueueTail;
+
+// Remote player finished flag (for T8)
+global_variable u8 s_remoteFinished[NETPLAY_MAX_PLAYERS];
+
 // Ping tracking
 global_variable u32 s_lastPingTime;
 
@@ -134,6 +150,12 @@ int g_NetplayHostCharacter;
 int g_NetplayClientCharacter;
 int g_NetplayTrackId;
 int g_NetplayNumLaps;
+int g_NetplayLocalLoaded;
+int g_NetplayRemoteLoaded;
+int g_NetplayDisconnected;
+int g_NetplayStateRequested;
+u32 g_NetplayRemoteChecksumFrame;
+u32 g_NetplayRemoteChecksumValue;
 
 // Windows-specific WSA init tracking
 #if defined(_WIN32)
@@ -216,6 +238,21 @@ internal void Netplay_QueueInput(u8 playerId, u32 frameNum, u32 buttonsHeld,
 	s_inputQueue[tail].stickRX = stickRX;
 	s_inputQueue[tail].stickRY = stickRY;
 	s_inputQueueTail = next;
+
+	// Update last-known input cache (only for newer frames)
+	if ((int)(frameNum - s_lastRemoteFrame[playerId]) > 0)
+	{
+		s_lastRemoteFrame[playerId] = frameNum;
+		s_lastRemoteInput[playerId].frameNum = frameNum;
+		s_lastRemoteInput[playerId].playerId = playerId;
+		s_lastRemoteInput[playerId].buttonsHeld = buttonsHeld;
+		s_lastRemoteInput[playerId].buttonsTapped = buttonsTapped;
+		s_lastRemoteInput[playerId].buttonsReleased = buttonsReleased;
+		s_lastRemoteInput[playerId].stickLX = stickLX;
+		s_lastRemoteInput[playerId].stickLY = stickLY;
+		s_lastRemoteInput[playerId].stickRX = stickRX;
+		s_lastRemoteInput[playerId].stickRY = stickRY;
+	}
 }
 
 const char *Netplay_GetAddressString(void)
@@ -542,7 +579,11 @@ internal void Netplay_HandlePong(const struct NetplayPacketHeader *header,
 
 internal void Netplay_HandleDisconnect(const struct NetplayPacketHeader *header)
 {
+	fprintf(stdout, "[Netplay] Player %u disconnected\n", header->playerId);
+	fflush(stdout);
 	Netplay_RemovePeer(header->playerId);
+	if (g_NetplayRacing)
+		g_NetplayDisconnected = 1;
 }
 
 internal int Netplay_ReceivePacket(void)
@@ -632,6 +673,88 @@ internal int Netplay_ReceivePacket(void)
 			fflush(stdout);
 		}
 		break;
+
+	case NETPLAY_PACKET_PAUSE:
+		if (g_NetplayRacing)
+		{
+			fprintf(stdout, "[Netplay] Remote player paused\n");
+			fflush(stdout);
+		}
+		break;
+
+	case NETPLAY_PACKET_UNPAUSE:
+		if (g_NetplayRacing)
+		{
+			fprintf(stdout, "[Netplay] Remote player unpaused\n");
+			fflush(stdout);
+		}
+		break;
+
+	case NETPLAY_PACKET_LOADED:
+		fprintf(stdout, "[Netplay] Remote player finished loading\n");
+		fflush(stdout);
+		g_NetplayRemoteLoaded = 1;
+		break;
+
+	case NETPLAY_PACKET_STATE:
+	{
+		const struct NetplayStatePayload *st = (const struct NetplayStatePayload *)(buffer + sizeof(*header));
+		if (header->payloadSize >= sizeof(struct NetplayStatePayload) && st != NULL)
+		{
+			u8 senderId = header->playerId;
+			if ((int)(st->frameNum - s_receivedStateFrame[senderId]) > 0)
+			{
+				s_receivedState[senderId] = *st;
+				s_receivedStateFrame[senderId] = st->frameNum;
+			}
+		}
+		break;
+	}
+
+	case NETPLAY_PACKET_CRATE_HIT:
+	{
+		const struct NetplayCrateHit *hit = (const struct NetplayCrateHit *)(buffer + sizeof(*header));
+		if (header->payloadSize >= (int)sizeof(struct NetplayCrateHit) && hit != NULL)
+		{
+			int tail = s_crateHitQueueTail;
+			int next = (tail + 1) % NETPLAY_CRATE_QUEUE_MAX;
+			if (next != s_crateHitQueueHead)
+			{
+				s_crateHitQueue[tail] = *hit;
+				s_crateHitQueueTail = next;
+			}
+		}
+		break;
+	}
+
+	case NETPLAY_PACKET_FINISHED:
+	{
+		if (header->payloadSize >= 1)
+		{
+			u8 finishedPlayerId = header->playerId;
+			s_remoteFinished[finishedPlayerId] = 1;
+			fprintf(stdout, "[Netplay] Player %u finished the race!\n", finishedPlayerId);
+			fflush(stdout);
+		}
+		break;
+	}
+
+	case NETPLAY_PACKET_CHECKSUM:
+	{
+		const struct NetplayChecksumPayload *cp = (const struct NetplayChecksumPayload *)(buffer + sizeof(*header));
+		if (header->payloadSize >= (int)sizeof(struct NetplayChecksumPayload) && cp != NULL)
+		{
+			g_NetplayRemoteChecksumFrame = cp->frameNum;
+			g_NetplayRemoteChecksumValue = cp->checksum;
+		}
+		break;
+	}
+
+	case NETPLAY_PACKET_STATE_REQ:
+	{
+		g_NetplayStateRequested = 1;
+		break;
+	}
 	}
 
 	return 1;
@@ -647,6 +770,14 @@ int Netplay_Init(void)
 	memset(s_inputQueue, 0, sizeof(s_inputQueue));
 	memset(s_playerNames, 0, sizeof(s_playerNames));
 	memset(s_localPlayerName, 0, sizeof(s_localPlayerName));
+	memset(s_lastRemoteInput, 0, sizeof(s_lastRemoteInput));
+	memset(s_lastRemoteFrame, 0, sizeof(s_lastRemoteFrame));
+	memset(s_receivedState, 0, sizeof(s_receivedState));
+	memset(s_receivedStateFrame, 0, sizeof(s_receivedStateFrame));
+	memset(s_crateHitQueue, 0, sizeof(s_crateHitQueue));
+	memset(s_remoteFinished, 0, sizeof(s_remoteFinished));
+	s_crateHitQueueHead = 0;
+	s_crateHitQueueTail = 0;
 
 	s_inputQueueHead = 0;
 	s_inputQueueTail = 0;
@@ -665,6 +796,12 @@ int Netplay_Init(void)
 	g_NetplayClientCharacter = -1;
 	g_NetplayTrackId = 0;
 	g_NetplayNumLaps = 3;
+	g_NetplayLocalLoaded = 0;
+	g_NetplayRemoteLoaded = 0;
+	g_NetplayDisconnected = 0;
+	g_NetplayStateRequested = 0;
+	g_NetplayRemoteChecksumFrame = 0;
+	g_NetplayRemoteChecksumValue = 0;
 
 #if defined(_WIN32)
 	if (!s_wsaInitialized)
@@ -873,6 +1010,14 @@ void Netplay_Disconnect(void)
 		s_localPlayerId = 0;
 		s_playerCount = 0;
 		g_NetplayRacing = 0;
+		g_NetplayLocalLoaded = 0;
+		g_NetplayRemoteLoaded = 0;
+		g_NetplayStateRequested = 0;
+		g_NetplayRemoteChecksumFrame = 0;
+		g_NetplayRemoteChecksumValue = 0;
+		memset(s_remoteFinished, 0, sizeof(s_remoteFinished));
+		s_crateHitQueueHead = 0;
+		s_crateHitQueueTail = 0;
 
 		memset(s_peers, 0, sizeof(s_peers));
 		s_inputQueueHead = 0;
@@ -995,6 +1140,125 @@ int Netplay_ReceiveInputs(struct NetplayInput *inputs, int maxInputs)
 	}
 
 	return count;
+}
+
+int Netplay_ReceiveInputsForFrame(struct NetplayInput *inputs, int maxInputs, u32 expectedFrameNum)
+{
+	int count = 0;
+
+	while (s_inputQueueHead != s_inputQueueTail)
+	{
+		struct NetplayInput *in = &s_inputQueue[s_inputQueueHead];
+
+		// Stop at future inputs (preserve queue order)
+		if ((int)(in->frameNum - expectedFrameNum) > 0)
+			break;
+
+		// Dequeue this entry
+		s_inputQueueHead = (s_inputQueueHead + 1) % (int)len(s_inputQueue);
+
+		// Only return inputs matching the expected frame
+		if (in->frameNum == expectedFrameNum)
+		{
+			if (count < maxInputs)
+			{
+				// Deduplicate: if we already have this playerId, skip older entries
+				int dup = 0;
+				for (int j = 0; j < count; j++)
+				{
+					if (inputs[j].playerId == in->playerId)
+					{
+						inputs[j] = *in; // Replace with newer entry
+						dup = 1;
+						break;
+					}
+				}
+				if (!dup)
+					inputs[count++] = *in;
+			}
+		}
+		// else: stale input (frameNum < expectedFrameNum), silently discard
+	}
+
+	return count;
+}
+
+void Netplay_GetLatestRemoteInput(u8 playerId, struct NetplayInput *out)
+{
+	if (out != NULL)
+	{
+		out->frameNum = s_lastRemoteFrame[playerId];
+		out->playerId = playerId;
+		out->buttonsHeld = s_lastRemoteInput[playerId].buttonsHeld;
+		out->buttonsTapped = s_lastRemoteInput[playerId].buttonsTapped;
+		out->buttonsReleased = s_lastRemoteInput[playerId].buttonsReleased;
+		out->stickLX = s_lastRemoteInput[playerId].stickLX;
+		out->stickLY = s_lastRemoteInput[playerId].stickLY;
+		out->stickRX = s_lastRemoteInput[playerId].stickRX;
+		out->stickRY = s_lastRemoteInput[playerId].stickRY;
+	}
+}
+
+void Netplay_SendStatePacket(const struct NetplayStatePayload *state)
+{
+	if (s_netplayState != NETPLAY_STATE_HOSTING && s_netplayState != NETPLAY_STATE_CONNECTED)
+		return;
+
+	if (Netplay_IsHost())
+		Netplay_BroadcastPacket(NETPLAY_PACKET_STATE, (u16)sizeof(*state), state);
+	else
+		Netplay_SendPacket(NETPLAY_PACKET_STATE, (u16)sizeof(*state), state, &s_hostAddr);
+}
+
+int Netplay_DequeueState(u8 playerId, struct NetplayStatePayload *out)
+{
+	if (out != NULL && s_receivedStateFrame[playerId] != 0)
+	{
+		*out = s_receivedState[playerId];
+		return 1;
+	}
+	return 0;
+}
+
+void Netplay_ClearState(u8 playerId)
+{
+	s_receivedStateFrame[playerId] = 0;
+}
+
+void Netplay_QueueCrateHit(const struct NetplayCrateHit *hit)
+{
+	if (hit == NULL) return;
+	int tail = s_crateHitQueueTail;
+	int next = (tail + 1) % NETPLAY_CRATE_QUEUE_MAX;
+	if (next != s_crateHitQueueHead)
+	{
+		s_crateHitQueue[tail] = *hit;
+		s_crateHitQueueTail = next;
+	}
+}
+
+int Netplay_DequeueCrateHit(struct NetplayCrateHit *out)
+{
+	if (out != NULL && s_crateHitQueueHead != s_crateHitQueueTail)
+	{
+		*out = s_crateHitQueue[s_crateHitQueueHead];
+		s_crateHitQueueHead = (s_crateHitQueueHead + 1) % NETPLAY_CRATE_QUEUE_MAX;
+		return 1;
+	}
+	return 0;
+}
+
+void Netplay_MarkRemoteFinished(u8 playerId)
+{
+	if (playerId < NETPLAY_MAX_PLAYERS)
+		s_remoteFinished[playerId] = 1;
+}
+
+int Netplay_IsRemoteFinished(u8 playerId)
+{
+	if (playerId < NETPLAY_MAX_PLAYERS)
+		return s_remoteFinished[playerId];
+	return 0;
 }
 
 void Netplay_SetJoinCallback(NetplayEventFn cb)

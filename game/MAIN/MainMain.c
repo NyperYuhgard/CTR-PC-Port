@@ -131,6 +131,9 @@ u32 main(void)
 
 			DropRain_Reset(gGT);
 			GAMEPROG_GetPtrHighScoreTrack();
+#ifdef CTR_NATIVE
+			fprintf(stdout, "[Netplay] Calling MainInit_FinalizeInit (g_NetplayRacing=%d)\n", g_NetplayRacing); fflush(stdout);
+#endif
 			MainInit_FinalizeInit(gGT);
 			GAMEPAD_GetNumConnected(gGS);
 
@@ -298,7 +301,12 @@ u32 main(void)
 			        // Check value of traffic lights
 			        (-960 < gGT->trafficLightsTimer) &&
 			        // if not drawing intro race cutscene and if not paused
-			        ((gGT->gameMode1 & (START_OF_RACE | PAUSE_ALL)) == 0)) &&
+			        ((gGT->gameMode1 & (START_OF_RACE | PAUSE_ALL)) == 0)
+#ifdef CTR_NATIVE
+			        // Netplay: wait until both machines finish loading
+			        && (!g_NetplayRacing || (g_NetplayLocalLoaded && g_NetplayRemoteLoaded))
+#endif
+			        ) &&
 			    (
 			        // amount of milliseconds on Traffic Lights - elapsed milliseconds per frame, ~32
 			        iVar8 = gGT->trafficLightsTimer - gGT->elapsedTimeMS,
@@ -354,7 +362,7 @@ u32 main(void)
 
 			// Netplay: sync gamepad state between host and client during a race
 			{
-				if (g_NetplayRacing)
+				if (g_NetplayRacing && sdata->Loading.stage == -1)
 				{
 					int localId = Netplay_GetLocalPlayerId();
 					u32 hHeld = 0, hTapped = 0, hRel = 0;
@@ -365,6 +373,8 @@ u32 main(void)
 					// gamepad[0] always has the local physical controller
 					struct GamepadBuffer *physPad = &gGS->gamepad[0];
 
+					u32 frameNum = gGT->frameTimer_VsyncCallback;
+
 					if (localId == 0)
 					{
 						hHeld = physPad->buttonsHeldCurrFrame;
@@ -373,12 +383,13 @@ u32 main(void)
 						hLX = physPad->stickLX; hLY = physPad->stickLY;
 						hRX = physPad->stickRX; hRY = physPad->stickRY;
 
-						Netplay_SendGamepadState(gGT->frameTimer_VsyncCallback,
+						Netplay_SendGamepadState(frameNum,
 						                         hHeld, hTapped, hRel,
 						                         hLX, hLY, hRX, hRY);
 
+						// Frame-matched receive: only consume inputs for the current frame
 						struct NetplayInput inputs[4];
-						int count = Netplay_ReceiveInputs(inputs, 4);
+						int count = Netplay_ReceiveInputsForFrame(inputs, 4, frameNum);
 						for (int i = 0; i < count; i++)
 						{
 							if (inputs[i].playerId == 1)
@@ -392,6 +403,23 @@ u32 main(void)
 								cRY = inputs[i].stickRY;
 							}
 						}
+
+						// If no matching frame arrived, use latest known remote input
+						if (count == 0)
+						{
+							struct NetplayInput latest;
+							Netplay_GetLatestRemoteInput(1, &latest);
+							if (latest.frameNum != 0)
+							{
+								cHeld = latest.buttonsHeld;
+								cTapped = latest.buttonsTapped;
+								cRel = latest.buttonsReleased;
+								cLX = latest.stickLX;
+								cLY = latest.stickLY;
+								cRX = latest.stickRX;
+								cRY = latest.stickRY;
+							}
+						}
 					}
 					else
 					{
@@ -401,12 +429,13 @@ u32 main(void)
 						cLX = physPad->stickLX; cLY = physPad->stickLY;
 						cRX = physPad->stickRX; cRY = physPad->stickRY;
 
-						Netplay_SendGamepadState(gGT->frameTimer_VsyncCallback,
+						Netplay_SendGamepadState(frameNum,
 						                         cHeld, cTapped, cRel,
 						                         cLX, cLY, cRX, cRY);
 
+						// Frame-matched receive: only consume inputs for the current frame
 						struct NetplayInput inputs[4];
-						int count = Netplay_ReceiveInputs(inputs, 4);
+						int count = Netplay_ReceiveInputsForFrame(inputs, 4, frameNum);
 						for (int i = 0; i < count; i++)
 						{
 							if (inputs[i].playerId == 0)
@@ -418,6 +447,23 @@ u32 main(void)
 								hLY = inputs[i].stickLY;
 								hRX = inputs[i].stickRX;
 								hRY = inputs[i].stickRY;
+							}
+						}
+
+						// If no matching frame arrived, use latest known remote input
+						if (count == 0)
+						{
+							struct NetplayInput latest;
+							Netplay_GetLatestRemoteInput(0, &latest);
+							if (latest.frameNum != 0)
+							{
+								hHeld = latest.buttonsHeld;
+								hTapped = latest.buttonsTapped;
+								hRel = latest.buttonsReleased;
+								hLX = latest.stickLX;
+								hLY = latest.stickLY;
+								hRX = latest.stickRX;
+								hRY = latest.stickRY;
 							}
 						}
 					}
@@ -434,6 +480,180 @@ u32 main(void)
 					gGS->gamepad[1].buttonsReleased = cRel;
 					gGS->gamepad[1].stickLX = cLX; gGS->gamepad[1].stickLY = cLY;
 					gGS->gamepad[1].stickRX = cRX; gGS->gamepad[1].stickRY = cRY;
+
+					// Update menu input variables so both players can use menus
+					sdata->buttonTapPerPlayer[0] = hTapped;
+					sdata->buttonTapPerPlayer[1] = cTapped;
+					sdata->buttonHeldPerPlayer[0] = hHeld;
+					sdata->buttonHeldPerPlayer[1] = cHeld;
+					sdata->AnyPlayerTap = hTapped | cTapped;
+					sdata->AnyPlayerHold = hHeld | cHeld;
+
+					// === Netplay state sync (position/velocity correction) ===
+					{
+						int localId = Netplay_GetLocalPlayerId();
+						int remoteId = (localId == 0) ? 1 : 0;
+						u32 frameNum = gGT->frameTimer_VsyncCallback;
+
+						// Send local driver state every 5 frames (or immediately if resync requested)
+						static u32 s_lastStateSend = 0;
+						if (g_NetplayStateRequested)
+						{
+							g_NetplayStateRequested = 0;
+							s_lastStateSend = 0;
+						}
+						if (frameNum - s_lastStateSend >= 5 || s_lastStateSend == 0)
+						{
+							s_lastStateSend = frameNum;
+							struct Driver *localDriver = gGT->drivers[localId];
+							if (localDriver != NULL)
+							{
+								struct NetplayStatePayload st;
+								st.frameNum = frameNum;
+								st.posX = localDriver->posCurr.x;
+								st.posY = localDriver->posCurr.y;
+								st.posZ = localDriver->posCurr.z;
+								st.rotX = localDriver->rotCurr.x;
+								st.rotY = localDriver->rotCurr.y;
+								st.rotZ = localDriver->rotCurr.z;
+								st.speed = localDriver->speed;
+								st.kartState = (u8)localDriver->kartState;
+								st.lapIndex = localDriver->lapIndex;
+								st.heldItemID = (u8)localDriver->heldItemID;
+								st.numHeldItems = (u8)localDriver->numHeldItems;
+								st.actionsFlagSet = localDriver->actionsFlagSet;
+								st.velX = localDriver->velocity.x;
+								st.velY = localDriver->velocity.y;
+								st.velZ = localDriver->velocity.z;
+								Netplay_SendStatePacket(&st);
+
+								// T8: Broadcast race finish when local player finishes
+								if ((localDriver->actionsFlagSet & 0x2000000) && !Netplay_IsRemoteFinished(localId))
+								{
+									Netplay_MarkRemoteFinished(localId);
+									Netplay_BroadcastPacket(NETPLAY_PACKET_FINISHED, 1, &localId);
+								}
+							}
+						}
+
+						// Apply received remote state correction
+						{
+							struct NetplayStatePayload remoteState;
+							if (Netplay_DequeueState(remoteId, &remoteState))
+							{
+								Netplay_ClearState(remoteId);
+								struct Driver *remoteDriver = gGT->drivers[remoteId];
+								if (remoteDriver != NULL)
+								{
+									// Calculate distance to target (squared)
+									s32 dx = remoteState.posX - remoteDriver->posCurr.x;
+									s32 dy = remoteState.posY - remoteDriver->posCurr.y;
+									s32 dz = remoteState.posZ - remoteDriver->posCurr.z;
+									u32 distSq = (u32)(dx*dx + dy*dy + dz*dz);
+
+									// Large desync: snap instantly
+									if (distSq > 0x1000000)
+									{
+										remoteDriver->posCurr.x = remoteState.posX;
+										remoteDriver->posCurr.y = remoteState.posY;
+										remoteDriver->posCurr.z = remoteState.posZ;
+										remoteDriver->velocity.x = remoteState.velX;
+										remoteDriver->velocity.y = remoteState.velY;
+										remoteDriver->velocity.z = remoteState.velZ;
+										remoteDriver->speed = remoteState.speed;
+									}
+									else
+									{
+										// Small drift: lerp 20% toward target
+										remoteDriver->posCurr.x += dx / 5;
+										remoteDriver->posCurr.y += dy / 5;
+										remoteDriver->posCurr.z += dz / 5;
+									}
+
+									// Always apply non-positional state
+									remoteDriver->rotCurr.x = remoteState.rotX;
+									remoteDriver->rotCurr.y = remoteState.rotY;
+									remoteDriver->rotCurr.z = remoteState.rotZ;
+									remoteDriver->kartState = (char)remoteState.kartState;
+									remoteDriver->lapIndex = remoteState.lapIndex;
+									remoteDriver->heldItemID = (char)remoteState.heldItemID;
+									remoteDriver->numHeldItems = (char)remoteState.numHeldItems;
+									remoteDriver->actionsFlagSet = remoteState.actionsFlagSet;
+
+									// Set remote finished flag if received state says so
+									if (remoteState.actionsFlagSet & 0x2000000)
+										Netplay_MarkRemoteFinished(remoteId);
+								}
+							}
+						}
+
+						// T7: Apply remote crate hits
+						struct NetplayCrateHit crateHit;
+						while (Netplay_DequeueCrateHit(&crateHit))
+						{
+							if (gGT->level1 != NULL && gGT->level1->ptrInstDefs != NULL)
+							{
+								int num = gGT->level1->numInstances;
+								for (int i = 0; i < num; i++)
+								{
+									struct Instance *inst = gGT->level1->ptrInstDefs[i].ptrInstance;
+									if (inst != NULL &&
+									    inst->matrix.t[0] == crateHit.posX &&
+									    inst->matrix.t[1] == crateHit.posY &&
+									    inst->matrix.t[2] == crateHit.posZ)
+									{
+										inst->scale[0] = 0;
+										inst->scale[1] = 0;
+										inst->scale[2] = 0;
+										// Start cooldown if thread exists
+										if (inst->thread != NULL)
+										{
+											struct Crate *c = (struct Crate *)inst->thread->object;
+											if (c != NULL && c->cooldown == 0)
+												c->cooldown = 0x1e;
+										}
+										break;
+									}
+								}
+							}
+						}
+
+						// T10: Send position checksum every 30 frames
+						static u32 s_lastChecksumSend = 0;
+						if (frameNum - s_lastChecksumSend >= 30)
+						{
+							s_lastChecksumSend = frameNum;
+							struct Driver *localDriver = gGT->drivers[localId];
+							if (localDriver != NULL)
+							{
+								struct NetplayChecksumPayload cp;
+								cp.frameNum = frameNum;
+							cp.checksum = (u32)(localDriver->posCurr.x * 3 +
+							                   localDriver->posCurr.y * 7 +
+							                   localDriver->posCurr.z * 11 +
+							                   localDriver->speed * 13 +
+							                   localDriver->lapIndex * 17 +
+							                   localDriver->actionsFlagSet * 19);
+							Netplay_BroadcastPacket(NETPLAY_PACKET_CHECKSUM, sizeof(cp), &cp);
+
+							// Compare with last remote checksum; request resync if mismatch
+							if (g_NetplayRemoteChecksumFrame != 0 &&
+							    g_NetplayRemoteChecksumValue != cp.checksum)
+							{
+								Netplay_BroadcastPacket(NETPLAY_PACKET_STATE_REQ, 0, NULL);
+								g_NetplayRemoteChecksumFrame = 0;
+							}
+							}
+						}
+					}
+
+					// T9: Handle remote disconnect during race
+					if (g_NetplayDisconnected)
+					{
+						g_NetplayDisconnected = 0;
+						g_NetplayRacing = 0;
+						MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
+					}
 				}
 			}
 #endif
@@ -580,6 +800,10 @@ gGT->demoCountdownTimer--;
 			if ((gGT->level1 != 0) && (gGT->levelID != MAIN_MENU_LEVEL) && (gGT->levelID != ADVENTURE_GARAGE) && (gGT->levelID != NAUGHTY_DOG_CRATE))
 			{
 				int held = gGS->gamepad[0].buttonsHeldCurrFrame;
+#ifdef CTR_NATIVE
+				if (g_NetplayRacing)
+					held |= gGS->gamepad[1].buttonsHeldCurrFrame;
+#endif
 
 				if ((held & BTN_START) != 0)
 				{

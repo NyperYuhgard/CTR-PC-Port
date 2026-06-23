@@ -132,7 +132,10 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 #ifdef CTR_NATIVE
 	if (g_NetplayRacing)
 	{
+		fprintf(stdout, "[Netplay] FinalizeInit: swapping cameras\n"); fflush(stdout);
 		int localId = Netplay_GetLocalPlayerId();
+		fprintf(stdout, "[Netplay] FinalizeInit: localId=%d, cameraDC[0].driverToFollow=%p, cameraDC[1].driverToFollow=%p\n",
+		        localId, (void*)gGT->cameraDC[0].driverToFollow, (void*)gGT->cameraDC[1].driverToFollow); fflush(stdout);
 
 		// Client machine: swap cameras so camera 0 follows the local (client) driver
 		if (localId != 0)
@@ -140,10 +143,15 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 			struct Driver *tmp = gGT->cameraDC[0].driverToFollow;
 			gGT->cameraDC[0].driverToFollow = gGT->cameraDC[1].driverToFollow;
 			gGT->cameraDC[1].driverToFollow = tmp;
+			fprintf(stdout, "[Netplay] FinalizeInit: cameras swapped\n"); fflush(stdout);
 		}
 
 		// Force full-screen (1P) rect for single-viewport rendering
 		PushBuffer_Init(&gGT->pushBuffer[0], 0, 1);
+
+		// Signal remote that local machine has finished loading
+		g_NetplayLocalLoaded = 1;
+		Netplay_BroadcastPacket(NETPLAY_PACKET_LOADED, 0, NULL);
 	}
 #endif
 

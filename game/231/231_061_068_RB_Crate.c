@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 // add to buildList, overwrite original
 // RB_CrateAny_ThTick_Explode at 800b3d04,
@@ -104,6 +107,19 @@ void RB_CrateAny_ExplodeInit(struct Instance *crateInst, int color)
 	crateInst->scale[0] = 0;
 	crateInst->scale[1] = 0;
 	crateInst->scale[2] = 0;
+
+#ifdef CTR_NATIVE
+	// Netplay: broadcast crate destruction to remote machine
+	if (g_NetplayRacing && crateInst->model != NULL)
+	{
+		struct NetplayCrateHit hit;
+		hit.posX = (s16)crateInst->matrix.t[0];
+		hit.posY = (s16)crateInst->matrix.t[1];
+		hit.posZ = (s16)crateInst->matrix.t[2];
+		hit.modelID = (u8)crateInst->model->id;
+		Netplay_BroadcastPacket(NETPLAY_PACKET_CRATE_HIT, sizeof(hit), &hit);
+	}
+#endif
 
 	// birth explosion thread
 	explosionInst = INSTANCE_BirthWithThread(
