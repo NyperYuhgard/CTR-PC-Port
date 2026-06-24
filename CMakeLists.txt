@@ -59,6 +59,10 @@ set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 set(SDL_GPU OFF CACHE BOOL "" FORCE)
+# SDL_RENDER stays OFF — the netplay chat window deliberately does NOT use
+# an SDL renderer (it would conflict with the game's main OpenGL context
+# and crash Mesa/Intel drivers). The chat window exists only to capture
+# keyboard input; content is shown in the game's HUD and terminal instead.
 set(SDL_RENDER OFF CACHE BOOL "" FORCE)
 set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
 set(SDL_SENSOR OFF CACHE BOOL "" FORCE)

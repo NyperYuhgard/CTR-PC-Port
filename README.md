@@ -173,7 +173,6 @@ main.c (entrypoint)
 - [SDL3](https://github.com/libsdl-org/SDL) — cross-platform multimedia
 - Crash Team Racing is a trademark of Sony Computer Entertainment / Naughty Dog
 - Faradise Team for the principal fork and more help
-- Aalhendi Code Base
 - LoloTheSamurai for testing
 - TDYU for testing
 - Yostifu for testing

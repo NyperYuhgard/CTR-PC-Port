@@ -2468,8 +2468,6 @@ int Netplay_ConsumeRngSeed(u32 *outSeed, u32 *outFrameNum)
 #define NETPLAY_CHAT_LINE_MAX    80
 
 global_variable SDL_Window *s_chatWindow;
-global_variable SDL_Renderer *s_chatRenderer;
-global_variable SDL_Texture *s_chatTexture;
 global_variable char s_chatHistory[NETPLAY_CHAT_HISTORY_MAX][NETPLAY_CHAT_LINE_MAX];
 global_variable int s_chatHistoryCount;
 global_variable int s_chatScrollOffset;
@@ -2492,6 +2490,13 @@ void Netplay_ChatPrint(const char *text)
         snprintf(s_chatHistory[s_chatHistoryCount], NETPLAY_CHAT_LINE_MAX, "%.79s", text);
         s_chatHistoryCount++;
         s_chatScrollOffset = 0; /* auto-scroll to bottom on new message */
+
+        /* Also print to the terminal so the player can see messages even
+         * though the chat window itself has no renderer (we deliberately
+         * don't create one to avoid OpenGL context conflicts with the
+         * game's main renderer — see Netplay_OpenChatWindow for details). */
+        fprintf(stdout, "[Chat] %s\n", text);
+        fflush(stdout);
 }
 
 int Netplay_IsChatWindowOpen(void)
@@ -2509,37 +2514,40 @@ int Netplay_OpenChatWindow(void)
         s_chatHistoryCount = 0;
         s_chatScrollOffset = 0;
 
-        /* Create a dedicated SDL window for chat.
-         * SDL gives us a native OS window with proper text input support
-         * (SDL_StartTextInput / SDL_EVENT_TEXT_INPUT) which is much cleaner
-         * than the previous AllocConsole approach on Windows. */
-        s_chatWindow = SDL_CreateWindow("CTR Netplay Chat", 480, 400, 0);
+        /* Create a dedicated SDL window for chat. We deliberately do NOT
+         * create an SDL renderer for this window because the game already
+         * has an OpenGL context on the main window, and creating a second
+         * GL context on a different window causes Mesa/Intel drivers to
+         * crash inside SDL_RenderPresent (the contexts share state and
+         * corrupt each other's command queues).
+         *
+         * Instead, this window exists ONLY to capture keyboard input
+         * (SDL_StartTextInput + SDL_EVENT_TEXT_INPUT). The chat content
+         * is rendered by the game itself in its own HUD (the small
+         * notification line in the lobby). Messages received are also
+         * logged to stdout/stderr so they're visible in the terminal
+         * that launched the game. */
+        s_chatWindow = SDL_CreateWindow("CTR Netplay Chat (type here)", 200, 40, SDL_WINDOW_HIDDEN);
         if (s_chatWindow == NULL)
         {
                 fprintf(stderr, "[Netplay] Failed to create chat window: %s\n", SDL_GetError());
                 return 0;
         }
 
-        s_chatRenderer = SDL_CreateRenderer(s_chatWindow, NULL);
-        if (s_chatRenderer == NULL)
-        {
-                fprintf(stderr, "[Netplay] Failed to create chat renderer: %s\n", SDL_GetError());
-                SDL_DestroyWindow(s_chatWindow);
-                s_chatWindow = NULL;
-                return 0;
-        }
-
         /* Start accepting text input. SDL will send SDL_EVENT_TEXT_INPUT
          * events for each character typed, and SDL_EVENT_KEY_DOWN for
-         * special keys (Enter, Backspace, etc.). These are polled in
-         * Netplay_PollChatInput() without blocking the game. */
+         * special keys (Enter, Backspace, etc.). These are processed
+         * via Netplay_HandleSDLEvent() from the main event loop. */
         SDL_StartTextInput(s_chatWindow);
+
+        /* Show the window now that text input is active */
+        SDL_ShowWindow(s_chatWindow);
 
         s_chatWindowOpen = 1;
 
         Netplay_ChatPrint("=== CTR Netplay Chat ===");
         Netplay_ChatPrint("Type a message and press Enter to send.");
-        Netplay_ChatPrint("(PageUp/PageDown to scroll, ESC to close)");
+        Netplay_ChatPrint("(ESC to close, messages also print to terminal)");
 
         return 1;
 }
@@ -2551,14 +2559,10 @@ void Netplay_CloseChatWindow(void)
 
         Netplay_ChatPrint("=== Chat closed ===");
 
-        if (s_chatRenderer)
-        {
-                SDL_DestroyRenderer(s_chatRenderer);
-                s_chatRenderer = NULL;
-        }
         if (s_chatWindow)
         {
                 SDL_StopTextInput(s_chatWindow);
+                SDL_HideWindow(s_chatWindow);
                 SDL_DestroyWindow(s_chatWindow);
                 s_chatWindow = NULL;
         }
@@ -2569,55 +2573,35 @@ void Netplay_CloseChatWindow(void)
         s_chatHistoryCount = 0;
 }
 
-/* Render the chat window content. Called from Netplay_PollChatInput. */
+/* Update the chat window title to show what the user is typing.
+ * Since we can't render text inside the window (no SDL renderer to avoid
+ * OpenGL context conflicts), we use the window TITLE as a simple text
+ * display. SDL_SetWindowTitle is cheap and works on all platforms. */
 internal void Netplay_RenderChatWindow(void)
 {
-        if (!s_chatWindowOpen || s_chatRenderer == NULL)
+        static int s_lastUpdateFrame = -1;
+        static char s_lastTitle[128];
+        char title[128];
+
+        if (!s_chatWindowOpen || s_chatWindow == NULL)
                 return;
 
-        SDL_SetRenderDrawColor(s_chatRenderer, 20, 20, 30, 255);
-        SDL_RenderClear(s_chatRenderer);
-
-        /* Draw message history (bottom-up, newest at bottom) */
+        /* Only update when the input buffer changes or for cursor blink.
+         * Uses SDL_GetTicks for the blink timer. */
         {
-                int lineHeight = 18;
-                int maxLines = (400 - 40) / lineHeight; /* leave room for input bar */
-                int startLine = s_chatHistoryCount - maxLines - s_chatScrollOffset;
-                if (startLine < 0) startLine = 0;
-                int endLine = s_chatHistoryCount - s_chatScrollOffset;
-                if (endLine > s_chatHistoryCount) endLine = s_chatHistoryCount;
-                if (endLine < 0) endLine = 0;
+                Uint32 ticks = SDL_GetTicks();
+                int blink = (ticks / 500) & 1; /* blink every 500ms */
+                snprintf(title, sizeof(title), "%s%s",
+                         s_chatLineBuf[0] ? s_chatLineBuf : "(type message...)",
+                         blink ? "_" : " ");
 
-                int y = 400 - 40 - lineHeight; /* start from bottom, go up */
-                int i;
-                for (i = endLine - 1; i >= startLine && y >= 0; i--)
+                if (strcmp(title, s_lastTitle) != 0)
                 {
-                        SDL_SetRenderDrawColor(s_chatRenderer, 200, 200, 200, 255);
-                        SDL_RenderDebugText(s_chatRenderer, 8.0f, (float)y, s_chatHistory[i]);
-                        y -= lineHeight;
+                        strncpy(s_lastTitle, title, sizeof(s_lastTitle) - 1);
+                        s_lastTitle[sizeof(s_lastTitle) - 1] = '\0';
+                        SDL_SetWindowTitle(s_chatWindow, title);
                 }
         }
-
-        /* Draw input bar at the bottom */
-        {
-                SDL_FRect inputBar;
-                inputBar.x = 0;
-                inputBar.y = (float)(400 - 30);
-                inputBar.w = 480;
-                inputBar.h = 30;
-                SDL_SetRenderDrawColor(s_chatRenderer, 40, 40, 50, 255);
-                SDL_RenderFillRect(s_chatRenderer, &inputBar);
-
-                /* Draw current input text + cursor */
-                {
-                        char display[NETPLAY_CHAT_MSG_MAX + 2];
-                        snprintf(display, sizeof(display), "> %s_", s_chatLineBuf);
-                        SDL_SetRenderDrawColor(s_chatRenderer, 255, 255, 100, 255);
-                        SDL_RenderDebugText(s_chatRenderer, 8.0f, (float)(400 - 22), display);
-                }
-        }
-
-        SDL_RenderPresent(s_chatRenderer);
 }
 
 /* Process an SDL event for the chat window. Returns 1 if consumed. */
