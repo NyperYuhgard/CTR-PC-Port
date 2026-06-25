@@ -59,6 +59,7 @@ typedef int socklen_t;
 /* Timers (ms) */
 #define NETPLAY_HELLO_RESEND_MS     500
 #define NETPLAY_HELLO_TIMEOUT_MS    10000
+#define NETPLAY_LOADED_RESEND_MS    500
 #define NETPLAY_PEER_TIMEOUT_MS     10000
 #define NETPLAY_PING_INTERVAL_MS    1000
 
@@ -211,6 +212,7 @@ global_variable int s_remoteUnpausePending;
 /* Loaded mask: tracks which peers have signalled LOADED. Local loaded tracked
  * via g_NetplayLocalLoaded. */
 global_variable u32 s_loadedMask;
+global_variable u32 s_lastLoadedResendMs;
 
 /* Ready mask (peers only; local ready is g_NetplayLocalReady) */
 global_variable u32 s_readyMask;
@@ -2111,8 +2113,32 @@ int Netplay_DequeueChat(struct NetplayChatPayload *out)
 void Netplay_MarkLocalLoaded(void)
 {
         g_NetplayLocalLoaded = 1;
+        s_lastLoadedResendMs = Netplay_GetTimestampMs();
 
         /* Send LOADED to peers */
+        if (s_netplayState == NETPLAY_STATE_HOSTING || s_netplayState == NETPLAY_STATE_CONNECTED)
+        {
+                if (Netplay_IsHost())
+                        Netplay_BroadcastPacket(NETPLAY_PACKET_LOADED, 0, NULL);
+                else
+                        Netplay_SendPacket(NETPLAY_PACKET_LOADED, 0, NULL, &s_hostAddr);
+        }
+}
+
+internal void Netplay_CheckLoadedResend(void)
+{
+        /* Resend LOADED periodically until every active peer has confirmed */
+        if (!g_NetplayLocalLoaded)
+                return;
+        if (Netplay_IsEveryoneLoaded())
+                return;
+
+        u32 now = Netplay_GetTimestampMs();
+        if (now - s_lastLoadedResendMs < NETPLAY_LOADED_RESEND_MS)
+                return;
+
+        s_lastLoadedResendMs = now;
+
         if (s_netplayState == NETPLAY_STATE_HOSTING || s_netplayState == NETPLAY_STATE_CONNECTED)
         {
                 if (Netplay_IsHost())
@@ -3050,6 +3076,9 @@ void Netplay_Poll(void)
 
         /* Both: check if connection completed */
         Netplay_CheckConnectedTransition();
+
+        /* Both: resend LOADED until all peers confirm */
+        Netplay_CheckLoadedResend();
 
         /* Drop dead peers */
         Netplay_CheckPeerTimeouts();

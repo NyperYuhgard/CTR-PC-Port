@@ -1870,7 +1870,7 @@ void CAM_ThTick(struct Thread *t)
         if (((((gGT->gameMode1 & (PAUSE_ALL | START_OF_RACE | MAIN_MENU | GAME_CUTSCENE)) == 0) && (d->instSelf->thread->funcThTick == 0)) &&
              ((d->actionsFlagSet & 0x100000) == 0)) &&
             (((d->kartState != KS_WARP_PAD && (d->kartState != KS_FREEZE)) &&
-              (((gGT->gameMode2 & 4) == 0 && ((sdata->gGamepads->gamepad[cDC->cameraID].buttonsTapped & 0x80U) != 0))))))
+              (((gGT->gameMode2 & 4) == 0 && ((sdata->gGamepads->gamepad[d->driverID].buttonsTapped & 0x80U) != 0))))))
         {
                 uVar4 = cDC->unk92 + 1;
                 cDC->unk92 = uVar4;

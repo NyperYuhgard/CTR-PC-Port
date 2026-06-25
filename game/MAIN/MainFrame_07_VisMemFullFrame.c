@@ -107,7 +107,13 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
                  * because the rendering code (RenderLists_Init1P2P etc.)
                  * always reads visLeafList[0] in 1P mode (which is what
                  * netplay uses locally, regardless of which player ID we are). */
-                if (g_NetplayRacing && playerIndex != Netplay_GetLocalPlayerId())
+                /* Netplay: only skip remote players when more than 1 player
+                 * slot exists. When numPlyrCurrGame is overridden to 1 during
+                 * rendering (MainMain.c:1054), playerIndex==0 is the only
+                 * iteration — it must NOT be skipped even if it is not the
+                 * local player's index, otherwise visLeafList/visFaceList
+                 * never get populated and the track appears invisible. */
+                if (g_NetplayRacing && gGT->numPlyrCurrGame > 1 && playerIndex != Netplay_GetLocalPlayerId())
                         continue;
 
                 /* In netplay, store the local player's vis data at index 0
@@ -122,7 +128,19 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
                 if (driver == NULL)
                         continue;
 
+#ifdef CTR_NATIVE
+                /* Netplay: cameraDC[0] always follows the local driver after
+                 * the camera swap in MainInit_FinalizeInit, regardless of
+                 * playerIndex. Using cameraDC[playerIndex] here would read the
+                 * remote driver's visibility PVS, causing BSP culling to hide
+                 * track geometry that should be visible from the local view. */
+                if (g_NetplayRacing)
+                        camDC = &gGT->cameraDC[0];
+                else
+                        camDC = &gGT->cameraDC[playerIndex];
+#else
                 camDC = &gGT->cameraDC[playerIndex];
+#endif
                 driverQuad = driver->underDriver;
 
                 if (driverQuad != NULL)
