@@ -16,6 +16,7 @@ enum OnlinePhase
         PHASE_LOBBY,
         PHASE_PICKING_CHARACTER,
         PHASE_WAITING_FOR_OTHER_CHAR,
+        PHASE_WAITING_FOR_HOST_CHAR,
         PHASE_HOST_PICKING_TRACK,
         PHASE_CLIENT_WAITING_FOR_TRACK,
         PHASE_COUNT
@@ -302,8 +303,17 @@ void MM_Online_MenuProc(struct RectMenu *menu)
         if (g_NetplayRaceStarting && s_onlinePhase != PHASE_CLIENT_WAITING_FOR_TRACK)
         {
                 g_NetplayRaceStarting = 0;
-                s_onlinePhase = PHASE_PICKING_CHARACTER;
                 RECTMENU_ClearInput();
+                if (isHost)
+                {
+                        s_onlinePhase = PHASE_PICKING_CHARACTER;
+                        s_onlineCursor = 0;
+                        s_onlineScroll = 0;
+                }
+                else
+                {
+                        s_onlinePhase = PHASE_WAITING_FOR_HOST_CHAR;
+                }
         }
 
         /* ====================================================================
@@ -715,6 +725,7 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         for (i = s_onlineScroll; i < s_onlineScroll + visible && i < numItems; i++)
                         {
                                 int isSelected = (i == s_onlineCursor);
+                                int isTaken = (!isHost && g_NetplayHostCharacter == i);
 
                                 if (isSelected)
                                 {
@@ -726,8 +737,16 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                         CTR_Box_DrawClearBox(&hl, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot);
                                 }
 
+                                int color;
+                                if (isTaken)
+                                        color = 0x80; /* gray */
+                                else if (isSelected)
+                                        color = WHITE;
+                                else
+                                        color = ORANGE;
+
                                 DecalFont_DrawLineOT((char *)g_charNames[i], ONLINE_MENU_CENTER_X, y,
-                                                     FONT_SMALL, isSelected ? WHITE : ORANGE, ot);
+                                                     FONT_SMALL, color, ot);
                                 y += ONLINE_MENU_ROW_HEIGHT;
                         }
                 }
@@ -754,6 +773,19 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         snprintf(buf, sizeof(buf), "Your pick: ???");
                 DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
                                      FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
+
+                DecalFont_DrawLineOT("TRI: Back", ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y,
+                                     FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
+                break;
+        }
+
+        /* ==================== WAITING FOR HOST CHAR ==================== */
+        case PHASE_WAITING_FOR_HOST_CHAR:
+        {
+                y = ONLINE_MENU_BODY_Y + 0x14;
+
+                DecalFont_DrawLineOT("Host is choosing a character...", ONLINE_MENU_CENTER_X, y,
+                                     FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
 
                 DecalFont_DrawLineOT("TRI: Back", ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y,
                                      FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
@@ -1194,40 +1226,68 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                 {
                         int chosenChar = s_onlineCursor;
 
-                        OtherFX_Play(1, 1);
-                        RECTMENU_ClearInput();
-
-                        if (isHost)
+                        /* Block duplicate character selection: client cannot pick the host's character */
+                        if (!isHost && g_NetplayHostCharacter == chosenChar)
                         {
-                                g_NetplayHostCharacter = chosenChar;
-                                {
-                                        u8 payload = (u8)chosenChar;
-                                        Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT,
-                                                                sizeof(payload), &payload);
-                                }
-                                if (g_NetplayClientCharacter >= 0)
-                                {
-                                        s_onlinePhase = PHASE_HOST_PICKING_TRACK;
-                                        s_onlineCursor = 0;
-                                        s_onlineScroll = 0;
-                                }
-                                else
-                                {
-                                        s_onlinePhase = PHASE_WAITING_FOR_OTHER_CHAR;
-                                }
+                                OtherFX_Play(2, 1);
+                                RECTMENU_ClearInput();
                         }
                         else
                         {
-                                g_NetplayClientCharacter = chosenChar;
+                                OtherFX_Play(1, 1);
+                                RECTMENU_ClearInput();
+
+                                if (isHost)
                                 {
-                                        u8 payload = (u8)chosenChar;
-                                        Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT,
-                                                                sizeof(payload), &payload);
+                                        g_NetplayHostCharacter = chosenChar;
+                                        {
+                                                u8 payload = (u8)chosenChar;
+                                                Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT,
+                                                                        sizeof(payload), &payload);
+                                        }
+                                        if (g_NetplayClientCharacter >= 0)
+                                        {
+                                                s_onlinePhase = PHASE_HOST_PICKING_TRACK;
+                                                s_onlineCursor = 0;
+                                                s_onlineScroll = 0;
+                                        }
+                                        else
+                                        {
+                                                s_onlinePhase = PHASE_WAITING_FOR_OTHER_CHAR;
+                                        }
                                 }
-                                s_onlinePhase = PHASE_CLIENT_WAITING_FOR_TRACK;
+                                else
+                                {
+                                        g_NetplayClientCharacter = chosenChar;
+                                        {
+                                                u8 payload = (u8)chosenChar;
+                                                Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT,
+                                                                        sizeof(payload), &payload);
+                                        }
+                                        s_onlinePhase = PHASE_CLIENT_WAITING_FOR_TRACK;
+                                }
                         }
                 }
                 else if (sdata->buttonTapPerPlayer[0] & (BTN_TRIANGLE | BTN_SQUARE))
+                {
+                        OtherFX_Play(2, 1);
+                        RECTMENU_ClearInput();
+                        s_onlinePhase = PHASE_LOBBY;
+                        s_onlineCursor = 0;
+                        s_onlineScroll = 0;
+                }
+                break;
+
+        case PHASE_WAITING_FOR_HOST_CHAR:
+                /* Client: check if host sent their character */
+                if (!isHost && g_NetplayHostCharacter >= 0)
+                {
+                        s_onlinePhase = PHASE_PICKING_CHARACTER;
+                        s_onlineCursor = 0;
+                        s_onlineScroll = 0;
+                        RECTMENU_ClearInput();
+                }
+                if (sdata->buttonTapPerPlayer[0] & (BTN_TRIANGLE | BTN_SQUARE))
                 {
                         OtherFX_Play(2, 1);
                         RECTMENU_ClearInput();
