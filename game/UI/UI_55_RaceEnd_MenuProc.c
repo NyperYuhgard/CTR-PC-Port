@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80055c90-0x8005607c.
 void UI_RaceEnd_MenuProc(struct RectMenu *menu)
@@ -52,6 +55,20 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 	{
 		// Erase ghost of previous race from RAM
 		GhostTape_Destroy();
+
+#ifdef CTR_NATIVE
+		if (g_NetplayRacing)
+		{
+			g_NetplayRacing = 0;
+			/* Squash numPlyrCurrGame to 1 for the remaining render of this
+			 * frame, otherwise vis-mem/camera code will try to access slots
+			 * that only exist for the local player and crash. */
+			gGT->numPlyrCurrGame = 1;
+			gGT->numPlyrNextGame = 1;
+			Netplay_BroadcastReturnToLobby();
+			Netplay_ForceReturnToLobby();
+		}
+#endif
 
 		// go back to main menu
 		sdata->mainMenuState = 0;

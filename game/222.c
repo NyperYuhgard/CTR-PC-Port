@@ -58,6 +58,15 @@ enum ArcadeAdventureEndMenuConstants
 global_variable s32 s_driverRankString222 = 0x20; // " \0"
 extern struct RectMenu menu222;
 extern struct RectMenu menu222_2P;
+extern struct MenuRow rows222[];
+
+#ifdef CTR_NATIVE
+struct MenuRow rowsNetplay222[2] = {
+    {.stringIndex = LNG_QUIT,
+     .rowOnPressUp = 0, .rowOnPressDown = 0, .rowOnPressLeft = 0, .rowOnPressRight = 0},
+    {.stringIndex = 0xFFFF},
+};
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009f704-0x800a06f8.
 void AA_EndEvent_DrawMenu(void)
@@ -425,6 +434,18 @@ void AA_EndEvent_DrawMenu(void)
         // If you're in Arcade mode
         if ((gGT->gameMode1 & ARCADE_MODE) != 0)
         {
+#ifdef CTR_NATIVE
+                if (g_NetplayRacing)
+                {
+                        menu222.rows     = rowsNetplay222;
+                        menu222_2P.rows  = rowsNetplay222;
+                }
+                else
+                {
+                        menu222.rows     = rows222;
+                        menu222_2P.rows  = rows222;
+                }
+#endif
                 RECTMENU_Show((numPlayers == 1) ? &menu222 : &menu222_2P);
 
                 // record that the menu is drawing

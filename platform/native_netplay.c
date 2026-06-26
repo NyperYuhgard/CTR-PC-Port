@@ -2055,6 +2055,12 @@ void Netplay_BroadcastReturnToLobby(void)
         /* Clients cannot broadcast this; they can only set the local flag for themselves */
 }
 
+void Netplay_ForceReturnToLobby(void)
+{
+        s_returnToLobbyPending = 1;
+        g_NetplayReturnToLobby = 1;
+}
+
 int Netplay_ConsumeReturnToLobby(void)
 {
         if (s_returnToLobbyPending)

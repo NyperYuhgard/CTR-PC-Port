@@ -9,6 +9,15 @@ void MM_JumpTo_Title_FirstTime(void)
 {
 	struct GameTracker *gGT = sdata->gGT;
 
+#ifdef CTR_NATIVE
+	if (g_NetplayReturnToLobby)
+	{
+		g_NetplayReturnToLobby = 0;
+		sdata->ptrActiveMenu = &D230.menuOnline;
+		return;
+	}
+#endif
+
 	MM_ResetAllMenus();
 
 	MainStats_ClearBattleVS();

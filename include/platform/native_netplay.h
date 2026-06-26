@@ -232,6 +232,7 @@ int  Netplay_IsEveryoneReady(void); /* all connected peers AND local are ready *
 int  Netplay_IsPeerReady(u8 playerId);
 void Netplay_BroadcastReturnToLobby(void); /* host tells clients race is over */
 int  Netplay_ConsumeReturnToLobby(void);   /* returns 1 once if a return packet arrived */
+void Netplay_ForceReturnToLobby(void);     /* sets local return-to-lobby flag (both host & client) */
 
 /* ---- Lobby: chat ---- */
 void Netplay_SendChat(const char *message);
