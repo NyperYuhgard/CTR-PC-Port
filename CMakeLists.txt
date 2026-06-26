@@ -100,6 +100,7 @@ add_subdirectory(externals/lua)
 # CTR Native
 add_executable(ctr_native main.c)
 target_include_directories(ctr_native PRIVATE ${GAME_INCLUDES})
+option(CTR_NATIVE_DEV_GHOST "Enable Save Dev Ghost menu option (developer-only)" OFF)
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
     BUILD=926
@@ -107,6 +108,9 @@ target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
     CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_BUILD_ID}\"
 )
+if(CTR_NATIVE_DEV_GHOST)
+    target_compile_definitions(ctr_native PRIVATE CTR_NATIVE_DEV_GHOST)
+endif()
 target_compile_options(ctr_native PRIVATE -O2)
 target_link_libraries(ctr_native SDL3::SDL3 lua)
 if(WIN32)

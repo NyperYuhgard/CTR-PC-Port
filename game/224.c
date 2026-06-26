@@ -7,6 +7,9 @@ extern struct RectMenu menu224;
 extern struct RectMenu menu224NoSave;
 extern struct MenuRow rowsWithSave[6];
 extern struct MenuRow rowsNoSave[5];
+#ifdef CTR_NATIVE_DEV_GHOST
+extern struct RectMenu menu224DevSave;
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009fdc8-0x800a04d4.
 void TT_EndEvent_DrawMenu(void)
@@ -245,7 +248,12 @@ void TT_EndEvent_DrawMenu(void)
 
 		sdata->flags_timeTrialEndOfRace = 0;
 
+#ifdef CTR_NATIVE_DEV_GHOST
+		sdata->lngStrings[LNG_SAVE_DEV_GHOST] = "SAVE DEV GHOST";
+		RECTMENU_Show(sdata->boolGhostTooBigToSave ? &menu224NoSave : &menu224DevSave);
+#else
 		RECTMENU_Show(sdata->boolGhostTooBigToSave ? &menu224NoSave : &menu224);
+#endif
 	}
 
 	return;
@@ -552,3 +560,81 @@ struct RectMenu menu224NoSave = {
 
     // rest of variables all default zero
 };
+
+/* --- Dev-only: "SAVE DEV GHOST" variant --- */
+#ifdef CTR_NATIVE_DEV_GHOST
+struct MenuRow rowsWithDevSave[7] = {
+    // Retry
+    {
+        .stringIndex = LNG_RETRY,
+        .rowOnPressUp = 0,
+        .rowOnPressDown = 1,
+        .rowOnPressLeft = 0,
+        .rowOnPressRight = 0,
+    },
+
+    // Change Level
+    {
+        .stringIndex = LNG_CHANGE_LEVEL,
+        .rowOnPressUp = 0,
+        .rowOnPressDown = 2,
+        .rowOnPressLeft = 1,
+        .rowOnPressRight = 1,
+    },
+
+    // Change Character
+    {
+        .stringIndex = LNG_CHANGE_CHARACTER,
+        .rowOnPressUp = 1,
+        .rowOnPressDown = 3,
+        .rowOnPressLeft = 2,
+        .rowOnPressRight = 2,
+    },
+
+    // Save Ghost
+    {
+        .stringIndex = LNG_SAVE_GHOST,
+        .rowOnPressUp = 2,
+        .rowOnPressDown = 4,
+        .rowOnPressLeft = 3,
+        .rowOnPressRight = 3,
+    },
+
+    // Save Dev Ghost
+    {
+        .stringIndex = LNG_SAVE_DEV_GHOST,
+        .rowOnPressUp = 3,
+        .rowOnPressDown = 5,
+        .rowOnPressLeft = 4,
+        .rowOnPressRight = 4,
+    },
+
+    // Quit
+    {
+        .stringIndex = LNG_QUIT,
+        .rowOnPressUp = 4,
+        .rowOnPressDown = 5,
+        .rowOnPressLeft = 5,
+        .rowOnPressRight = 5,
+    },
+
+    // NULL, end of menu
+    {
+        .stringIndex = 0xFFFF,
+        .rowOnPressUp = 0,
+        .rowOnPressDown = 0,
+        .rowOnPressLeft = 0,
+        .rowOnPressRight = 0,
+    }};
+
+struct RectMenu menu224DevSave = {
+    .stringIndexTitle = 0xFFFF,
+    .posX_curr = 0x100,
+    .posY_curr = 0xA0,
+    .unk1 = 0,
+    .state = 0xC83,
+    .rows = rowsWithDevSave,
+    .funcPtr = UI_RaceEnd_MenuProc,
+    .drawStyle = 4,
+};
+#endif

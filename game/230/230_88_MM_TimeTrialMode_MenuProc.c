@@ -103,12 +103,23 @@ void MM_TimeTrialMode_MenuProc(struct RectMenu *menu)
             SelectProfile_ToggleMode(0x30);
             sdata->ptrDesiredMenu = &data.menuGhostSelection;
         }
-        else if (s_ttModeSelectedIndex == TTMODE_ROW_VS_NYPER)
-        {
-            SelectProfile_SetShowOnlyDevGhosts(1);
-            SelectProfile_ToggleMode(0x30);
-            sdata->ptrDesiredMenu = &data.menuGhostSelection;
-        }
+	else if (s_ttModeSelectedIndex == TTMODE_ROW_VS_NYPER)
+		{
+			if (MM_TimeTrialMode_LoadDevGhost(gGT->currLEV))
+			{
+				// Dev ghost loaded, set character and start race directly
+				if (sdata->ptrGhostTapePlaying != NULL)
+					data.characterIDs[1] = sdata->ptrGhostTapePlaying->characterID;
+				sdata->ptrDesiredMenu = QueueLoadTrack_GetMenuPtr();
+			}
+			else
+			{
+				// Fall back to ghost selection menu
+				SelectProfile_SetShowOnlyDevGhosts(1);
+				SelectProfile_ToggleMode(0x30);
+				sdata->ptrDesiredMenu = &data.menuGhostSelection;
+			}
+		}
         return;
     }
 
@@ -122,34 +133,35 @@ void MM_TimeTrialMode_MenuProc(struct RectMenu *menu)
 
 int MM_TimeTrialMode_LoadDevGhost(s16 levID)
 {
-    char path[1024];
+    char relPath[1024];
+    char absPath[1024];
     void *buffer = sdata->ptrGhostTapePlaying;
     struct GameTracker *gGT = sdata->gGT;
     enum NativeMemcardResult result;
 
     // Build path relative to executable directory (like assets/memcards/mods)
-    snprintf(path, sizeof(path), "DevGhost/track_%02d.ghost", levID);
-    if (!NativeAssets_BuildPathFromBase(path, path, sizeof(path)))
+    snprintf(relPath, sizeof(relPath), "DevGhost/track_%02d.ghost", levID);
+    if (!NativeAssets_BuildPathFromBase(relPath, absPath, sizeof(absPath)))
     {
         printf("[DevGhost] Failed to build path for levID %d\n", levID);
         return 0;
     }
 
-    printf("[DevGhost] Trying to load: %s\n", path);
-    result = NativeMemcard_ReadFileDirect(path, buffer, 0x3E00, 0);
+    printf("[DevGhost] Trying to load: %s\n", absPath);
+    result = NativeMemcard_ReadFileDirect(absPath, buffer, 0x3E00, 0);
     printf("[DevGhost] ReadFileDirect result: %d\n", result);
 
     if (result != NATIVE_MEMCARD_OK)
     {
         // Fallback: try standard memcard location
-        snprintf(path, sizeof(path), "memcards/slot0/track_%02d.ghost", levID);
-        if (!NativeAssets_BuildPathFromBase(path, path, sizeof(path)))
+        snprintf(relPath, sizeof(relPath), "memcards/slot0/track_%02d.ghost", levID);
+        if (!NativeAssets_BuildPathFromBase(relPath, absPath, sizeof(absPath)))
         {
             printf("[DevGhost] Failed to build fallback path\n");
             return 0;
         }
-        printf("[DevGhost] Trying fallback: %s\n", path);
-        result = NativeMemcard_ReadFileDirect(path, buffer, 0x3E00, 0);
+        printf("[DevGhost] Trying fallback: %s\n", absPath);
+        result = NativeMemcard_ReadFileDirect(absPath, buffer, 0x3E00, 0);
         printf("[DevGhost] Fallback result: %d\n", result);
     }
 

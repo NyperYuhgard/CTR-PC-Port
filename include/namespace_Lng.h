@@ -293,7 +293,11 @@ enum LngStringId
 	LNG_IS_UNFORMATTED = 0x11b,                            // IS UNFORMATTED
 	LNG_PRESS_CROSS_TO_FORMAT = 0x11c,                     // PRESS @ TO FORMAT.
 	LNG_OR_TRIANGLE_TO_RETURN = 0x11d,                     // OR ^ TO RETURN.
+#ifdef CTR_NATIVE_DEV_GHOST
+	LNG_SAVE_DEV_GHOST = 0x11E,                             // SAVE DEV GHOST
+#else
 	LNG_UNUSED_11E = 0x11e,                                //
+#endif
 	LNG_UNUSED_11F = 0x11f,                                //
 	LNG_UNUSED_120 = 0x120,                                //
 	LNG_WARNING = 0x121,                                   // WARNING:
