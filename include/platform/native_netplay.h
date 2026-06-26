@@ -43,6 +43,7 @@ enum NetplayPacketType
         NETPLAY_PACKET_ITEM_PICKUP     = 0x16, /* bidir: a player got an item from a crate */
         NETPLAY_PACKET_ITEM_USE        = 0x17, /* bidir: a player used their item (fired weapon) */
         NETPLAY_PACKET_RNG_SEED        = 0x18, /* host -> clients: deterministic RNG seed */
+        NETPLAY_PACKET_ENGINE_SELECT   = 0x19, /* bidir: player chose their engine class */
 };
 
 struct NetplayChecksumPayload
@@ -356,6 +357,8 @@ extern int g_NetplayRaceStarting;
 extern int g_NetplayRacing;
 extern int g_NetplayHostCharacter;
 extern int g_NetplayClientCharacter;
+extern int g_NetplayHostEngine;
+extern int g_NetplayClientEngine;
 extern int g_NetplayTrackId;
 extern int g_NetplayNumLaps;
 extern int g_NetplayLocalLoaded;

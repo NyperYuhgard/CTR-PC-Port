@@ -248,6 +248,8 @@ int g_NetplayRaceStarting;
 int g_NetplayRacing;
 int g_NetplayHostCharacter;
 int g_NetplayClientCharacter;
+int g_NetplayHostEngine;
+int g_NetplayClientEngine;
 int g_NetplayTrackId;
 int g_NetplayNumLaps;
 int g_NetplayLocalLoaded;
@@ -926,6 +928,24 @@ internal void Netplay_HandleCharacterSelect(const struct NetplayPacketHeader *he
         Netplay_RelayPacketToOthers(header, payload);
 }
 
+internal void Netplay_HandleEngineSelect(const struct NetplayPacketHeader *header,
+                                         const u8 *payload, int payloadSize)
+{
+        if (payloadSize < 1)
+                return;
+        {
+                u8 engineId = payload[0];
+                if (Netplay_IsHost())
+                        g_NetplayClientEngine = engineId;
+                else
+                        g_NetplayHostEngine = engineId;
+                fprintf(stdout, "[Netplay] Player %u chose engine %d\n",
+                        header->playerId, engineId);
+                fflush(stdout);
+        }
+        Netplay_RelayPacketToOthers(header, payload);
+}
+
 internal void Netplay_HandleTrackSelect(const struct NetplayPacketHeader *header,
                                         const u8 *payload, int payloadSize)
 {
@@ -1323,6 +1343,9 @@ internal int Netplay_ReceivePacket(void)
                 break;
         case NETPLAY_PACKET_RNG_SEED:
                 Netplay_HandleRngSeed(header, payload, payloadSize);
+                break;
+        case NETPLAY_PACKET_ENGINE_SELECT:
+                Netplay_HandleEngineSelect(header, payload, payloadSize);
                 break;
         default:
                 /* Unknown packet type: ignore (forward-compat) */
