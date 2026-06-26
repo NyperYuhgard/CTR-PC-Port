@@ -1,9 +1,0 @@
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/CMakeFiles/ctr_native.dir
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/CMakeFiles/edit_cache.dir
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/CMakeFiles/rebuild_cache.dir
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/externals/SDL/CMakeFiles/SDL3-static.dir
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/externals/SDL/CMakeFiles/edit_cache.dir
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/externals/SDL/CMakeFiles/rebuild_cache.dir
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/externals/lua/CMakeFiles/lua.dir
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/externals/lua/CMakeFiles/edit_cache.dir
-/home/nyper/Documentos/GitHub/CTR-PC-Port/build-dev/externals/lua/CMakeFiles/rebuild_cache.dir
