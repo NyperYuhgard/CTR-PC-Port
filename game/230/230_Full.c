@@ -3,6 +3,8 @@ void MM_Options_MenuProc(struct RectMenu *menu);
 void MM_Options_Init(void);
 void MM_TimeTrialMode_MenuProc(struct RectMenu *menu);
 void MM_TimeTrialMode_Init(void);
+void MM_Online_Init(void);
+void MM_Online_MenuProc(struct RectMenu *menu);
 #endif
 
 #include "230_00_MM_Battle_DrawIcon_Character.c"
@@ -62,6 +64,7 @@ void MM_TimeTrialMode_Init(void);
 #include "230_75_MM_JumpTo_Characters.c"
 #include "230_76_MM_JumpTo_Scrapbook.c"
 #ifdef CTR_NATIVE
+#include "230_22_MM_Online_Menu.c"
 #include "230_86_MM_Mods_Menu.c"
 #include "230_87_MM_Options_Menu.c"
 #include "230_88_MM_TimeTrialMode_MenuProc.c"

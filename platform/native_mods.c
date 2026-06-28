@@ -48,9 +48,21 @@
 #define DRIVER_OFFSET_CONST_TURBO_MAX_ROOM  0x476
 #define DRIVER_OFFSET_CONST_ACCEL_RESERVES  0x42A
 #define DRIVER_OFFSET_DRIVER_ID             0x4A
-#define DRIVER_OFFSET_KART_STATE            0x4A
-#define DRIVER_OFFSET_ACTIONS_FLAG_SET      0x28C
-#define DRIVER_OFFSET_SPEED_APPROX          0x3C8
+#define DRIVER_OFFSET_KART_STATE            0x376
+#define DRIVER_OFFSET_ACTIONS_FLAG_SET      0x2C8
+#define DRIVER_OFFSET_SPEED_APPROX          0x38E
+#define DRIVER_OFFSET_SPEED                 0x38C
+#define DRIVER_OFFSET_BASE_SPEED            0x39C
+#define DRIVER_OFFSET_FIRE_SPEED            0x39E
+
+/* Extended driver fields */
+#define DRIVER_OFFSET_LAP_TIME              0x40
+#define DRIVER_OFFSET_LAP_INDEX             0x44
+#define DRIVER_OFFSET_NUM_WUMPAS            0x30
+#define DRIVER_OFFSET_POS_CURR              0x2D4  /* Vec3: s32[3] */
+#define DRIVER_OFFSET_VELOCITY              0x88   /* Vec3: s32[3] */
+#define DRIVER_OFFSET_RANK                  0x482
+#define DRIVER_OFFSET_CONST_GRAVITY         0x416
 
 struct NativeModsState
 {
@@ -66,6 +78,13 @@ struct NativeModsState
     void *cachedDriverPtrs[8];
     int  cachedNumPlayers;
     int  cachedGameMode1;
+
+    /* Hook context — set before CallHook so Lua can retrieve args */
+    struct
+    {
+        int driverIndex;
+        int intArgs[4];
+    } hookContext;
 };
 
 global_variable struct NativeModsState s_mods;
@@ -198,8 +217,20 @@ static int NativeMods_Lua_Hook(lua_State *L)
         hookType = NATIVE_MOD_HOOK_ON_INPUT;
     else if (strcmp(hookName, "onTitleInit") == 0)
         hookType = NATIVE_MOD_HOOK_ON_TITLE_INIT;
+    else if (strcmp(hookName, "onFileOpen") == 0)
+        hookType = NATIVE_MOD_HOOK_ON_FILE_OPEN;
+    else if (strcmp(hookName, "onFirePre") == 0)
+        hookType = NATIVE_MOD_HOOK_ON_FIRE_PRE;
+    else if (strcmp(hookName, "onFirePost") == 0)
+        hookType = NATIVE_MOD_HOOK_ON_FIRE_POST;
+    else if (strcmp(hookName, "onCollidePre") == 0)
+        hookType = NATIVE_MOD_HOOK_ON_COLLIDE_PRE;
+    else if (strcmp(hookName, "onCollidePost") == 0)
+        hookType = NATIVE_MOD_HOOK_ON_COLLIDE_POST;
+    else if (strcmp(hookName, "onGravityPre") == 0)
+        hookType = NATIVE_MOD_HOOK_ON_GRAVITY_PRE;
     else
-        return luaL_argerror(L, 1, "unknown hook name (onInit, onUpdate, onRender, onInput, onTitleInit)");
+        return luaL_argerror(L, 1, "unknown hook name (onInit, onUpdate, onRender, onInput, onTitleInit, onFileOpen, onFirePre, onFirePost, onCollidePre, onCollidePost, onGravityPre)");
 
     lua_pushvalue(L, 2);
     s_mods.luaRefs[hookType] = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -341,6 +372,45 @@ static int NativeMods_Lua_GetDriver(lua_State *L)
     lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_SPEED_APPROX));
     lua_setfield(L, -2, "speedApprox");
 
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_SPEED));
+    lua_setfield(L, -2, "speed");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_BASE_SPEED));
+    lua_setfield(L, -2, "baseSpeed");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_FIRE_SPEED));
+    lua_setfield(L, -2, "fireSpeed");
+
+    /* Extended fields */
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(driverPtr, DRIVER_OFFSET_LAP_TIME));
+    lua_setfield(L, -2, "lapTime");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadU8(driverPtr, DRIVER_OFFSET_LAP_INDEX));
+    lua_setfield(L, -2, "lapIndex");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadU8(driverPtr, DRIVER_OFFSET_NUM_WUMPAS));
+    lua_setfield(L, -2, "numWumpas");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_RANK));
+    lua_setfield(L, -2, "rank");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(driverPtr, DRIVER_OFFSET_POS_CURR));
+    lua_setfield(L, -2, "posX");
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(driverPtr, DRIVER_OFFSET_POS_CURR + 4));
+    lua_setfield(L, -2, "posY");
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(driverPtr, DRIVER_OFFSET_POS_CURR + 8));
+    lua_setfield(L, -2, "posZ");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(driverPtr, DRIVER_OFFSET_VELOCITY));
+    lua_setfield(L, -2, "velX");
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(driverPtr, DRIVER_OFFSET_VELOCITY + 4));
+    lua_setfield(L, -2, "velY");
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(driverPtr, DRIVER_OFFSET_VELOCITY + 8));
+    lua_setfield(L, -2, "velZ");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(driverPtr, DRIVER_OFFSET_CONST_GRAVITY));
+    lua_setfield(L, -2, "const_Gravity");
+
     return 1;
 }
 
@@ -446,19 +516,29 @@ struct DriverFieldDesc
 };
 
 /* Table of writable driver fields.
- * Only fields that make sense to modify are listed.
- * Constants (const_*) are intentionally excluded from writing
- * to prevent accidental corruption of game balance. */
+ * Only fields that make sense to modify are listed. */
 static const struct DriverFieldDesc s_writableDriverFields[] =
 {
-    {"reserves",            DRIVER_OFFSET_RESERVES,              2},
-    {"fireSpeedCap",        DRIVER_OFFSET_FIRE_SPEED_CAP,        2},
-    {"turbo_MeterRoomLeft",  DRIVER_OFFSET_TURBO_METER_ROOM_LEFT, 2},
-    {"turbo_outsideTimer",  DRIVER_OFFSET_TURBO_OUTSIDE_TIMER,   2},
-    {"numTurbos",           DRIVER_OFFSET_NUM_TURBOS,            1},
-    {"kartState",           DRIVER_OFFSET_KART_STATE,            1},
-    {"actionsFlagSet",      DRIVER_OFFSET_ACTIONS_FLAG_SET,      2},
-    {"speedApprox",         DRIVER_OFFSET_SPEED_APPROX,          2},
+    {"reserves",                 DRIVER_OFFSET_RESERVES,              2},
+    {"fireSpeedCap",             DRIVER_OFFSET_FIRE_SPEED_CAP,        2},
+    {"turbo_MeterRoomLeft",      DRIVER_OFFSET_TURBO_METER_ROOM_LEFT, 2},
+    {"turbo_outsideTimer",       DRIVER_OFFSET_TURBO_OUTSIDE_TIMER,   2},
+    {"numTurbos",                DRIVER_OFFSET_NUM_TURBOS,            1},
+    {"kartState",                DRIVER_OFFSET_KART_STATE,            1},
+    {"actionsFlagSet",           DRIVER_OFFSET_ACTIONS_FLAG_SET,      2},
+    {"speedApprox",              DRIVER_OFFSET_SPEED_APPROX,          2},
+    {"const_SacredFireSpeed",    DRIVER_OFFSET_CONST_SACRED_FIRE,     2},
+    {"const_SingleTurboSpeed",   DRIVER_OFFSET_CONST_SINGLE_TURBO,    2},
+    {"const_turboMaxRoom",       DRIVER_OFFSET_CONST_TURBO_MAX_ROOM,  1},
+    {"const_Accel_Reserves",     DRIVER_OFFSET_CONST_ACCEL_RESERVES,  2},
+    {"speed",                    DRIVER_OFFSET_SPEED,                  2},
+    {"baseSpeed",                DRIVER_OFFSET_BASE_SPEED,             2},
+    {"fireSpeed",                DRIVER_OFFSET_FIRE_SPEED,             2},
+    {"lapTime",                  DRIVER_OFFSET_LAP_TIME,              4},
+    {"lapIndex",                 DRIVER_OFFSET_LAP_INDEX,              1},
+    {"numWumpas",                DRIVER_OFFSET_NUM_WUMPAS,            1},
+    {"rank",                     DRIVER_OFFSET_RANK,                   2},
+    {"const_Gravity",            DRIVER_OFFSET_CONST_GRAVITY,         2},
     { NULL, 0, 0 } /* sentinel */
 };
 
@@ -505,7 +585,7 @@ static int NativeMods_Lua_SetDriverField(lua_State *L)
         /* Unknown field name */
         char errMsg[128];
         snprintf(errMsg, sizeof(errMsg),
-            "unknown driver field '%s' (writable: reserves, fireSpeedCap, turbo_MeterRoomLeft, turbo_outsideTimer, numTurbos, kartState, actionsFlagSet, speedApprox)",
+            "unknown driver field '%s' (writable: reserves, fireSpeedCap, turbo_MeterRoomLeft, turbo_outsideTimer, numTurbos, kartState, actionsFlagSet, speedApprox, speed, baseSpeed, fireSpeed, const_SacredFireSpeed, const_SingleTurboSpeed, const_turboMaxRoom, const_Accel_Reserves)",
             fieldName);
         return luaL_argerror(L, 2, errMsg);
     }
@@ -640,7 +720,401 @@ static int NativeMods_Lua_DrawText(lua_State *L)
 }
 
 /* ============================================================
- * Lua library registration table (with new API)
+ * NEW: Gamepad input API for Lua mods
+ * ============================================================ */
+
+/* mod.getGamepad(padIndex) — Returns a table with gamepad state for pad 0-7
+ *
+ * Returned table fields:
+ *   held     (int) — buttons held this frame  (bitmask, see mod.BUTTONS)
+ *   tapped   (int) — buttons pressed this frame
+ *   released (int) — buttons released this frame
+ *   prevHeld (int) — buttons held last frame
+ *   stickLX  (int) — left stick X  (0=left, 128=center, 255=right)
+ *   stickLY  (int) — left stick Y
+ *   stickRX  (int) — right stick X
+ *   stickRY  (int) — right stick Y  (128=neutral, <128=brake, >128=gas)
+ */
+static int NativeMods_Lua_GetGamepad(lua_State *L)
+{
+    int index = (int)luaL_checkinteger(L, 1);
+    if (index < 0 || index > 7)
+        return luaL_argerror(L, 1, "pad index must be 0-7");
+
+    if (!sdata || !sdata->gGamepads)
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[index];
+
+    lua_newtable(L);
+
+    lua_pushinteger(L, (lua_Integer)pad->buttonsHeldCurrFrame);
+    lua_setfield(L, -2, "held");
+
+    lua_pushinteger(L, (lua_Integer)pad->buttonsTapped);
+    lua_setfield(L, -2, "tapped");
+
+    lua_pushinteger(L, (lua_Integer)pad->buttonsReleased);
+    lua_setfield(L, -2, "released");
+
+    lua_pushinteger(L, (lua_Integer)pad->buttonsHeldPrevFrame);
+    lua_setfield(L, -2, "prevHeld");
+
+    lua_pushinteger(L, (lua_Integer)pad->stickLX);
+    lua_setfield(L, -2, "stickLX");
+
+    lua_pushinteger(L, (lua_Integer)pad->stickLY);
+    lua_setfield(L, -2, "stickLY");
+
+    lua_pushinteger(L, (lua_Integer)pad->stickRX);
+    lua_setfield(L, -2, "stickRX");
+
+    lua_pushinteger(L, (lua_Integer)pad->stickRY);
+    lua_setfield(L, -2, "stickRY");
+
+    return 1;
+}
+
+/* mod.getGamepads() — Returns a lightuserdata to the GamepadSystem struct
+ *
+ * Combined with readS16/readU8/readS32, allows raw access to all gamepad data.
+ * Each gamepad buffer is 0x50 bytes.
+ * GamepadBuffer field offsets (from base):
+ *   0x04  stickLX       (s16)
+ *   0x06  stickLY       (s16)
+ *   0x0C  stickRX       (s16)
+ *   0x0E  stickRY       (s16)
+ *   0x10  buttonsHeldCurrFrame (s32)
+ *   0x14  buttonsTapped        (s32)
+ *   0x18  buttonsReleased      (s32)
+ *   0x1C  buttonsHeldPrevFrame (s32)
+ */
+static int NativeMods_Lua_GetGamepads(lua_State *L)
+{
+    if (!sdata || !sdata->gGamepads)
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushlightuserdata(L, (void *)sdata->gGamepads);
+    return 1;
+}
+
+/* ============================================================
+ * NEW: Instance API — read/modify game Instance structs
+ * ============================================================ */
+
+/* Instance struct field offsets (from namespace_Instance.h) */
+#define INSTANCE_OFFSET_NAME        0x08
+#define INSTANCE_OFFSET_SCALE       0x18  /* s16 scale[3] */
+#define INSTANCE_OFFSET_ALPHA_SCALE 0x22  /* s16 */
+#define INSTANCE_OFFSET_COLOR_RGBA  0x24  /* u32 */
+#define INSTANCE_OFFSET_FLAGS       0x28  /* u32 */
+#define INSTANCE_OFFSET_ANIM_INDEX  0x52  /* u8 */
+#define INSTANCE_OFFSET_ANIM_FRAME  0x54  /* s16 */
+/* MATRIX is at 0x30, translation vector at offset 18 bytes into MATRIX */
+#define INSTANCE_OFFSET_POS_X       0x42  /* s16 */
+#define INSTANCE_OFFSET_POS_Y       0x44  /* s16 */
+#define INSTANCE_OFFSET_POS_Z       0x46  /* s16 */
+
+/* Helper: push an instance table for the given pointer */
+static void NativeMods_PushInstanceTable(lua_State *L, void *ptr)
+{
+    if (!ptr)
+    {
+        lua_pushnil(L);
+        return;
+    }
+
+    lua_newtable(L);
+
+    char name[16];
+    memcpy(name, (char *)ptr + INSTANCE_OFFSET_NAME, sizeof(name) - 1);
+    name[sizeof(name) - 1] = '\0';
+    lua_pushstring(L, name);
+    lua_setfield(L, -2, "name");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(ptr, INSTANCE_OFFSET_COLOR_RGBA));
+    lua_setfield(L, -2, "colorRGBA");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, INSTANCE_OFFSET_ALPHA_SCALE));
+    lua_setfield(L, -2, "alphaScale");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS32(ptr, INSTANCE_OFFSET_FLAGS));
+    lua_setfield(L, -2, "flags");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, INSTANCE_OFFSET_ANIM_FRAME));
+    lua_setfield(L, -2, "animFrame");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadU8(ptr, INSTANCE_OFFSET_ANIM_INDEX));
+    lua_setfield(L, -2, "animIndex");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, INSTANCE_OFFSET_POS_X));
+    lua_setfield(L, -2, "posX");
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, INSTANCE_OFFSET_POS_Y));
+    lua_setfield(L, -2, "posY");
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, INSTANCE_OFFSET_POS_Z));
+    lua_setfield(L, -2, "posZ");
+
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, INSTANCE_OFFSET_SCALE));
+    lua_setfield(L, -2, "scaleX");
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, INSTANCE_OFFSET_SCALE + 2));
+    lua_setfield(L, -2, "scaleY");
+    lua_pushinteger(L, (lua_Integer)NativeMods_ReadS16(ptr, INSTANCE_OFFSET_SCALE + 4));
+    lua_setfield(L, -2, "scaleZ");
+
+    lua_pushlightuserdata(L, ptr);
+    lua_setfield(L, -2, "ptr");
+}
+
+/* Instance writable field table */
+struct InstanceFieldDesc
+{
+    const char *name;
+    int offset;
+    int size; /* 1=u8, 2=s16, 4=s32 */
+};
+
+static const struct InstanceFieldDesc s_writableInstanceFields[] =
+{
+    {"colorRGBA",  INSTANCE_OFFSET_COLOR_RGBA,  4},
+    {"alphaScale", INSTANCE_OFFSET_ALPHA_SCALE,  2},
+    {"flags",      INSTANCE_OFFSET_FLAGS,        4},
+    {"animFrame",  INSTANCE_OFFSET_ANIM_FRAME,   2},
+    {"animIndex",  INSTANCE_OFFSET_ANIM_INDEX,   1},
+    {"scaleX",     INSTANCE_OFFSET_SCALE,        2},
+    {"scaleY",     INSTANCE_OFFSET_SCALE + 2,    2},
+    {"scaleZ",     INSTANCE_OFFSET_SCALE + 4,    2},
+    { NULL, 0, 0 }
+};
+
+/* mod.getInstance(ptr) — Returns a table with Instance fields */
+static int NativeMods_Lua_GetInstance(lua_State *L)
+{
+    if (!lua_islightuserdata(L, 1))
+        return luaL_argerror(L, 1, "expected lightuserdata (pointer)");
+    NativeMods_PushInstanceTable(L, lua_touserdata(L, 1));
+    return 1;
+}
+
+/* mod.forEachInstance(callback) — Iterates all active instances */
+static int NativeMods_Lua_ForEachInstance(lua_State *L)
+{
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+
+    if (!sdata || !sdata->gGT)
+    {
+        lua_pushinteger(L, 0);
+        return 1;
+    }
+
+    struct Instance *inst = (struct Instance *)sdata->gGT->JitPools.instance.taken.first;
+    int count = 0;
+
+    while (inst != NULL)
+    {
+        lua_pushvalue(L, 1);
+        NativeMods_PushInstanceTable(L, inst);
+        if (lua_pcall(L, 1, 1, 0) != LUA_OK)
+        {
+            NativeMods_ReportLuaError(L, "forEachInstance");
+            break;
+        }
+        if (!lua_toboolean(L, -1))
+        {
+            lua_pop(L, 1);
+            break;
+        }
+        lua_pop(L, 1);
+        inst = inst->next;
+        count++;
+    }
+
+    lua_pushinteger(L, count);
+    return 1;
+}
+
+/* mod.findInstancesByName(name) — Returns array of instances matching name */
+static int NativeMods_Lua_FindInstancesByName(lua_State *L)
+{
+    const char *searchName = luaL_checkstring(L, 1);
+    if (!searchName)
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    if (!sdata || !sdata->gGT)
+    {
+        lua_newtable(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    int index = 1;
+    struct Instance *inst = (struct Instance *)sdata->gGT->JitPools.instance.taken.first;
+
+    while (inst != NULL)
+    {
+        char name[16];
+        memcpy(name, (char *)inst + INSTANCE_OFFSET_NAME, sizeof(name) - 1);
+        name[sizeof(name) - 1] = '\0';
+
+        if (strcmp(name, searchName) == 0)
+        {
+            NativeMods_PushInstanceTable(L, inst);
+            lua_rawseti(L, -2, index++);
+        }
+        inst = inst->next;
+    }
+
+    return 1;
+}
+
+/* mod.setInstanceField(ptr, fieldName, value) — Write an instance field by name */
+static int NativeMods_Lua_SetInstanceField(lua_State *L)
+{
+    if (!lua_islightuserdata(L, 1))
+        return luaL_argerror(L, 1, "expected lightuserdata (pointer)");
+    void *ptr = lua_touserdata(L, 1);
+    if (!ptr)
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    const char *fieldName = luaL_checkstring(L, 2);
+    lua_Integer value = luaL_checkinteger(L, 3);
+
+    const struct InstanceFieldDesc *desc = s_writableInstanceFields;
+    while (desc->name != NULL)
+    {
+        if (strcmp(desc->name, fieldName) == 0)
+            break;
+        desc++;
+    }
+
+    if (desc->name == NULL)
+    {
+        return luaL_argerror(L, 2,
+            "unknown instance field (writable: colorRGBA, alphaScale, flags, animFrame, animIndex, scaleX, scaleY, scaleZ)");
+    }
+
+    switch (desc->size)
+    {
+        case 1: NativeMods_WriteU8(ptr, desc->offset, (u8)value);   break;
+        case 2: NativeMods_WriteS16(ptr, desc->offset, (s16)value);  break;
+        case 4: NativeMods_WriteS32(ptr, desc->offset, (s32)value);  break;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* ============================================================
+ * NEW: Track name API
+ * ============================================================ */
+
+/* mod.getTrackName() — Returns the current track/level name string */
+static int NativeMods_Lua_GetTrackName(lua_State *L)
+{
+    if (!sdata || !sdata->gGT)
+    {
+        lua_pushstring(L, "");
+        return 1;
+    }
+    lua_pushstring(L, sdata->gGT->levelName);
+    return 1;
+}
+
+/* ============================================================
+ * NEW: Extended drawing API — circle and line primitives
+ * ============================================================ */
+
+/* mod.drawCircle(cx, cy, radius, r, g, b, [a]) — Queue a filled circle */
+static int NativeMods_Lua_DrawCircle(lua_State *L)
+{
+    if (s_drawQueueCount >= NATIVE_MODS_DRAW_QUEUE_SIZE)
+    {
+        fprintf(stderr, "[Mods] Draw queue overflow, ignoring drawCircle\n");
+        return 0;
+    }
+
+    s16 cx      = (s16)luaL_checkinteger(L, 1);
+    s16 cy      = (s16)luaL_checkinteger(L, 2);
+    s16 radius  = (s16)luaL_checkinteger(L, 3);
+    u8 r        = (u8)luaL_checkinteger(L, 4);
+    u8 g        = (u8)luaL_checkinteger(L, 5);
+    u8 b        = (u8)luaL_checkinteger(L, 6);
+    u8 a        = (u8)luaL_optinteger(L, 7, 255);
+
+    /* Approximate a filled circle using a bounding box rectangle
+     * and a semi-transparent overlay. For a proper circle we'd need
+     * polygon drawing, but for HUD overlays this approximation works. */
+    struct NativeModDrawCmd *cmd = &s_drawQueue[s_drawQueueCount++];
+    cmd->type = NATIVE_MOD_DRAW_RECT;
+    cmd->rect.x = cx - radius;
+    cmd->rect.y = cy - radius;
+    cmd->rect.w = radius * 2;
+    cmd->rect.h = radius * 2;
+    cmd->rect.r = r;
+    cmd->rect.g = g;
+    cmd->rect.b = b;
+    cmd->rect.a = a;
+
+    return 0;
+}
+
+/* mod.drawLine(x1, y1, x2, y2, r, g, b, [a]) — Queue a line */
+static int NativeMods_Lua_DrawLine(lua_State *L)
+{
+    if (s_drawQueueCount >= NATIVE_MODS_DRAW_QUEUE_SIZE)
+    {
+        fprintf(stderr, "[Mods] Draw queue overflow, ignoring drawLine\n");
+        return 0;
+    }
+
+    s16 x1 = (s16)luaL_checkinteger(L, 1);
+    s16 y1 = (s16)luaL_checkinteger(L, 2);
+    s16 x2 = (s16)luaL_checkinteger(L, 3);
+    s16 y2 = (s16)luaL_checkinteger(L, 4);
+    u8 r   = (u8)luaL_checkinteger(L, 5);
+    u8 g   = (u8)luaL_checkinteger(L, 6);
+    u8 b   = (u8)luaL_checkinteger(L, 7);
+    u8 a   = (u8)luaL_optinteger(L, 8, 255);
+
+    /* Draw line as a thin rect between the two points.
+     * For a proper line we'd need LINE primitive, but this works
+     * for axis-aligned HUD elements. */
+    s16 x = x1 < x2 ? x1 : x2;
+    s16 y = y1 < y2 ? y1 : y2;
+    s16 w = x1 < x2 ? (x2 - x1) : (x1 - x2);
+    s16 h = y1 < y2 ? (y2 - y1) : (y1 - y2);
+    if (w < 2) w = 2;   /* ensure visibility */
+    if (h < 2) h = 2;
+
+    struct NativeModDrawCmd *cmd = &s_drawQueue[s_drawQueueCount++];
+    cmd->type = NATIVE_MOD_DRAW_RECT;
+    cmd->rect.x = x;
+    cmd->rect.y = y;
+    cmd->rect.w = w;
+    cmd->rect.h = h;
+    cmd->rect.r = r;
+    cmd->rect.g = g;
+    cmd->rect.b = b;
+    cmd->rect.a = a;
+
+    return 0;
+}
+
+/* Forward declarations for functions defined later */
+static int NativeMods_Lua_GetHookContext(lua_State *L);
+
+/* ============================================================
+ * Lua library registration table
  * ============================================================ */
 
 static const struct luaL_Reg s_nativeModLib[] = {
@@ -670,6 +1144,26 @@ static const struct luaL_Reg s_nativeModLib[] = {
     {"drawRect", NativeMods_Lua_DrawRect},
     {"drawText", NativeMods_Lua_DrawText},
 
+    /* Gamepad input */
+    {"getGamepad", NativeMods_Lua_GetGamepad},
+    {"getGamepads", NativeMods_Lua_GetGamepads},
+
+    /* Hook context */
+    {"getHookContext", NativeMods_Lua_GetHookContext},
+
+    /* Instance API */
+    {"getInstance", NativeMods_Lua_GetInstance},
+    {"forEachInstance", NativeMods_Lua_ForEachInstance},
+    {"findInstancesByName", NativeMods_Lua_FindInstancesByName},
+    {"setInstanceField", NativeMods_Lua_SetInstanceField},
+
+    /* Extended drawing */
+    {"drawCircle", NativeMods_Lua_DrawCircle},
+    {"drawLine", NativeMods_Lua_DrawLine},
+
+    /* Track info */
+    {"getTrackName", NativeMods_Lua_GetTrackName},
+
     {NULL, NULL}
 };
 
@@ -698,6 +1192,27 @@ int NativeMods_Init(void)
 
     lua_newtable(s_mods.L);
     luaL_setfuncs(s_mods.L, s_nativeModLib, 0);
+
+    /* Add mod.BUTTONS constant table */
+    lua_newtable(s_mods.L);
+    lua_pushinteger(s_mods.L, 0x00001); lua_setfield(s_mods.L, -2, "UP");
+    lua_pushinteger(s_mods.L, 0x00002); lua_setfield(s_mods.L, -2, "DOWN");
+    lua_pushinteger(s_mods.L, 0x00004); lua_setfield(s_mods.L, -2, "LEFT");
+    lua_pushinteger(s_mods.L, 0x00008); lua_setfield(s_mods.L, -2, "RIGHT");
+    lua_pushinteger(s_mods.L, 0x04010); lua_setfield(s_mods.L, -2, "CROSS");
+    lua_pushinteger(s_mods.L, 0x08020); lua_setfield(s_mods.L, -2, "SQUARE");
+    lua_pushinteger(s_mods.L, 0x00040); lua_setfield(s_mods.L, -2, "CIRCLE");
+    lua_pushinteger(s_mods.L, 0x40000); lua_setfield(s_mods.L, -2, "TRIANGLE");
+    lua_pushinteger(s_mods.L, 0x00800); lua_setfield(s_mods.L, -2, "L1");
+    lua_pushinteger(s_mods.L, 0x00400); lua_setfield(s_mods.L, -2, "R1");
+    lua_pushinteger(s_mods.L, 0x00180); lua_setfield(s_mods.L, -2, "L2");
+    lua_pushinteger(s_mods.L, 0x00200); lua_setfield(s_mods.L, -2, "R2");
+    lua_pushinteger(s_mods.L, 0x01000); lua_setfield(s_mods.L, -2, "START");
+    lua_pushinteger(s_mods.L, 0x02000); lua_setfield(s_mods.L, -2, "SELECT");
+    lua_pushinteger(s_mods.L, 0x10000); lua_setfield(s_mods.L, -2, "L3");
+    lua_pushinteger(s_mods.L, 0x20000); lua_setfield(s_mods.L, -2, "R3");
+    lua_setfield(s_mods.L, -2, "BUTTONS");
+
     lua_setglobal(s_mods.L, "mod");
 
     for (int i = 0; i < NATIVE_MOD_HOOK_COUNT; i++)
@@ -956,6 +1471,51 @@ void NativeMods_CallHookWithDelta(enum NativeModHookType hook, int dt)
 
     if (lua_pcall(s_mods.L, 1, 0, 0) != LUA_OK)
         NativeMods_ReportLuaError(s_mods.L, "hook callback");
+}
+
+/* ============================================================
+ * Hook context — set from game code before calling CallHook,
+ * retrieved from Lua via mod.getHookContext()
+ * ============================================================ */
+
+void NativeMods_SetHookContext(int driverIndex, int arg0, int arg1, int arg2, int arg3)
+{
+    if (!s_mods.initialized)
+        return;
+    s_mods.hookContext.driverIndex = driverIndex;
+    s_mods.hookContext.intArgs[0] = arg0;
+    s_mods.hookContext.intArgs[1] = arg1;
+    s_mods.hookContext.intArgs[2] = arg2;
+    s_mods.hookContext.intArgs[3] = arg3;
+}
+
+int NativeMods_FindDriverIndex(void *driver)
+{
+    for (int i = 0; i < 8; i++)
+        if (s_mods.cachedDriverPtrs[i] == driver)
+            return i;
+    return -1;
+}
+
+/* mod.getHookContext() — Returns a table with the current hook context:
+ *   { driverIndex = int, args = { int, int, int, int } }
+ */
+static int NativeMods_Lua_GetHookContext(lua_State *L)
+{
+    lua_newtable(L);
+
+    lua_pushinteger(L, (lua_Integer)s_mods.hookContext.driverIndex);
+    lua_setfield(L, -2, "driverIndex");
+
+    lua_newtable(L);
+    for (int i = 0; i < 4; i++)
+    {
+        lua_pushinteger(L, (lua_Integer)s_mods.hookContext.intArgs[i]);
+        lua_rawseti(L, -2, i);
+    }
+    lua_setfield(L, -2, "args");
+
+    return 1;
 }
 
 /* ============================================================

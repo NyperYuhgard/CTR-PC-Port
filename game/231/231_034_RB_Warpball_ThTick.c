@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 static const s16 s_warpballParticleHeight = 0xff;
 
@@ -250,7 +253,7 @@ void RB_Warpball_ThTick(struct Thread *t)
 	sps->Union.QuadBlockColl.qbFlagsIgnored = 0;
 	sps->Union.QuadBlockColl.searchFlags = 0x41;
 
-	if (gGT->numPlyrCurrGame < 3)
+	if (NUM_LOCAL_PLAYERS(gGT) < 3)
 	{
 		sps->Union.QuadBlockColl.searchFlags = 0x43;
 	}

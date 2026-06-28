@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_netplay.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003b6d0-0x8003b934; CTR_NATIVE gates TT ghost model publication.
 void MainInit_Drivers(struct GameTracker *gGT)
@@ -42,7 +43,10 @@ void MainInit_Drivers(struct GameTracker *gGT)
 	        ((gameMode & 0x2c122020) == 0) &&
 
 	        // numPlyrCurrGame requires AIs
-	        (numPlyrCurrGame < 3)) &&
+	        (numPlyrCurrGame < 3) &&
+
+	        // skip AIs for online netplay races
+	        !g_NetplayRacing) &&
 	    (
 	        // in Arcade or Adventure
 	        (gameMode & (ARCADE_MODE | ADVENTURE_MODE)) != 0))

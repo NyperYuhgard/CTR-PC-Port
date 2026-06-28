@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 extern struct ParticleEmitter emSet_TubeBubbles[7];
 
@@ -21,7 +24,7 @@ void RB_Bubbles_RoosTubes()
 
 	// 1P mode Roo's Tubes only
 	gGT = sdata->gGT;
-	if (gGT->numPlyrCurrGame > 1)
+	if (NUM_LOCAL_PLAYERS(gGT) > 1)
 		return;
 	if (gGT->levelID != ROO_TUBES)
 		return;

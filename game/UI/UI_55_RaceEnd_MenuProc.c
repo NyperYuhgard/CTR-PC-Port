@@ -1,4 +1,12 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
+#ifdef CTR_NATIVE_DEV_GHOST
+#include <platform/native_assets.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80055c90-0x8005607c.
 void UI_RaceEnd_MenuProc(struct RectMenu *menu)
@@ -25,8 +33,12 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 
 	option = menu->rows[row].stringIndex;
 
-	// if not SAVE GHOST
-	if (option != 9)
+	// if not SAVE GHOST (or SAVE DEV GHOST in dev builds)
+	if (option != 9
+#ifdef CTR_NATIVE_DEV_GHOST
+	    && option != LNG_SAVE_DEV_GHOST
+#endif
+	   )
 	{
 		// make Menu invisible
 		RECTMENU_Hide(menu);
@@ -47,11 +59,53 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 
 	switch (option)
 	{
+#ifdef CTR_NATIVE_DEV_GHOST
+	// Save Dev Ghost (write raw .ghost file, no memcard format)
+	case LNG_SAVE_DEV_GHOST:
+	{
+		char relPath[1024];
+		char absPath[1024];
+		snprintf(relPath, sizeof(relPath), "DevGhost/track_%02d.ghost", gGT->levelID);
+		if (NativeAssets_BuildPathFromBase(relPath, absPath, sizeof(absPath)))
+		{
+			char *sep = strrchr(absPath, '/');
+			if (sep)
+			{
+				*sep = '\0';
+				mkdir(absPath, 0755);
+				*sep = '/';
+			}
+			FILE *f = fopen(absPath, "wb");
+			if (f)
+			{
+				fwrite(sdata->GhostRecording.ptrGhost, 1, 0x3E00, f);
+				fclose(f);
+				OtherFX_Play(1, 1);
+			}
+		}
+		break;
+	}
+#endif
+
 	// Quit
 	case 3:
 	{
 		// Erase ghost of previous race from RAM
 		GhostTape_Destroy();
+
+#ifdef CTR_NATIVE
+		if (g_NetplayRacing)
+		{
+			g_NetplayRacing = 0;
+			/* Squash numPlyrCurrGame to 1 for the remaining render of this
+			 * frame, otherwise vis-mem/camera code will try to access slots
+			 * that only exist for the local player and crash. */
+			gGT->numPlyrCurrGame = 1;
+			gGT->numPlyrNextGame = 1;
+			Netplay_BroadcastReturnToLobby();
+			Netplay_ForceReturnToLobby();
+		}
+#endif
 
 		// go back to main menu
 		sdata->mainMenuState = 0;

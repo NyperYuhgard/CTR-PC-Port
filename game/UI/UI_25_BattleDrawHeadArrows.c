@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004f9d8-0x8004fd34.
 // Draw arrows over the heads of players
@@ -34,7 +37,7 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 	gte_SetRotMatrix(m);
 	gte_SetTransMatrix(m);
 
-	u8 numPlyr = gGT->numPlyrCurrGame;
+	u8 numPlyr = NUM_LOCAL_PLAYERS(gGT);
 
 	for (u8 i = 0; i < numPlyr; i++)
 	{

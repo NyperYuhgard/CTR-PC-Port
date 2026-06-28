@@ -59,6 +59,10 @@ set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 set(SDL_GPU OFF CACHE BOOL "" FORCE)
+# SDL_RENDER stays OFF — the netplay chat window deliberately does NOT use
+# an SDL renderer (it would conflict with the game's main OpenGL context
+# and crash Mesa/Intel drivers). The chat window exists only to capture
+# keyboard input; content is shown in the game's HUD and terminal instead.
 set(SDL_RENDER OFF CACHE BOOL "" FORCE)
 set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
 set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
@@ -96,6 +100,7 @@ add_subdirectory(externals/lua)
 # CTR Native
 add_executable(ctr_native main.c)
 target_include_directories(ctr_native PRIVATE ${GAME_INCLUDES})
+option(CTR_NATIVE_DEV_GHOST "Enable Save Dev Ghost menu option (developer-only)" OFF)
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
     BUILD=926
@@ -103,10 +108,14 @@ target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
     CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_BUILD_ID}\"
 )
+if(CTR_NATIVE_DEV_GHOST)
+    target_compile_definitions(ctr_native PRIVATE CTR_NATIVE_DEV_GHOST)
+endif()
 target_compile_options(ctr_native PRIVATE -O2)
 target_link_libraries(ctr_native SDL3::SDL3 lua)
 if(WIN32)
     target_link_options(ctr_native PRIVATE -static -static-libgcc -Wl,--image-base,0x400000 -Wl,--disable-dynamicbase -Wl,--disable-reloc-section)
+    target_link_libraries(ctr_native ws2_32 iphlpapi)
 else()
     target_link_options(ctr_native PRIVATE -static-libgcc -Wl,--image-base,0x400000 -no-pie -Wl,--allow-multiple-definition)
 endif()

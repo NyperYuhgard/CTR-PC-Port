@@ -22,7 +22,7 @@ enum LngStringId
 	LNG_TIME = 0x012,                       // TIME
 	LNG_TIMING_OUT_EXITING_DEMO = 0x013,    // Timing Out - Exiting Demo
 	LNG_UNUSED_014 = 0x014,                 //
-	LNG_UNUSED_015 = 0x015,                 //
+	LNG_ONLINE = 0x015,                     // ONLINE (overridden at runtime by Native Netplay)
 	LNG_HITPTS = 0x016,                     // HITPTS
 	LNG_POINTS = 0x017,                     // POINTS
 	LNG_LAP = 0x018,                        // LAP
@@ -293,7 +293,11 @@ enum LngStringId
 	LNG_IS_UNFORMATTED = 0x11b,                            // IS UNFORMATTED
 	LNG_PRESS_CROSS_TO_FORMAT = 0x11c,                     // PRESS @ TO FORMAT.
 	LNG_OR_TRIANGLE_TO_RETURN = 0x11d,                     // OR ^ TO RETURN.
+#ifdef CTR_NATIVE_DEV_GHOST
+	LNG_SAVE_DEV_GHOST = 0x11E,                             // SAVE DEV GHOST
+#else
 	LNG_UNUSED_11E = 0x11e,                                //
+#endif
 	LNG_UNUSED_11F = 0x11f,                                //
 	LNG_UNUSED_120 = 0x120,                                //
 	LNG_WARNING = 0x121,                                   // WARNING:

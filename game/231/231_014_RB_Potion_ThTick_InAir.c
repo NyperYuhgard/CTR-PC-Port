@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ac6b4-0x800aca50.
 void RB_Potion_ThTick_InAir(struct Thread *t)
@@ -48,7 +51,7 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 	SPS->Union.QuadBlockColl.qbFlagsWanted = 0x1040;
 	SPS->Union.QuadBlockColl.qbFlagsIgnored = 0;
 
-	if (gGT->numPlyrCurrGame < 3)
+	if (NUM_LOCAL_PLAYERS(gGT) < 3)
 	{
 		SPS->Union.QuadBlockColl.searchFlags = 0x43;
 	}

@@ -18,6 +18,13 @@ enum NativeModHookType
     NATIVE_MOD_HOOK_ON_TITLE_INIT,
     NATIVE_MOD_HOOK_ON_FILE_OPEN,
 
+    /* Granular game-function hooks */
+    NATIVE_MOD_HOOK_ON_FIRE_PRE,
+    NATIVE_MOD_HOOK_ON_FIRE_POST,
+    NATIVE_MOD_HOOK_ON_COLLIDE_PRE,
+    NATIVE_MOD_HOOK_ON_COLLIDE_POST,
+    NATIVE_MOD_HOOK_ON_GRAVITY_PRE,
+
     NATIVE_MOD_HOOK_COUNT
 };
 
@@ -64,5 +71,12 @@ void NativeMods_FlushDrawQueue(void);
 
 FILE *NativeMods_OpenFile(const char *relativePath, const char *mode);
 void NativeMods_OnLanguageLoaded(char **lngStrings, int numStrings);
+
+/* ============================================================
+ * Hook context — set before calling CallHook from game code
+ * ============================================================ */
+
+void NativeMods_SetHookContext(int driverIndex, int arg0, int arg1, int arg2, int arg3);
+int  NativeMods_FindDriverIndex(void *driver);
 
 #endif

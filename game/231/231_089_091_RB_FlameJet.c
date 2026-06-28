@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 struct HitboxDesc fjBoxDesc = {.inst = (struct Instance *)0,
                                .thread = (struct Thread *)0,
@@ -265,7 +268,7 @@ void RB_FlameJet_Particles(struct Instance *inst, struct FlameJet *fjObj)
 	}
 
 	// heat particle is 1P only
-	if (gGT->numPlyrCurrGame > 1)
+	if (NUM_LOCAL_PLAYERS(gGT) > 1)
 		return;
 
 	// NOTE(aalhendi): Retail would read PS1 null-space if the fire particle allocation failed.

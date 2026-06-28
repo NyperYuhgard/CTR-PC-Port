@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE
+#include <platform/native_netplay.h>
+#endif
 
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 #include <platform/native_replay_scheduler.h>
@@ -340,6 +343,10 @@ gGT->cooldownfromPauseUntilUnpause--;
 					if (sdata->AkuAkuHintState == 0)
 						if (RaceFlag_IsFullyOnScreen() == 0)
 						{
+#ifdef CTR_NATIVE
+							if (!g_NetplayRacing)
+							{
+#endif
 							for (iVar4 = 0; iVar4 < gGT->numPlyrCurrGame; iVar4++)
 							{
 								if ((((uVar5 != 0) &&
@@ -359,6 +366,17 @@ gGT->cooldownfromPauseUntilUnpause--;
 									gGT->cooldownfromPauseUntilUnpause = 5;
 								}
 							}
+#ifdef CTR_NATIVE
+							}
+
+							/* Netplay: SELECT quits to main menu, no pause menu. */
+							if ((sdata->AnyPlayerTap & BTN_SELECT) != 0)
+							{
+								Netplay_Disconnect();
+								Netplay_ResetRaceState();
+								MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
+							}
+#endif
 						}
 		}
 		else

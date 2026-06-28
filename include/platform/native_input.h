@@ -32,4 +32,34 @@ int Platform_InputGetStateSize(void);
 int Platform_InputCaptureState(void *dst, int dstSize);
 int Platform_InputRestoreState(const void *src, int srcSize);
 
+// Key binding API
+#define PLATFORM_INPUT_BINDING_COUNT 16
+
+#define PLATFORM_INPUT_BINDING_SQUARE  0
+#define PLATFORM_INPUT_BINDING_CIRCLE  1
+#define PLATFORM_INPUT_BINDING_TRIANGLE 2
+#define PLATFORM_INPUT_BINDING_CROSS   3
+#define PLATFORM_INPUT_BINDING_L1      4
+#define PLATFORM_INPUT_BINDING_L2      5
+#define PLATFORM_INPUT_BINDING_L3      6
+#define PLATFORM_INPUT_BINDING_R1      7
+#define PLATFORM_INPUT_BINDING_R2      8
+#define PLATFORM_INPUT_BINDING_R3      9
+#define PLATFORM_INPUT_BINDING_START   10
+#define PLATFORM_INPUT_BINDING_SELECT  11
+#define PLATFORM_INPUT_BINDING_DPAD_UP    12
+#define PLATFORM_INPUT_BINDING_DPAD_DOWN  13
+#define PLATFORM_INPUT_BINDING_DPAD_LEFT  14
+#define PLATFORM_INPUT_BINDING_DPAD_RIGHT 15
+
+int  Platform_InputGetKeyBinding(int actionIndex, int *scancode);
+int  Platform_InputSetKeyBinding(int actionIndex, int scancode);
+const char *Platform_InputGetActionName(int actionIndex);
+void Platform_InputResetKeyboardMappings(void);
+
+// Raw keyboard state for keybinding UI
+int Platform_InputIsKeyDown(int scancode);
+int Platform_InputGetScancodeCount(void);
+const char *Platform_InputGetScancodeName(int scancode);
+
 #endif

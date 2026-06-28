@@ -818,3 +818,114 @@ void Platform_InputPadVibrate(int port, unsigned char *table, int len)
 
 	SDL_RumbleGamepad(controller->controller, freqLow, freqHigh, 200);
 }
+
+static const char *s_keyBindingNames[PLATFORM_INPUT_BINDING_COUNT] = {
+	"square", "circle", "triangle", "cross",
+	"l1", "l2", "l3",
+	"r1", "r2", "r3",
+	"start", "select",
+	"dpad_up", "dpad_down", "dpad_left", "dpad_right"
+};
+
+static const int s_keyBindingDefaults[PLATFORM_INPUT_BINDING_COUNT] = {
+	SDL_SCANCODE_X, SDL_SCANCODE_V, SDL_SCANCODE_Z, SDL_SCANCODE_C,
+	SDL_SCANCODE_LSHIFT, SDL_SCANCODE_LCTRL, SDL_SCANCODE_LEFTBRACKET,
+	SDL_SCANCODE_RSHIFT, SDL_SCANCODE_RCTRL, SDL_SCANCODE_RIGHTBRACKET,
+	SDL_SCANCODE_RETURN, SDL_SCANCODE_SPACE,
+	SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT
+};
+
+int Platform_InputGetKeyBinding(int actionIndex, int *scancode)
+{
+	if (actionIndex < 0 || actionIndex >= PLATFORM_INPUT_BINDING_COUNT)
+		return 0;
+
+	if (scancode == NULL)
+		return 1;
+
+	switch (actionIndex)
+	{
+	case PLATFORM_INPUT_BINDING_SQUARE:   *scancode = s_keyboardMapping.kc_square; break;
+	case PLATFORM_INPUT_BINDING_CIRCLE:   *scancode = s_keyboardMapping.kc_circle; break;
+	case PLATFORM_INPUT_BINDING_TRIANGLE: *scancode = s_keyboardMapping.kc_triangle; break;
+	case PLATFORM_INPUT_BINDING_CROSS:    *scancode = s_keyboardMapping.kc_cross; break;
+	case PLATFORM_INPUT_BINDING_L1:       *scancode = s_keyboardMapping.kc_l1; break;
+	case PLATFORM_INPUT_BINDING_L2:       *scancode = s_keyboardMapping.kc_l2; break;
+	case PLATFORM_INPUT_BINDING_L3:       *scancode = s_keyboardMapping.kc_l3; break;
+	case PLATFORM_INPUT_BINDING_R1:       *scancode = s_keyboardMapping.kc_r1; break;
+	case PLATFORM_INPUT_BINDING_R2:       *scancode = s_keyboardMapping.kc_r2; break;
+	case PLATFORM_INPUT_BINDING_R3:       *scancode = s_keyboardMapping.kc_r3; break;
+	case PLATFORM_INPUT_BINDING_START:    *scancode = s_keyboardMapping.kc_start; break;
+	case PLATFORM_INPUT_BINDING_SELECT:   *scancode = s_keyboardMapping.kc_select; break;
+	case PLATFORM_INPUT_BINDING_DPAD_UP:    *scancode = s_keyboardMapping.kc_dpad_up; break;
+	case PLATFORM_INPUT_BINDING_DPAD_DOWN:  *scancode = s_keyboardMapping.kc_dpad_down; break;
+	case PLATFORM_INPUT_BINDING_DPAD_LEFT:  *scancode = s_keyboardMapping.kc_dpad_left; break;
+	case PLATFORM_INPUT_BINDING_DPAD_RIGHT: *scancode = s_keyboardMapping.kc_dpad_right; break;
+	default: return 0;
+	}
+	return 1;
+}
+
+int Platform_InputSetKeyBinding(int actionIndex, int scancode)
+{
+	if (actionIndex < 0 || actionIndex >= PLATFORM_INPUT_BINDING_COUNT)
+		return 0;
+
+	if (scancode <= SDL_SCANCODE_UNKNOWN || scancode >= SDL_SCANCODE_COUNT)
+		return 0;
+
+	switch (actionIndex)
+	{
+	case PLATFORM_INPUT_BINDING_SQUARE:   s_keyboardMapping.kc_square = scancode; break;
+	case PLATFORM_INPUT_BINDING_CIRCLE:   s_keyboardMapping.kc_circle = scancode; break;
+	case PLATFORM_INPUT_BINDING_TRIANGLE: s_keyboardMapping.kc_triangle = scancode; break;
+	case PLATFORM_INPUT_BINDING_CROSS:    s_keyboardMapping.kc_cross = scancode; break;
+	case PLATFORM_INPUT_BINDING_L1:       s_keyboardMapping.kc_l1 = scancode; break;
+	case PLATFORM_INPUT_BINDING_L2:       s_keyboardMapping.kc_l2 = scancode; break;
+	case PLATFORM_INPUT_BINDING_L3:       s_keyboardMapping.kc_l3 = scancode; break;
+	case PLATFORM_INPUT_BINDING_R1:       s_keyboardMapping.kc_r1 = scancode; break;
+	case PLATFORM_INPUT_BINDING_R2:       s_keyboardMapping.kc_r2 = scancode; break;
+	case PLATFORM_INPUT_BINDING_R3:       s_keyboardMapping.kc_r3 = scancode; break;
+	case PLATFORM_INPUT_BINDING_START:    s_keyboardMapping.kc_start = scancode; break;
+	case PLATFORM_INPUT_BINDING_SELECT:   s_keyboardMapping.kc_select = scancode; break;
+	case PLATFORM_INPUT_BINDING_DPAD_UP:    s_keyboardMapping.kc_dpad_up = scancode; break;
+	case PLATFORM_INPUT_BINDING_DPAD_DOWN:  s_keyboardMapping.kc_dpad_down = scancode; break;
+	case PLATFORM_INPUT_BINDING_DPAD_LEFT:  s_keyboardMapping.kc_dpad_left = scancode; break;
+	case PLATFORM_INPUT_BINDING_DPAD_RIGHT: s_keyboardMapping.kc_dpad_right = scancode; break;
+	default: return 0;
+	}
+	return 1;
+}
+
+const char *Platform_InputGetActionName(int actionIndex)
+{
+	if (actionIndex < 0 || actionIndex >= PLATFORM_INPUT_BINDING_COUNT)
+		return NULL;
+	return s_keyBindingNames[actionIndex];
+}
+
+void Platform_InputResetKeyboardMappings(void)
+{
+	int i;
+	for (i = 0; i < PLATFORM_INPUT_BINDING_COUNT; i++)
+		Platform_InputSetKeyBinding(i, s_keyBindingDefaults[i]);
+}
+
+int Platform_InputIsKeyDown(int scancode)
+{
+	if (s_keyboardState == NULL)
+		return 0;
+	if (scancode < 0 || scancode >= SDL_SCANCODE_COUNT)
+		return 0;
+	return s_keyboardState[scancode] ? 1 : 0;
+}
+
+int Platform_InputGetScancodeCount(void)
+{
+	return SDL_SCANCODE_COUNT;
+}
+
+const char *Platform_InputGetScancodeName(int scancode)
+{
+	return SDL_GetScancodeName(scancode);
+}

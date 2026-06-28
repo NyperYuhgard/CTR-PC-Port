@@ -166,7 +166,7 @@ struct OverlayDATA_230
 	// 800b4c4c - EurRetail
 	// 800b7f68 - JpnRetail
 #if defined(CTR_NATIVE)
-	struct MenuRow rowsMainMenuBasic[10];
+	struct MenuRow rowsMainMenuBasic[11];
 #elif BUILD == EurRetail
 	struct MenuRow rowsMainMenuBasic[8];
 #else
@@ -178,7 +178,7 @@ struct OverlayDATA_230
 	// 800b4c7c - EurRetail
 	// 800b7f94 - JpnRetail
 #if defined(CTR_NATIVE)
-	struct MenuRow rowsMainMenuWithScrapbook[12];
+	struct MenuRow rowsMainMenuWithScrapbook[13];
 #elif BUILD == EurRetail
 	struct MenuRow rowsMainMenuWithScrapbook[9];
 	char padding800b4cb2[2];
@@ -313,6 +313,7 @@ struct OverlayDATA_230
 	struct RectMenu menuMods;
 	struct RectMenu menuOptions;
 	struct RectMenu menuTimeTrialMode;
+	struct RectMenu menuOnline;
 #endif
 
 	// 800b47dc - UsaRetail
@@ -320,7 +321,7 @@ struct OverlayDATA_230
 	// 800b8260 - JpnRetail
 	// array of menu pointers
 #if defined(CTR_NATIVE)
-	struct RectMenu *arrayMenuPtrs[12];
+	struct RectMenu *arrayMenuPtrs[13];
 #elif BUILD == EurRetail
 	struct RectMenu *arrayMenuPtrs[10];
 #else

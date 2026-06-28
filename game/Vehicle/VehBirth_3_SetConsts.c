@@ -10,16 +10,33 @@ void VehBirth_SetConsts(struct Driver *driver)
 
 	d = (u8 *)driver;
 
-	int engineID = data.MetaDataCharacters[data.characterIDs[driver->driverID]].engineID;
+        int engineID = data.MetaDataCharacters[data.characterIDs[driver->driverID]].engineID;
 
-	for (i = 0; i < 65; i++)
-	{
-		metaPhys = &data.metaPhys[i];
+        for (i = 0; i < 65; i++)
+        {
+                metaPhys = &data.metaPhys[i];
 
-		metaPhysSize = metaPhys->size;
+                metaPhysSize = metaPhys->size;
 
-		void *src = &metaPhys->value[engineID];
-		void *dst = &d[metaPhys->offset];
+                short srcVal;
+                void *src;
+                if (engineID >= 0 && engineID < 4)
+                {
+                        src = &metaPhys->value[engineID];
+                }
+                else
+                {
+                        /* ENGINE_UNLIMITED: pick the best value from all columns */
+                        srcVal = metaPhys->value[0];
+                        {
+                                int j;
+                                for (j = 1; j < 4; j++)
+                                        if (metaPhys->value[j] > srcVal)
+                                                srcVal = metaPhys->value[j];
+                        }
+                        src = &srcVal;
+                }
+                void *dst = &d[metaPhys->offset];
 
 		if (metaPhysSize == 1)
 		{

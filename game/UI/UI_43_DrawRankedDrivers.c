@@ -91,6 +91,11 @@ void UI_DrawRankedDrivers(void)
 
 	int numPlyr = gGT->numPlyrCurrGame;
 
+#ifdef CTR_NATIVE
+	if (g_NetplayRacing)
+		return;
+#endif
+
 	if (numPlyr == 1)
 	{
 		// Number of racers that have finished race
