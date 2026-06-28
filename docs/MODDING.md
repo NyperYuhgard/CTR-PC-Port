@@ -13,11 +13,16 @@
     - [Logging & Utilities](#logging--utilities)
     - [File I/O](#file-io)
     - [Hooks (Events)](#hooks-events)
+    - [Hook Context](#hook-context)
     - [Driver Data (Read Only)](#driver-data-read-only)
     - [Driver Data (Write)](#driver-data-write)
     - [Game State Access](#game-state-access)
     - [Memory Read/Write](#memory-readwrite)
-    - [Drawing](#drawing)
+    - [Instance API](#instance-api)
+    - [Drawing (Rect, Text)](#drawing-rect-text)
+    - [Drawing (Circle, Line)](#drawing-circle-line)
+    - [Gamepad Input](#gamepad-input)
+    - [Track Info](#track-info)
 5. [Hook Execution Order / Orden de Ejecución de Hooks](#hook-execution-order--orden-de-ejecución-de-hooks)
 6. [File Override System / Sistema de Reemplazo de Archivos](#file-override-system--sistema-de-reemplazo-de-archivos)
 7. [PS1 Coordinate System / Sistema de Coordenadas PS1](#ps1-coordinate-system--sistema-de-coordenadas-ps1)
@@ -336,10 +341,69 @@ end)
 | `"onRender"` | Every frame before rendering | Drawing UI elements (text, rects) |
 | `"onInput"` | Every frame after input processing | Reading button states |
 | `"onTitleInit"` | When a new level/track/adventure area loads | Per-track setup, resetting state |
+| `"onFirePre"` | Before fire speed is applied (VehFire_1_Increment) | Override fire behavior before game logic |
+| `"onFirePost"` | After fire speed is applied | React to fire changes after game logic |
+| `"onCollidePre"` | Before driver-to-driver collision physics | Modify collision behavior |
+| `"onCollidePost"` | After driver-to-driver collision physics | React to collisions |
+| `"onGravityPre"` | Before gravity is applied to drivers | Modify gravity effects |
 
-> **Note:** Hooks receive no arguments. Use `mod.getDriver()`, `mod.getGameTracker()`, etc. inside callbacks to read game state.
+> **Note:** `onFirePre`, `onFirePost`, `onCollidePre`, `onCollidePost`, and `onGravityPre` receive hook context arguments. See [Hook Context](#hook-context) below.
 
-> **Nota:** Los hooks no reciben argumentos. Usa `mod.getDriver()`, `mod.getGameTracker()`, etc. dentro de los callbacks para leer el estado del juego.
+> **Note:** Hooks receive no arguments (except context hooks — see below). Use `mod.getDriver()`, `mod.getGameTracker()`, etc. inside callbacks to read game state.
+
+> **Nota:** Los hooks no reciben argumentos (excepto los hooks de contexto — ver abajo). Usa `mod.getDriver()`, `mod.getGameTracker()`, etc. dentro de los callbacks para leer el estado del juego.
+
+---
+
+### Hook Context
+
+---
+
+#### `mod.getHookContext()`
+
+**EN:** Returns a table with information about the current hook execution context. Only valid inside context-providing hooks (`onFirePre`, `onFirePost`, `onCollidePre`, `onCollidePost`, `onGravityPre`).
+
+**Returns:** table — hook context, or a table with `valid = false` if no context is available.
+
+**Context fields / Campos del contexto:**
+
+| Field | Type | Description / Descripción |
+|-------|------|--------------------------|
+| `valid` | boolean | Whether context is available / Si el contexto está disponible |
+| `driverIndex` | int | Player index (0–7) of the driver involved / Índice del jugador involucrado |
+| `args` | table | Array of 4 integer arguments (hook-specific values) / Arreglo de 4 enteros con valores específicos del hook |
+
+**Hook-specific args / Argumentos por hook:**
+
+| Hook | args[1] | args[2] | args[3] | args[4] |
+|------|---------|---------|---------|---------|
+| `"onFirePre"` | Fire speed cap before modification | Reserve cost before modification | — | — |
+| `"onFirePost"` | Fire speed cap after modification | Reserve cost after modification | — | — |
+| `"onCollidePre"` | Collision impulse X | Collision impulse Z | — | — |
+| `"onCollidePost"` | Collision impulse X | Collision impulse Z | — | — |
+| `"onGravityPre"` | Current gravity value | — | — | — |
+
+**EN:** Only valid inside context-providing hooks (`onFirePre`, `onFirePost`, `onCollidePre`, `onCollidePost`, `onGravityPre`).
+
+**ES:** Solo es válido dentro de hooks que proveen contexto (`onFirePre`, `onFirePost`, `onCollidePre`, `onCollidePost`, `onGravityPre`).
+
+```lua
+mod.hook("onFirePre", function()
+    local ctx = mod.getHookContext()
+    if ctx.valid then
+        mod.log("Fire pre for driver " .. ctx.driverIndex
+            .. " speedCap=" .. ctx.args[1]
+            .. " cost=" .. ctx.args[2])
+    end
+end)
+
+mod.hook("onGravityPre", function()
+    local ctx = mod.getHookContext()
+    if ctx.valid then
+        mod.log("Gravity=" .. ctx.args[1] .. " for driver " .. ctx.driverIndex)
+    end
+end)
+```
 
 ---
 
@@ -381,9 +445,25 @@ end)
 | `driverID` | int (u8) | R | Driver character ID (0 = Crash, 1 = Cortex, etc.) / ID del personaje piloto |
 | `actionsFlagSet` | int (s16) | RW | Actions flag bitfield / Conjunto de banderas de acciones |
 | `speedApprox` | int (s16) | RW | Approximate speed value / Velocidad aproximada |
+| `speed` | int (s16) | RW | Raw speed value / Velocidad base |
+| `baseSpeed` | int (s16) | RW | Base speed of the character / Velocidad base del personaje |
+| `fireSpeed` | int (s16) | RW | Current fire speed (from fire timer) / Velocidad de fuego actual |
+| `kartState` | int (u8) | RW | Kart state bitfield / Estado del kart (campo de bits) |
+| `lapTime` | int (s32) | RW | Lap time in milliseconds / Tiempo de vuelta en milisegundos |
+| `lapIndex` | int (u8) | RW | Current lap index (0-based) / Índice de vuelta actual (base 0) |
+| `numWumpas` | int (u8) | RW | Number of Wumpa fruits collected / Número de frutas Wumpa recolectadas |
+| `rank` | int (s16) | RW | Driver's race position (1st = 0) / Posición en la carrera (1ro = 0) |
+| `posX` | int (s32) | R | World position X (fixed-point) / Posición mundial X (punto fijo) |
+| `posY` | int (s32) | R | World position Y (fixed-point) / Posición mundial Y (punto fijo) |
+| `posZ` | int (s32) | R | World position Z (fixed-point) / Posición mundial Z (punto fijo) |
+| `velX` | int (s32) | R | Velocity X (fixed-point) / Velocidad X (punto fijo) |
+| `velY` | int (s32) | R | Velocity Y (fixed-point) / Velocidad Y (punto fijo) |
+| `velZ` | int (s32) | R | Velocity Z (fixed-point) / Velocidad Z (punto fijo) |
+| `const_Gravity` | int (s16) | RW | Gravity constant for this driver / Constante de gravedad para este piloto |
 
 > `(s16)` = signed 16-bit integer (range: -32768 to 32767) / entero con signo de 16 bits
 > `(u8)` = unsigned 8-bit integer (range: 0 to 255) / entero sin signo de 8 bits
+> `(s32)` = signed 32-bit integer / entero con signo de 32 bits
 
 ```lua
 local d = mod.getDriver(0)
@@ -440,7 +520,15 @@ end
 | `"numTurbos"` | u8 | 0–10 | Number of turbos / Número de turbos |
 | `"kartState"` | u8 | 0–255 | Kart state (bitfield) / Estado del kart (campo de bits) |
 | `"actionsFlagSet"` | s16 | varies | Actions flag bitfield / Banderas de acciones |
-| `"speedApprox"` | s16 | varies | Speed value / Velocidad |
+| `"speedApprox"` | s16 | varies | Approximate speed / Velocidad aproximada |
+| `"speed"` | s16 | varies | Raw speed value / Velocidad base |
+| `"baseSpeed"` | s16 | varies | Character base speed / Velocidad base del personaje |
+| `"fireSpeed"` | s16 | varies | Current fire speed / Velocidad de fuego actual |
+| `"lapTime"` | s32 | varies | Lap time in ms / Tiempo de vuelta en ms |
+| `"lapIndex"` | u8 | 0–7 | Current lap index / Índice de vuelta actual |
+| `"numWumpas"` | u8 | 0–255 | Wumpa fruits count / Frutas Wumpa recolectadas |
+| `"rank"` | s16 | 0–7 | Race position / Posición en carrera |
+| `"const_Gravity"` | s16 | varies | Gravity constant / Constante de gravedad |
 
 On error (invalid field name), a Lua error is raised with the list of valid field names.
 
@@ -736,7 +824,361 @@ end
 
 ---
 
-### Drawing
+### Instance API
+
+---
+
+**EN:** Functions to read and modify game Instance structs (3D models placed in the level).
+
+**ES:** Funciones para leer y modificar los structs Instance del juego (modelos 3D colocados en el nivel).
+
+---
+
+#### `mod.getInstance(ptr)`
+
+**EN:** Returns a table with all readable fields of a game Instance.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `ptr` | lightuserdata | Pointer to a struct Instance (obtained from `mod.findInstancesByName()`) |
+
+**Returns:** table — instance data, or `nil` if pointer is nil.
+
+**ES:** Devuelve una tabla con todos los campos legibles de una Instance del juego.
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `ptr` | lightuserdata | Puntero a un struct Instance (obtenido de `mod.findInstancesByName()`) |
+
+**Retorna:** table — datos de la instancia, o `nil` si el puntero es nil.
+
+**Returned fields / Campos retornados:**
+
+| Field | Type | Description / Descripción |
+|-------|------|--------------------------|
+| `name` | string | Instance name (e.g. `"cratewumpa"`, `"checkpoint"`) |
+| `colorRGBA` | int (u32) | RGBA color packed as u32 |
+| `alphaScale` | int (s16) | Alpha scale factor |
+| `flags` | int (u32) | Instance flags bitfield |
+| `animFrame` | int (s16) | Current animation frame |
+| `animIndex` | int (u8) | Current animation index |
+| `posX`/`posY`/`posZ` | int (s16) | World position |
+| `scaleX`/`scaleY`/`scaleZ` | int (s16) | Scale factors |
+| `ptr` | lightuserdata | Raw pointer to this instance |
+
+```lua
+local inst = mod.getInstance(somePtr)
+if inst then
+    mod.log("Instance: " .. inst.name .. " at " .. inst.posX .. "," .. inst.posY)
+end
+```
+
+---
+
+#### `mod.forEachInstance(callback)`
+
+**EN:** Iterates all active game instances, calling `callback(instanceTable)` for each. Return `false` from the callback to stop iteration early.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `callback` | function | Called for each instance; receives instance table |
+
+**Returns:** int — number of instances iterated
+
+**ES:** Itera todas las instancias activas del juego, llamando a `callback(tablaInstancia)` para cada una. Retorna `false` desde el callback para detener la iteración antes.
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `callback` | function | Llamada por cada instancia; recibe la tabla de la instancia |
+
+**Retorna:** int — número de instancias iteradas
+
+```lua
+mod.hook("onUpdate", function()
+    mod.forEachInstance(function(inst)
+        mod.log("Found instance: " .. inst.name)
+        return true  -- continue iterating
+    end)
+end)
+```
+
+---
+
+#### `mod.findInstancesByName(name)`
+
+**EN:** Returns an array of all active instances with the given name.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `name` | string | Instance name to search for (e.g. `"cratewumpa"`) |
+
+**Returns:** table — array of instance tables
+
+**ES:** Devuelve un arreglo de todas las instancias activas con el nombre dado.
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `name` | string | Nombre de instancia a buscar (ej: `"cratewumpa"`) |
+
+**Retorna:** table — arreglo de tablas de instancia
+
+```lua
+-- Find and modify all Wumpa crates
+local crates = mod.findInstancesByName("cratewumpa")
+for i, crate in ipairs(crates) do
+    mod.log("Crate " .. i .. " at " .. crate.posX .. "," .. crate.posY)
+end
+```
+
+---
+
+#### `mod.setInstanceField(ptr, fieldName, value)`
+
+**EN:** Write a field of a game Instance by name. Safer than raw memory writes.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `ptr` | lightuserdata | Pointer to a struct Instance |
+| `fieldName` | string | Field name (see table below) |
+| `value` | int | Value to write |
+
+**Returns:** boolean — `true` on success
+
+**ES:** Escribe un campo de una Instance por nombre. Más seguro que escribir memoria directamente.
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `ptr` | lightuserdata | Puntero a un struct Instance |
+| `fieldName` | string | Nombre del campo (ver tabla abajo) |
+| `value` | int | Valor a escribir |
+
+**Retorna:** boolean — `true` en éxito
+
+**Writable instance fields / Campos editables de instancia:**
+
+| Field Name | Type | Description / Descripción |
+|------------|------|--------------------------|
+| `"colorRGBA"` | u32 | RGBA color |
+| `"alphaScale"` | s16 | Alpha scale factor |
+| `"flags"` | u32 | Instance flags bitfield |
+| `"animFrame"` | s16 | Animation frame |
+| `"animIndex"` | u8 | Animation index |
+| `"scaleX"`/`"scaleY"`/`"scaleZ"` | s16 | Scale factors |
+
+```lua
+-- Make all Wumpa crates invisible
+local crates = mod.findInstancesByName("cratewumpa")
+for _, crate in ipairs(crates) do
+    mod.setInstanceField(crate.ptr, "alphaScale", 0)
+end
+```
+
+---
+
+### Drawing (Circle, Line)
+
+---
+
+#### `mod.drawCircle(cx, cy, radius, r, g, b, [a])`
+
+**EN:** Queue a filled circle to be drawn on screen. Uses the PS1 framebuffer coordinate space (512×216).
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `cx` | int | — | Center X coordinate |
+| `cy` | int | — | Center Y coordinate |
+| `radius` | int | — | Circle radius in pixels |
+| `r` | int | — | Red (0–255) |
+| `g` | int | — | Green (0–255) |
+| `b` | int | — | Blue (0–255) |
+| `a` | int | `255` | Alpha (0–255) |
+
+**Returns:** nothing
+
+**ES:** Encola un círculo relleno para dibujar en pantalla. Usa el espacio del framebuffer PS1 (512×216).
+
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| `cx` | int | — | Coordenada X del centro |
+| `cy` | int | — | Coordenada Y del centro |
+| `radius` | int | — | Radio en píxeles |
+| `r` | int | — | Rojo (0–255) |
+| `g` | int | — | Verde (0–255) |
+| `b` | int | — | Azul (0–255) |
+| `a` | int | `255` | Alfa (0–255) |
+
+**Retorna:** nada
+
+```lua
+-- Green circle in the center of screen
+mod.drawCircle(256, 108, 30, 0, 255, 0)
+```
+
+---
+
+#### `mod.drawLine(x1, y1, x2, y2, r, g, b, [a])`
+
+**EN:** Queue a line to be drawn on screen.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `x1`, `y1` | int | — | Start point |
+| `x2`, `y2` | int | — | End point |
+| `r` | int | — | Red (0–255) |
+| `g` | int | — | Green (0–255) |
+| `b` | int | — | Blue (0–255) |
+| `a` | int | `255` | Alpha (0–255) |
+
+**Returns:** nothing
+
+**ES:** Encola una línea para dibujar en pantalla.
+
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| `x1`, `y1` | int | — | Punto inicial |
+| `x2`, `y2` | int | — | Punto final |
+| `r` | int | — | Rojo (0–255) |
+| `g` | int | — | Verde (0–255) |
+| `b` | int | — | Azul (0–255) |
+| `a` | int | `255` | Alfa (0–255) |
+
+**Retorna:** nada
+
+```lua
+-- Red line from center to top-right
+mod.drawLine(256, 108, 500, 20, 255, 0, 0)
+```
+
+---
+
+### Gamepad Input
+
+---
+
+**EN:** Read gamepad state programmatically. Button constants are available in `mod.BUTTONS`.
+
+**ES:** Lee el estado del gamepad mediante programación. Las constantes de botones están disponibles en `mod.BUTTONS`.
+
+---
+
+#### `mod.getGamepad(padIndex)`
+
+**EN:** Returns a table with the current gamepad state for a given pad index.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `padIndex` | int | Pad slot (0–7) |
+
+**Returns:** table — gamepad state, or a table with `valid = false` if the pad is not connected.
+
+**ES:** Devuelve una tabla con el estado actual del gamepad para un índice dado.
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `padIndex` | int | Espacio del pad (0–7) |
+
+**Retorna:** table — estado del gamepad, o una tabla con `valid = false` si el pad no está conectado.
+
+**Returned fields / Campos retornados:**
+
+| Field | Type | Description / Descripción |
+|-------|------|--------------------------|
+| `valid` | boolean | Whether the pad is connected / Si el pad está conectado |
+| `held` | int | Bitfield of currently held buttons / Campo de bits de botones presionados |
+| `tapped` | int | Bitfield of buttons pressed this frame / Campo de bits de botones presionados este frame |
+| `released` | int | Bitfield of buttons released this frame / Campo de bits de botones liberados este frame |
+| `prevHeld` | int | Bitfield of buttons held last frame / Campo de bits de botones presionados el frame anterior |
+| `stickLX` | int | Left stick X axis (-128 to 127) |
+| `stickLY` | int | Left stick Y axis (-128 to 127) |
+| `stickRX` | int | Right stick X axis (-128 to 127) |
+| `stickRY` | int | Right stick Y axis (-128 to 127) |
+
+```lua
+-- Read gamepad 0
+local pad = mod.getGamepad(0)
+if pad.valid then
+    if pad.held & mod.BUTTONS.CROSS ~= 0 then
+        mod.log("Cross button is held!")
+    end
+    if pad.tapped & mod.BUTTONS.UP ~= 0 then
+        mod.log("Up was tapped this frame!")
+    end
+end
+```
+
+---
+
+#### `mod.getGamepads()`
+
+**EN:** Returns a lightuserdata pointer to the raw GamepadSystem struct. Use with `mod.readS16()`/`mod.readU8()`/`mod.readS32()` for advanced access.
+
+**Returns:** lightuserdata — pointer to GamepadSystem, or `nil` if unavailable
+
+**ES:** Devuelve un puntero lightuserdata al struct GamepadSystem sin procesar. Úsalo con `mod.readS16()`/`mod.readU8()`/`mod.readS32()` para acceso avanzado.
+
+**Retorna:** lightuserdata — puntero a GamepadSystem, o `nil` si no está disponible
+
+---
+
+#### `mod.BUTTONS`
+
+**EN:** A table of button bitmask constants for use with `mod.getGamepad()`.
+
+**ES:** Una tabla de constantes de máscara de bits para usar con `mod.getGamepad()`.
+
+| Constant | Value | Description / Descripción |
+|----------|-------|--------------------------|
+| `mod.BUTTONS.UP` | 0x0001 | D-Pad Up / Arriba |
+| `mod.BUTTONS.DOWN` | 0x0002 | D-Pad Down / Abajo |
+| `mod.BUTTONS.LEFT` | 0x0004 | D-Pad Left / Izquierda |
+| `mod.BUTTONS.RIGHT` | 0x0008 | D-Pad Right / Derecha |
+| `mod.BUTTONS.CROSS` | 0x4000 | Cross / Cruz |
+| `mod.BUTTONS.SQUARE` | 0x8000 | Square / Cuadrado |
+| `mod.BUTTONS.CIRCLE` | 0x1000 | Circle / Círculo |
+| `mod.BUTTONS.TRIANGLE` | 0x2000 | Triangle / Triángulo |
+| `mod.BUTTONS.L1` | 0x0004 | L1 (also maps to Left D-Pad) |
+| `mod.BUTTONS.R1` | 0x0008 | R1 (also maps to Right D-Pad) |
+| `mod.BUTTONS.L2` | 0x0001 | L2 (also maps to Up D-Pad) |
+| `mod.BUTTONS.R2` | 0x0002 | R2 (also maps to Down D-Pad) |
+| `mod.BUTTONS.START` | 0x0800 | Start button |
+| `mod.BUTTONS.SELECT` | 0x0400 | Select button |
+| `mod.BUTTONS.L3` | 0x0040 | Left stick press |
+| `mod.BUTTONS.R3` | 0x0080 | Right stick press |
+
+```lua
+-- Check for specific button combos
+local pad = mod.getGamepad(0)
+if pad.valid then
+    if pad.tapped & (mod.BUTTONS.CROSS | mod.BUTTONS.CIRCLE) ~= 0 then
+        mod.log("Cross + Circle tapped!")
+    end
+end
+```
+
+---
+
+### Track Info
+
+---
+
+#### `mod.getTrackName()`
+
+**EN:** Returns the name of the currently loaded track/level.
+
+**Returns:** string — track name (e.g. `"coco"`, `"sewer"`, `"crashCove"`, `"intro"`, `"hub"`), or empty string if unavailable.
+
+**ES:** Devuelve el nombre de la pista/nivel actualmente cargada.
+
+**Retorna:** string — nombre de la pista (ej: `"coco"`, `"sewer"`, `"crashCove"`, `"intro"`, `"hub"`), o string vacío si no está disponible.
+
+```lua
+mod.hook("onTitleInit", function()
+    local track = mod.getTrackName()
+    mod.log("Loaded track: " .. track)
+end)
+```
+
+---
 
 ---
 
@@ -849,7 +1291,11 @@ Hooks are called in this specific order each frame:
 
 1. **`onInput`** — After `GAMEPAD_ProcessAnyoneVars()` processes gamepad input. Best for reading button states or modifying input behavior.
 2. **`onUpdate`** — During game logic update. Driver data is cached fresh before this hook fires. Best for modifying game state, driver stats, etc.
-3. **`onRender`** — Before rendering and GPU submission. Call `mod.drawRect()` / `mod.drawText()` here to queue UI elements. The draw queue is flushed automatically after this hook returns, just before the GPU processes the ordering table.
+3. **Physics sub-hooks** — Called during the game physics update, in this order:
+   - **`onGravityPre`** — Before gravity is applied to each driver. Context: `{driverIndex, args={gravity}}`
+   - **`onFirePre`** / **`onFirePost`** — Before/after fire speed is applied to each driver. Context: `{driverIndex, args={speedCap, cost}}`
+   - **`onCollidePre`** / **`onCollidePost`** — Before/after driver-to-driver collision physics. Context: `{driverIndex, args={impulseX, impulseZ}}`
+4. **`onRender`** — Before rendering and GPU submission. Call `mod.drawRect()` / `mod.drawText()` / `mod.drawCircle()` / `mod.drawLine()` here to queue UI elements. The draw queue is flushed automatically after this hook returns, just before the GPU processes the ordering table.
 
 **Initialization hooks:**
 
@@ -865,8 +1311,16 @@ Frame Start
   ├── Cache game state (driver pointers, numPlayers, gameMode)
   ├── onUpdate hook
   ├── Game logic update
+  │   ├── onGravityPre hook (per driver)
+  │   ├── Apply gravity
+  │   ├── onFirePre hook (per driver)
+  │   ├── Apply fire speed
+  │   ├── onFirePost hook (per driver)
+  │   ├── onCollidePre hook (per pair)
+  │   ├── Collision physics
+  │   └── onCollidePost hook (per pair)
   ├── onRender hook
-  ├── Flush draw queue (draw all queued rects/text)
+  ├── Flush draw queue (draw all queued rects/text/circles/lines)
   └── GPU render
 ```
 
@@ -876,7 +1330,11 @@ Los hooks se llaman en este orden específico cada frame:
 
 1. **`onInput`** — Después de que `GAMEPAD_ProcessAnyoneVars()` procesa el input de los gamepads. Ideal para leer estados de botones o modificar el comportamiento del input.
 2. **`onUpdate`** — Durante la actualización de la lógica del juego. Los datos del piloto se cachean frescos antes de que este hook se dispare. Ideal para modificar el estado del juego, estadísticas del piloto, etc.
-3. **`onRender`** — Antes del renderizado y envío a la GPU. Llama a `mod.drawRect()` / `mod.drawText()` aquí para encolar elementos UI. La cola de dibujo se vacía automáticamente después de que este hook retorna, justo antes de que la GPU procese la tabla de ordenamiento.
+3. **Sub-hooks de física** — Se llaman durante la actualización de física del juego, en este orden:
+   - **`onGravityPre`** — Antes de aplicar gravedad a cada piloto. Contexto: `{driverIndex, args={gravity}}`
+   - **`onFirePre`** / **`onFirePost`** — Antes/después de aplicar velocidad de fuego a cada piloto. Contexto: `{driverIndex, args={speedCap, cost}}`
+   - **`onCollidePre`** / **`onCollidePost`** — Antes/después de la física de colisión entre pilotos. Contexto: `{driverIndex, args={impulseX, impulseZ}}`
+4. **`onRender`** — Antes del renderizado y envío a la GPU. Llama a `mod.drawRect()` / `mod.drawText()` / `mod.drawCircle()` / `mod.drawLine()` aquí para encolar elementos UI. La cola de dibujo se vacía automáticamente después de que este hook retorna, justo antes de que la GPU procese la tabla de ordenamiento.
 
 **Hooks de inicialización:**
 
@@ -892,8 +1350,16 @@ Inicio del Frame
   ├── Cachear estado del juego (punteros de piloto, numPlayers, gameMode)
   ├── Hook onUpdate
   ├── Actualización de lógica del juego
+  │   ├── Hook onGravityPre (por piloto)
+  │   ├── Aplicar gravedad
+  │   ├── Hook onFirePre (por piloto)
+  │   ├── Aplicar velocidad de fuego
+  │   ├── Hook onFirePost (por piloto)
+  │   ├── Hook onCollidePre (por par)
+  │   ├── Física de colisión
+  │   └── Hook onCollidePost (por par)
   ├── Hook onRender
-  ├── Vaciar cola de dibujo (dibujar todos los rects/texto encolados)
+  ├── Vaciar cola de dibujo (dibujar todos los rects/texto/círculos/líneas)
   └── Renderizado GPU
 ```
 
@@ -1078,7 +1544,7 @@ Drawing commands from all mods are collected in a shared queue and flushed once 
 - **Coordinate system:** PS1 framebuffer space (512×216)
 - **Z-ordering:** Draw commands are placed into the UI ordering table, rendering above the game world
 
-When the queue overflows, a warning is printed to the console: `[Mods] Draw queue overflow, ignoring drawRect/drawText`.
+When the queue overflows, a warning is printed to the console: `[Mods] Draw queue overflow, ignoring drawRect/drawText/drawCircle/drawLine`.
 
 **Español:**
 
@@ -1089,7 +1555,7 @@ Los comandos de dibujo de todos los mods se recolectan en una cola compartida y 
 - **Sistema de coordenadas:** Espacio del framebuffer PS1 (512×216)
 - **Orden Z:** Los comandos de dibujo se colocan en la tabla de ordenamiento de UI, renderizando sobre el mundo del juego
 
-Cuando la cola se desborda, se imprime una advertencia en la consola: `[Mods] Draw queue overflow, ignoring drawRect/drawText`.
+Cuando la cola se desborda, se imprime una advertencia en la consola: `[Mods] Draw queue overflow, ignoring drawRect/drawText/drawCircle/drawLine`.
 
 ---
 
@@ -1442,7 +1908,7 @@ end)
 - Maximum 64 mods can be registered
 
 **Draw calls not appearing on screen:**
-- Make sure `mod.drawText()` / `mod.drawRect()` are called inside an `onRender` hook (not `onUpdate` or `onInit`)
+- Make sure `mod.drawText()` / `mod.drawRect()` / `mod.drawCircle()` / `mod.drawLine()` are called inside an `onRender` hook (not `onUpdate` or `onInit`)
 - Verify coordinates are within the PS1 framebuffer (512×216)
 - Check that the draw queue isn't overflowing (max 256 commands per frame across all mods)
 - If using alpha values, ensure they're high enough to be visible (a > 0)
@@ -1477,7 +1943,7 @@ end)
 - Máximo 64 mods pueden registrarse
 
 **Las llamadas de dibujo no aparecen en pantalla:**
-- Asegúrate de que `mod.drawText()` / `mod.drawRect()` se llamen dentro de un hook `onRender` (no `onUpdate` o `onInit`)
+- Asegúrate de que `mod.drawText()` / `mod.drawRect()` / `mod.drawCircle()` / `mod.drawLine()` se llamen dentro de un hook `onRender` (no `onUpdate` o `onInit`)
 - Verifica que las coordenadas estén dentro del framebuffer PS1 (512×216)
 - Revisa que la cola de dibujo no se desborde (máx. 256 comandos por frame entre todos los mods)
 - Si usas valores alfa, asegúrate de que sean suficientemente altos para ser visibles (a > 0)
@@ -1538,5 +2004,5 @@ end)
 ---
 
 > **CTR Native — Modding Guide**  
-> English v1.0 | Spanish v1.0  
+> English v1.1 | Spanish v1.1  
 > *This guide is a living document — if you find errors or missing information, please contribute!*

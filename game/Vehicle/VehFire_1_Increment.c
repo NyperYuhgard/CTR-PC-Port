@@ -22,15 +22,31 @@ void VehFire_Increment(struct Driver *driver, int reserves, u32 type, int fireLe
 	struct Instance *turboInst2;
 
 	struct GameTracker *gGT = sdata->gGT;
-	if (
-	    // if this is a turbo pad
-	    ((type & 4) != 0) &&
 
-	    // racer is in accel prevention (holding square)
-	    ((driver->actionsFlagSet & 8) != 0))
+	// === FIRE PRE-HOOK: allow mods to modify fire behavior before accel prevention ===
 	{
-		// do nothing
-		return;
+		int driverIdx = NativeMods_FindDriverIndex(driver);
+		NativeMods_SetHookContext(driverIdx, reserves, (int)type, fireLevel, 0);
+
+		// Save bit 3 (accel/holding-square flag) so the hook can clear it to
+		// bypass accel prevention without permanently losing the "accelerating" state.
+		u32 savedAccelFlag = driver->actionsFlagSet & 0x8;
+		NativeMods_CallHook(NATIVE_MOD_HOOK_ON_FIRE_PRE);
+
+		if (
+		    // if this is a turbo pad
+		    ((type & 4) != 0) &&
+
+		    // racer is in accel prevention (holding square)
+		    ((driver->actionsFlagSet & 8) != 0))
+		{
+			// Restore accel flag before early return
+			driver->actionsFlagSet = (driver->actionsFlagSet & ~0x8) | savedAccelFlag;
+			return;
+		}
+
+		// Restore accel flag so the rest of the frame sees the correct state
+		driver->actionsFlagSet = (driver->actionsFlagSet & ~0x8) | savedAccelFlag;
 	}
 
 	if (
@@ -321,4 +337,11 @@ void VehFire_Increment(struct Driver *driver, int reserves, u32 type, int fireLe
 		GAMEPAD_ShockForce1(driver, 8, 0x7f);
 	}
 	// #endif
+
+	// === FIRE POST-HOOK: allow mods to react after fire is applied ===
+	{
+		int driverIdx = NativeMods_FindDriverIndex(driver);
+		NativeMods_SetHookContext(driverIdx, reserves, (int)type, fireLevel, 0);
+		NativeMods_CallHook(NATIVE_MOD_HOOK_ON_FIRE_POST);
+	}
 }

@@ -104,6 +104,13 @@ static Vec3 VehPhysForce_OnGravity_RotateVector(const MATRIX *m, s16 vx, s16 vy,
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005e214-0x8005ea60
 void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 {
+	// === GRAVITY PRE-HOOK: allow mods to modify gravity/friction ===
+	{
+		int driverIdx = NativeMods_FindDriverIndex(driver);
+		NativeMods_SetHookContext(driverIdx, velocity->x, velocity->y, velocity->z, 0);
+		NativeMods_CallHook(NATIVE_MOD_HOOK_ON_GRAVITY_PRE);
+	}
+
 	int elapsedTimeMS = sdata->gGT->elapsedTimeMS;
 
 	gte_SetRotMatrix(&driver->matrixMovingDir);
@@ -546,6 +553,13 @@ _Static_assert(offsetof(struct VehPhysForce_CollideDrivers_Search, hitDir) == si
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005ebac-0x8005ee34.
 void VehPhysForce_CollideDrivers(struct Thread *thread, struct Driver *driver)
 {
+	// === COLLIDE PRE-HOOK: allow mods to modify collision behavior ===
+	{
+		int driverIdx = NativeMods_FindDriverIndex(driver);
+		NativeMods_SetHookContext(driverIdx, driver->stepFlagSet, 0, 0, 0);
+		NativeMods_CallHook(NATIVE_MOD_HOOK_ON_COLLIDE_PRE);
+	}
+
 	u32 stepFlagSet = driver->stepFlagSet;
 
 	driver->velocity.x -= driver->accel.x;
@@ -621,6 +635,13 @@ void VehPhysForce_CollideDrivers(struct Thread *thread, struct Driver *driver)
 			driver->velocity.y += diffY << 6;
 			driver->velocity.z += diffZ << 6;
 		}
+	}
+
+	// === COLLIDE POST-HOOK: allow mods to react after collision resolution ===
+	{
+		int driverIdx = NativeMods_FindDriverIndex(driver);
+		NativeMods_SetHookContext(driverIdx, driver->stepFlagSet, 0, 0, 0);
+		NativeMods_CallHook(NATIVE_MOD_HOOK_ON_COLLIDE_POST);
 	}
 }
 
