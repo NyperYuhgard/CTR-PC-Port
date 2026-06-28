@@ -111,6 +111,7 @@ global_variable GLuint s_glOffscreenFramebuffer;
 
 global_variable TextureID s_resolutionTexture = -1;
 global_variable GLuint s_glResolutionFramebuffer = 0;
+global_variable GLuint s_glResolutionDepthStencilRB = 0;
 global_variable int s_resolutionFboW = 0;
 global_variable int s_resolutionFboH = 0;
 global_variable int s_activeViewportX = 0;
@@ -220,6 +221,11 @@ internal void NativeRenderer_DestroyResolutionFBO(void)
 		NativeRenderer_DestroyTexture(s_resolutionTexture);
 		s_resolutionTexture = -1;
 	}
+	if (s_glResolutionDepthStencilRB != 0)
+	{
+		glDeleteRenderbuffers(1, &s_glResolutionDepthStencilRB);
+		s_glResolutionDepthStencilRB = 0;
+	}
 	s_resolutionFboW = 0;
 	s_resolutionFboH = 0;
 }
@@ -253,8 +259,13 @@ internal void NativeRenderer_CreateResolutionFBO(int w, int h)
 		glBindFramebuffer(GL_FRAMEBUFFER, s_glResolutionFramebuffer);
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_resolutionTexture, 0);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+
+		glGenRenderbuffers(1, &s_glResolutionDepthStencilRB);
+		glBindRenderbuffer(GL_RENDERBUFFER, s_glResolutionDepthStencilRB);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, s_glResolutionDepthStencilRB);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, s_glResolutionDepthStencilRB);
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
@@ -303,6 +314,7 @@ void NativeRenderer_BeginScene(void)
 		s_activeViewportY = 0;
 		s_activeViewportW = s_resolutionFboW;
 		s_activeViewportH = s_resolutionFboH;
+		glClear(GL_STENCIL_BUFFER_BIT);
 	}
 	else
 	{
@@ -1630,6 +1642,9 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 	s_previousFramebuffer.w = w;
 	s_previousFramebuffer.h = h;
 
+	GLint previousFramebuffer = 0;
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
+
 	glBindFramebuffer(GL_FRAMEBUFFER, s_glBlitFramebuffer);
 
 	// before drawing set source and target
@@ -1642,7 +1657,7 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glBlitFramebuffer);
 
 			glBlitFramebuffer(0, 0, s_resolutionFboW, s_resolutionFboH,
-			                  x, y + h, x + w, y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+			                  x, y + h, x + w, y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 		}
 		else
 		{
@@ -1660,7 +1675,7 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 	}
 
 	// after drawing
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, previousFramebuffer);
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_FLUSH);
 	glFlush();
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_FLUSH);
