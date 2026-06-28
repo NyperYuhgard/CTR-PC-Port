@@ -41,5 +41,6 @@ void NativeRenderer_UpdateVertexBuffer(const GrVertex *vertices, int count);
 void NativeRenderer_DrawTriangles(int startVertex, int triangles);
 void NativeRenderer_PushDebugLabel(const char *label);
 void NativeRenderer_PopDebugLabel(void);
+void NativeRenderer_SetResolutionScale(int scale);
 
 #endif

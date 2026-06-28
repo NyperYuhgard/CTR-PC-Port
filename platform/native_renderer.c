@@ -82,6 +82,7 @@ int g_cfg_bilinearFiltering = 0;
 int g_cfg_60fpsMode = 0;
 int g_cfg_aspectMode = 0;
 int g_cfg_fullscreen = 0;
+int g_cfg_resolutionScale = 1;
 
 global_variable int s_vramNeedsUpdate = 1;
 global_variable int s_framebufferNeedsUpdate = 0;
@@ -107,6 +108,15 @@ global_variable GLuint s_glBlitFramebuffer;
 global_variable GLuint s_glVramFramebuffer;
 
 global_variable GLuint s_glOffscreenFramebuffer;
+
+global_variable TextureID s_resolutionTexture = -1;
+global_variable GLuint s_glResolutionFramebuffer = 0;
+global_variable int s_resolutionFboW = 0;
+global_variable int s_resolutionFboH = 0;
+global_variable int s_activeViewportX = 0;
+global_variable int s_activeViewportY = 0;
+global_variable int s_activeViewportW = 0;
+global_variable int s_activeViewportH = 0;
 
 
 internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen)
@@ -198,8 +208,62 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 	return 1;
 }
 
+internal void NativeRenderer_DestroyResolutionFBO(void)
+{
+	if (s_glResolutionFramebuffer != 0)
+	{
+		glDeleteFramebuffers(1, &s_glResolutionFramebuffer);
+		s_glResolutionFramebuffer = 0;
+	}
+	if (s_resolutionTexture != -1)
+	{
+		NativeRenderer_DestroyTexture(s_resolutionTexture);
+		s_resolutionTexture = -1;
+	}
+	s_resolutionFboW = 0;
+	s_resolutionFboH = 0;
+}
+
+internal void NativeRenderer_CreateResolutionFBO(int w, int h)
+{
+	NativeRenderer_DestroyResolutionFBO();
+
+	s_resolutionFboW = w;
+	s_resolutionFboH = h;
+
+	if (w <= 0 || h <= 0)
+		return;
+
+	glGenTextures(1, &s_resolutionTexture);
+	{
+		glBindTexture(GL_TEXTURE_2D, s_resolutionTexture);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+
+	glGenFramebuffers(1, &s_glResolutionFramebuffer);
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, s_glResolutionFramebuffer);
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_resolutionTexture, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+}
+
 void NativeRenderer_Shutdown(void)
 {
+	NativeRenderer_DestroyResolutionFBO();
+
 	glDeleteVertexArrays(2, s_glVertexArray);
 	glDeleteBuffers(2, s_glVertexBuffer);
 
@@ -231,7 +295,24 @@ void NativeRenderer_BeginScene(void)
 	glClear(GL_STENCIL_BUFFER_BIT);
 
 	NativeRenderer_UpdateVRAM();
-	NativeRenderer_SetViewPort(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+
+	if (g_cfg_resolutionScale > 1 && s_glResolutionFramebuffer != 0)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, s_glResolutionFramebuffer);
+		s_activeViewportX = 0;
+		s_activeViewportY = 0;
+		s_activeViewportW = s_resolutionFboW;
+		s_activeViewportH = s_resolutionFboH;
+	}
+	else
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		s_activeViewportX = s_presentViewport.x;
+		s_activeViewportY = s_presentViewport.y;
+		s_activeViewportW = s_presentViewport.w;
+		s_activeViewportH = s_presentViewport.h;
+	}
+	NativeRenderer_SetViewPort(s_activeViewportX, s_activeViewportY, s_activeViewportW, s_activeViewportH);
 
 	if (g_dbg_wireframeMode)
 	{
@@ -246,6 +327,21 @@ void NativeRenderer_BeginScene(void)
 void NativeRenderer_EndScene(void)
 {
 	s_framebufferNeedsUpdate = 1;
+
+	if (g_cfg_resolutionScale > 1 && s_glResolutionFramebuffer != 0)
+	{
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glResolutionFramebuffer);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+		glBlitFramebuffer(0, 0, s_resolutionFboW, s_resolutionFboH,
+		                  s_presentViewport.x, s_presentViewport.y,
+		                  s_presentViewport.x + s_presentViewport.w,
+		                  s_presentViewport.y + s_presentViewport.h,
+		                  GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	}
 
 	if (g_dbg_wireframeMode)
 		NativeRenderer_SetWireframe(0);
@@ -394,6 +490,29 @@ void NativeRenderer_ResetDevice(void)
 {
 	NativeRenderer_UpdatePresentationViewport();
 	NativeRenderer_UpdateSwapIntervalState(0);
+
+	NativeRenderer_DestroyResolutionFBO();
+	if (g_cfg_resolutionScale > 1)
+	{
+		NativeRenderer_CreateResolutionFBO(s_presentViewport.w * g_cfg_resolutionScale, s_presentViewport.h * g_cfg_resolutionScale);
+	}
+}
+
+void NativeRenderer_SetResolutionScale(int scale)
+{
+	if (scale < 1) scale = 1;
+	if (scale > 4) scale = 4;
+
+	if (g_cfg_resolutionScale == scale)
+		return;
+
+	g_cfg_resolutionScale = scale;
+	NativeRenderer_DestroyResolutionFBO();
+	if (scale > 1)
+	{
+		NativeRenderer_UpdatePresentationViewport();
+		NativeRenderer_CreateResolutionFBO(s_presentViewport.w * scale, s_presentViewport.h * scale);
+	}
 }
 
 typedef struct
@@ -995,11 +1114,11 @@ void NativeRenderer_SetupClipMode(const RECT16 *rect, const DISPENV *displayEnv,
 		clipRectX += 0.5f;
 	}
 
-	// adjust scissor rectangle by the backbuffer size (window dimensions)
-	const float viewportX = (float)s_presentViewport.x;
-	const float viewportY = (float)s_presentViewport.y;
-	const float viewportW = (float)s_presentViewport.w;
-	const float viewportH = (float)s_presentViewport.h;
+	// adjust scissor rectangle by the active render target dimensions
+	const float viewportX = (float)s_activeViewportX;
+	const float viewportY = (float)s_activeViewportY;
+	const float viewportW = (float)s_activeViewportW;
+	const float viewportH = (float)s_activeViewportH;
 	const float flipOffset = viewportY + viewportH - clipRectH * viewportH;
 	const float crx = viewportX + clipRectX * viewportW;
 	const float cry = clipRectY * viewportH;
@@ -1212,10 +1331,10 @@ void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	const int relRight = overlapRight - displayX;
 	const int relBottom = overlapBottom - displayY;
 
-	const int scissorX = s_presentViewport.x + (relX * s_presentViewport.w) / displayW;
-	const int scissorRight = s_presentViewport.x + (relRight * s_presentViewport.w + displayW - 1) / displayW;
-	const int scissorTop = (relY * s_presentViewport.h) / displayH;
-	const int scissorBottom = (relBottom * s_presentViewport.h + displayH - 1) / displayH;
+	const int scissorX = s_activeViewportX + (relX * s_activeViewportW) / displayW;
+	const int scissorRight = s_activeViewportX + (relRight * s_activeViewportW + displayW - 1) / displayW;
+	const int scissorTop = (relY * s_activeViewportH) / displayH;
+	const int scissorBottom = (relBottom * s_activeViewportH + displayH - 1) / displayH;
 	const int scissorW = scissorRight - scissorX;
 	const int scissorH = scissorBottom - scissorTop;
 
@@ -1229,7 +1348,7 @@ void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	s_framebufferNeedsUpdate = 1;
 
 	glEnable(GL_SCISSOR_TEST);
-	glScissor(scissorX, s_presentViewport.y + s_presentViewport.h - scissorBottom, scissorW, scissorH);
+	glScissor(scissorX, s_activeViewportY + s_activeViewportH - scissorBottom, scissorW, scissorH);
 	glClearColor(NativeRenderer_PSXColorComponentFloat(r), NativeRenderer_PSXColorComponentFloat(g), NativeRenderer_PSXColorComponentFloat(b), 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -1453,6 +1572,10 @@ void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, const DISPENV
 
 		s_previousOffscreen = *offscreenRect;
 
+		s_activeViewportX = 0;
+		s_activeViewportY = 0;
+		s_activeViewportW = offscreenRect->w;
+		s_activeViewportH = offscreenRect->h;
 		NativeRenderer_SetViewPort(0, 0, offscreenRect->w, offscreenRect->h);
 		glBindFramebuffer(GL_FRAMEBUFFER, s_glOffscreenFramebuffer);
 
@@ -1468,7 +1591,24 @@ void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, const DISPENV
 		s_previousOffscreenState = 0;
 
 		NativeRenderer_FlushOffscreenToVRAM();
-		NativeRenderer_SetViewPort(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+
+		if (g_cfg_resolutionScale > 1 && s_glResolutionFramebuffer != 0)
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, s_glResolutionFramebuffer);
+			s_activeViewportX = 0;
+			s_activeViewportY = 0;
+			s_activeViewportW = s_resolutionFboW;
+			s_activeViewportH = s_resolutionFboH;
+		}
+		else
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			s_activeViewportX = s_presentViewport.x;
+			s_activeViewportY = s_presentViewport.y;
+			s_activeViewportW = s_presentViewport.w;
+			s_activeViewportH = s_presentViewport.h;
+		}
+		NativeRenderer_SetViewPort(s_activeViewportX, s_activeViewportY, s_activeViewportW, s_activeViewportH);
 	}
 }
 
@@ -1496,11 +1636,22 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 	{
 		NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_BLIT);
 		// setup draw and read framebuffers
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0); // source is backbuffer
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glBlitFramebuffer);
+		if (g_cfg_resolutionScale > 1 && s_glResolutionFramebuffer != 0)
+		{
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glResolutionFramebuffer);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glBlitFramebuffer);
 
-		glBlitFramebuffer(s_presentViewport.x, s_presentViewport.y, s_presentViewport.x + s_presentViewport.w, s_presentViewport.y + s_presentViewport.h, x, y + h,
-		                  x + w, y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+			glBlitFramebuffer(0, 0, s_resolutionFboW, s_resolutionFboH,
+			                  x, y + h, x + w, y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+		}
+		else
+		{
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0); // source is backbuffer
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glBlitFramebuffer);
+
+			glBlitFramebuffer(s_presentViewport.x, s_presentViewport.y, s_presentViewport.x + s_presentViewport.w, s_presentViewport.y + s_presentViewport.h, x, y + h,
+			                  x + w, y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		}
 
 		// done, unbind
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);

@@ -97,6 +97,7 @@ typedef enum
 #include "platform/native_str.c"
 #include "platform/native_mods.c"
 #include "platform/native_netplay.c"
+#include "platform/native_config.c"
 
 #ifndef CC
 #if __GNUC__
@@ -317,6 +318,29 @@ int main(int argc, char *argv[])
         printf("[CTR Native] 4:3\n");
         Platform_Init("Crash Team Racing", 800, 600);
 #endif
+
+        // Load configuration (settings, key bindings)
+        NativeConfig_Load();
+        // Apply loaded display settings
+        {
+                extern void NativeRenderer_SetAspectMode(int mode);
+                extern void NativeRenderer_SetResolutionScale(int scale);
+                extern void NativeRenderer_UpdateSwapIntervalState(int swapInterval);
+                extern int g_cfg_aspectMode;
+                extern int g_cfg_60fpsMode;
+                extern int g_cfg_fullscreen;
+                extern int g_cfg_resolutionScale;
+
+                NativeRenderer_SetAspectMode(g_cfg_aspectMode);
+                NativeRenderer_UpdateSwapIntervalState(g_cfg_60fpsMode != 0 ? 1 : -1);
+                NativeRenderer_SetResolutionScale(g_cfg_resolutionScale);
+
+                if (g_cfg_fullscreen)
+                {
+                        extern void Platform_ToggleFullscreen(void);
+                        Platform_ToggleFullscreen();
+                }
+        }
 
 #if defined(CTR_INTERNAL)
         if (NativePerf_ConfigureFromArgs(argc, argv) != 0)
