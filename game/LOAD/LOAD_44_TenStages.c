@@ -343,11 +343,10 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 
                 LOAD_GlobalModelPtrs_MPK();
 #ifdef CTR_NATIVE
-                /* Re-register models from non-last 1P arcade packs that
-                 * LOAD_Callback_DriverModels_Netplay stored before
-                 * LibraryOfModels_Clear wiped them. Without this, characters
-                 * whose pack was not the last unique one loaded (e.g. Oxide
-                 * when P1 picks him with Crash+Tiny also in the race) will
+                /* Re-register models from individual BI_RACERMODELHI
+                 * loads that LOAD_Callback_RemoteModel saved before
+                 * LibraryOfModels_Clear wiped them. Without this,
+                 * remote characters (e.g. Oxide when P2 picks him)
                  * have no model and become invisible. */
                 if (g_NetplayRacing)
                         Netplay_RestoreDriverModels(gGT);
