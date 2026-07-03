@@ -908,6 +908,9 @@ u32 main(void)
                                         // 9) Handle return-to-lobby signal from host
                                         if (Netplay_ConsumeReturnToLobby())
                                         {
+                                                g_NetplayRacing = 0;
+                                                gGT->numPlyrCurrGame = 1;
+                                                gGT->numPlyrNextGame = 1;
                                                 Netplay_ResetRaceState();
                                                 MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
                                         }

@@ -6,34 +6,56 @@
 static void (*const LOAD_DriverMPK_SetPointer)(struct LoadQueueSlot *) = (void (*)(struct LoadQueueSlot *))-2;
 
 #ifdef CTR_NATIVE
-/* Saved model pointers from individual BI_RACERMODELHI loads for remote
- * players. LibraryOfModels_Clear in state 5 wipes gGT->modelPtr[], so
- * we save the model pointers here and re-register them after the clear. */
+/* Saved model+charId pairs from individual BI_RACERMODELHI loads for
+ * remote players. LibraryOfModels_Clear in state 5 wipes gGT->modelPtr[],
+ * so we save the pointers here and re-register them after the clear. */
 #define MAX_SAVED_MODELS 256
 static struct Model *s_savedModels[MAX_SAVED_MODELS];
+static int s_savedModelCharIds[MAX_SAVED_MODELS];
 static int s_savedModelCount;
 
 /* Netplay: callback for loading BI_RACERMODELHI (individual high-res model)
  * for a remote player's character. Extracts the Model pointer from the
- * loaded file and saves it for restoration after LibraryOfModels_Clear. */
+ * loaded file and saves it together with the character ID for later
+ * registration in gGT->modelPtr[]. The HI model files all have id = -1,
+ * so we use charId as the array index instead. */
 static void LOAD_Callback_RemoteModel(struct LoadQueueSlot *lqs)
 {
         struct Model *m = (struct Model *)lqs->ptrDestination;
-        if (m != NULL && s_savedModelCount < MAX_SAVED_MODELS)
-                s_savedModels[s_savedModelCount++] = m;
+        int charId = lqs->subfileIndex - BI_RACERMODELHI;
+        fprintf(stdout, "[Netplay] LOAD_Callback_RemoteModel: subfile=%d charId=%d m=%p name='%s'\n",
+                lqs->subfileIndex, charId, (void*)m, m ? m->name : "NULL"); fflush(stdout);
+        if (m != NULL && charId >= 0 && charId < 16 && s_savedModelCount < MAX_SAVED_MODELS)
+        {
+                s_savedModels[s_savedModelCount] = m;
+                s_savedModelCharIds[s_savedModelCount] = charId;
+                s_savedModelCount++;
+                fprintf(stdout, "[Netplay] LOAD_Callback_RemoteModel: SAVED at slot %d (charId=%d modelPtr[%d])\n",
+                        s_savedModelCount - 1, charId, charId); fflush(stdout);
+        }
 }
 
 /* Re-register remote-player models after LibraryOfModels_Clear wiped
  * gGT->modelPtr[]. Called from state 5 right after
- * LOAD_GlobalModelPtrs_MPK. */
+ * LOAD_GlobalModelPtrs_MPK. HI model files have id = -1, so we use
+ * the saved charId as the array index. */
 void Netplay_RestoreDriverModels(struct GameTracker *gGT)
 {
         int arrSize = sizeof(gGT->modelPtr) / sizeof(gGT->modelPtr[0]);
+        fprintf(stdout, "[Netplay] Netplay_RestoreDriverModels: s_savedModelCount=%d, arrSize=%d\n",
+                s_savedModelCount, arrSize); fflush(stdout);
         for (int i = 0; i < s_savedModelCount; i++)
         {
                 struct Model *m = s_savedModels[i];
-                if (m != NULL && m->id >= 0 && m->id < arrSize)
-                        gGT->modelPtr[m->id] = m;
+                int charId = s_savedModelCharIds[i];
+                fprintf(stdout, "[Netplay] Netplay_RestoreDriverModels[%d]: charId=%d m=%p name='%s'\n",
+                        i, charId, (void*)m, m ? m->name : "NULL"); fflush(stdout);
+                if (m != NULL && charId >= 0 && charId < arrSize)
+                {
+                        gGT->modelPtr[charId] = m;
+                        fprintf(stdout, "[Netplay] Netplay_RestoreDriverModels[%d]: wrote to modelPtr[%d] = %p\n",
+                                i, charId, (void*)m); fflush(stdout);
+                }
         }
         s_savedModelCount = 0;
 }

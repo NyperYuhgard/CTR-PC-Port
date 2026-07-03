@@ -327,6 +327,15 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
                         ptrArray[i] = 0;
                 }
 
+                // NOTE(aalhendi): Clear stale model pointers BEFORE loading new driver models.
+                // MEMPACK_PopToState in stage 0 frees all previous level data, and new
+                // MEMPACK allocations may reuse the same addresses. Stale gGT->modelPtr[]
+                // entries pointing to those addresses caused the newly loaded HI model data
+                // to be corrupted between the load callback (stage 4 queue processing) and
+                // LibraryOfModels_Clear (stage 5). Clearing here prevents any stale code
+                // path from reading/writing through those dangling pointers.
+                LibraryOfModels_Clear(gGT);
+
                 // NOTE(aalhendi): Retail gates stage advancement until the driver MPK callback sets ptrMPK.
                 sdata->load_inProgress = 1;
                 LOAD_DriverMPK(bigfile, sdata->levelLOD, LOAD_Callback_DriverModels);
