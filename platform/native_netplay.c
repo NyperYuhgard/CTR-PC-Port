@@ -246,10 +246,8 @@ global_variable char s_interfaceName[32];
 int g_NetplayAutoJoin;
 int g_NetplayRaceStarting;
 int g_NetplayRacing;
-int g_NetplayHostCharacter;
-int g_NetplayClientCharacter;
-int g_NetplayHostEngine;
-int g_NetplayClientEngine;
+int g_NetplayCharacters[NETPLAY_MAX_PLAYERS];
+int g_NetplayEngines[NETPLAY_MAX_PLAYERS];
 int g_NetplayTrackId;
 int g_NetplayNumLaps;
 int g_NetplayLocalLoaded;
@@ -495,8 +493,8 @@ internal int Netplay_SendTo(const void *data, int dataSize, const struct sockadd
         return sent == dataSize;
 }
 
-internal void Netplay_SendPacket(u16 type, u16 payloadSize, const void *payload,
-                                 const struct sockaddr_in *addr)
+internal void Netplay_SendPacketWithPlayerId(u16 type, u16 payloadSize, const void *payload,
+                                             const struct sockaddr_in *addr, u8 playerId)
 {
         u8 buffer[NETPLAY_MAX_PACKET_SIZE];
         struct NetplayPacketHeader *header = (struct NetplayPacketHeader *)buffer;
@@ -507,7 +505,7 @@ internal void Netplay_SendPacket(u16 type, u16 payloadSize, const void *payload,
         header->magic = NATIVE_NETPLAY_MAGIC;
         header->type = type;
         header->flags = 0;
-        header->playerId = s_localPlayerId;
+        header->playerId = playerId;
         header->playerCount = s_playerCount;
         header->payloadSize = payloadSize;
 
@@ -515,6 +513,12 @@ internal void Netplay_SendPacket(u16 type, u16 payloadSize, const void *payload,
                 memcpy(buffer + sizeof(*header), payload, payloadSize);
 
         Netplay_SendTo(buffer, sizeof(*header) + payloadSize, addr);
+}
+
+internal void Netplay_SendPacket(u16 type, u16 payloadSize, const void *payload,
+                                 const struct sockaddr_in *addr)
+{
+        Netplay_SendPacketWithPlayerId(type, payloadSize, payload, addr, s_localPlayerId);
 }
 
 void Netplay_BroadcastPacket(u16 type, u16 payloadSize, const void *payload)
@@ -536,7 +540,12 @@ internal void Netplay_RelayToOtherPeers(u8 excludePlayerId, u16 type,
         for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
         {
                 if (s_peers[i].active && s_peers[i].id != excludePlayerId)
-                        Netplay_SendPacket(type, payloadSize, payload, &s_peers[i].addr);
+                        /* NOTE: excludePlayerId is the original sender's ID.
+                         * We MUST preserve it in the relayed packet so that
+                         * the receiving client stores g_NetplayCharacters[]
+                         * at the correct index. */
+                        Netplay_SendPacketWithPlayerId(type, payloadSize, payload,
+                                                       &s_peers[i].addr, excludePlayerId);
         }
 }
 
@@ -830,11 +839,38 @@ internal void Netplay_HandleInput(const struct NetplayPacketHeader *header,
                 s_peers[peerIndex].lastSeenMs = Netplay_GetTimestampMs();
         }
 
+        /* Save previous frame BEFORE queueing (QueueInput updates s_lastRemoteFrame) */
+        u32 prevRemoteFrame = s_lastRemoteFrame[senderId];
+
         /* Queue input for game consumption */
         Netplay_QueueInput(senderId, input->frameNum, input->buttonsHeld,
                            input->buttonsTapped, input->buttonsReleased,
                            input->stickLX, input->stickLY,
                            input->stickRX, input->stickRY);
+
+        /* Gap detection: if we skipped frames, request resend from the sender */
+        if (prevRemoteFrame != 0 &&
+            (int)(input->frameNum - prevRemoteFrame) > 1)
+        {
+                u32 missingFrame = prevRemoteFrame + 1;
+                struct NetplayResendPayload req;
+                req.frameNum = missingFrame;
+                req.playerId = senderId;
+                req.requesterId = s_localPlayerId;
+                req.pad[0] = 0;
+                req.pad[1] = 0;
+                if (Netplay_IsHost())
+                {
+                        int peerSlot = Netplay_FindPeerById(senderId);
+                        if (peerSlot >= 0)
+                                Netplay_SendPacket(NETPLAY_PACKET_RESEND_INPUT, sizeof(req), &req,
+                                                   &s_peers[peerSlot].addr);
+                }
+                else
+                {
+                        Netplay_SendPacket(NETPLAY_PACKET_RESEND_INPUT, sizeof(req), &req, &s_hostAddr);
+                }
+        }
 
         /* Host: relay to other clients so 3+ player games work */
         if (Netplay_IsHost())
@@ -916,12 +952,11 @@ internal void Netplay_HandleCharacterSelect(const struct NetplayPacketHeader *he
                 return;
         {
                 u8 charId = payload[0];
-                if (Netplay_IsHost())
-                        g_NetplayClientCharacter = charId;
-                else
-                        g_NetplayHostCharacter = charId;
+                u8 playerId = header->playerId;
+                if (playerId < NETPLAY_MAX_PLAYERS)
+                        g_NetplayCharacters[playerId] = charId;
                 fprintf(stdout, "[Netplay] Player %u chose character %d\n",
-                        header->playerId, charId);
+                        playerId, charId);
                 fflush(stdout);
         }
         /* Relay to other clients (host only) */
@@ -935,12 +970,11 @@ internal void Netplay_HandleEngineSelect(const struct NetplayPacketHeader *heade
                 return;
         {
                 u8 engineId = payload[0];
-                if (Netplay_IsHost())
-                        g_NetplayClientEngine = engineId;
-                else
-                        g_NetplayHostEngine = engineId;
+                u8 playerId = header->playerId;
+                if (playerId < NETPLAY_MAX_PLAYERS)
+                        g_NetplayEngines[playerId] = engineId;
                 fprintf(stdout, "[Netplay] Player %u chose engine %d\n",
-                        header->playerId, engineId);
+                        playerId, engineId);
                 fflush(stdout);
         }
         Netplay_RelayPacketToOthers(header, payload);
@@ -953,6 +987,25 @@ internal void Netplay_HandleTrackSelect(const struct NetplayPacketHeader *header
         {
                 g_NetplayTrackId = payload[0];
                 g_NetplayNumLaps = payload[1];
+
+                /* If the host included character/engine arrays, use them to
+                 * avoid a race condition where CHARACTER_SELECT relays arrive
+                 * after this packet. This makes the host's view authoritative. */
+                int expectedFull = 3 + NETPLAY_MAX_PLAYERS * 2; /* 19 */
+                if (payloadSize >= expectedFull)
+                {
+                        int i;
+                        int count = (int)(s8)payload[2];
+                        for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
+                        {
+                                g_NetplayCharacters[i] = (int)(s8)payload[3 + i];
+                                g_NetplayEngines[i]   = (int)(s8)payload[3 + NETPLAY_MAX_PLAYERS + i];
+                        }
+                        /* Sync the internal player count so Netplay_GetPlayerCount()
+                         * returns the right value for Online_StartRace. */
+                        s_playerCount = count;
+                }
+
                 g_NetplayRaceStarting = 1;
                 fprintf(stdout, "[Netplay] Host chose track %d, %d laps\n",
                         g_NetplayTrackId, g_NetplayNumLaps);
@@ -1238,6 +1291,8 @@ internal void Netplay_HandleItemUse(const struct NetplayPacketHeader *header,
                                     const u8 *payload, int payloadSize);
 internal void Netplay_HandleRngSeed(const struct NetplayPacketHeader *header,
                                     const u8 *payload, int payloadSize);
+internal void Netplay_HandleResendInput(const struct NetplayPacketHeader *header,
+                                        const u8 *payload, int payloadSize);
 
 internal int Netplay_ReceivePacket(void)
 {
@@ -1347,12 +1402,71 @@ internal int Netplay_ReceivePacket(void)
         case NETPLAY_PACKET_ENGINE_SELECT:
                 Netplay_HandleEngineSelect(header, payload, payloadSize);
                 break;
+        case NETPLAY_PACKET_RESEND_INPUT:
+                Netplay_HandleResendInput(header, payload, payloadSize);
+                break;
         default:
                 /* Unknown packet type: ignore (forward-compat) */
                 break;
         }
 
         return 1;
+}
+
+/* === Input resend (rollback support) === */
+
+internal void Netplay_HandleResendInput(const struct NetplayPacketHeader *header,
+                                        const u8 *payload, int payloadSize)
+{
+        const struct NetplayResendPayload *req = (const struct NetplayResendPayload *)payload;
+
+        if (payloadSize < (int)sizeof(struct NetplayResendPayload))
+                return;
+
+        /* If the request is for someone else and we're the host, relay it. */
+        if (req->playerId != s_localPlayerId)
+        {
+                if (Netplay_IsHost())
+                {
+                        int peerSlot = Netplay_FindPeerById(req->playerId);
+                        if (peerSlot >= 0)
+                                Netplay_SendPacket(NETPLAY_PACKET_RESEND_INPUT,
+                                                   (u16)sizeof(*req), req,
+                                                   &s_peers[peerSlot].addr);
+                }
+                return;
+        }
+
+        /* The request is for us — look up the frame in input history and resend. */
+        u32 frameNum = req->frameNum;
+        int idx = (int)(frameNum % NETPLAY_FRAME_HISTORY);
+        struct NetplayFrameInput *hist = &s_inputHistory[idx];
+
+        if (hist->frameNum == frameNum && hist->hasInput[s_localPlayerId])
+        {
+                struct NetplayInputPayload input;
+                input.frameNum = frameNum;
+                input.buttonsHeld = hist->buttonsHeld[s_localPlayerId];
+                input.buttonsTapped = hist->buttonsTapped[s_localPlayerId];
+                input.buttonsReleased = hist->buttonsReleased[s_localPlayerId];
+                input.stickLX = hist->stickLX[s_localPlayerId];
+                input.stickLY = hist->stickLY[s_localPlayerId];
+                input.stickRX = hist->stickRX[s_localPlayerId];
+                input.stickRY = hist->stickRY[s_localPlayerId];
+
+                /* Send the resend to the requester (not the original sender). */
+                if (Netplay_IsHost())
+                {
+                        int peerSlot = Netplay_FindPeerById(req->requesterId);
+                        if (peerSlot >= 0)
+                                Netplay_SendPacket(NETPLAY_PACKET_INPUT, (u16)sizeof(input), &input,
+                                                   &s_peers[peerSlot].addr);
+                }
+                else
+                {
+                        Netplay_SendPacket(NETPLAY_PACKET_INPUT, (u16)sizeof(input), &input, &s_hostAddr);
+                }
+        }
 }
 
 /* === Init / Shutdown === */
@@ -1405,8 +1519,8 @@ int Netplay_Init(void)
 
         g_NetplayAutoJoin = 0;
         g_NetplayRaceStarting = 0;
-        g_NetplayHostCharacter = -1;
-        g_NetplayClientCharacter = -1;
+        memset(g_NetplayCharacters, -1, sizeof(g_NetplayCharacters));
+        memset(g_NetplayEngines, -1, sizeof(g_NetplayEngines));
         g_NetplayTrackId = 0;
         g_NetplayNumLaps = 3;
         g_NetplayLocalLoaded = 0;
@@ -1731,37 +1845,44 @@ const struct NetplayPlayerInfo *Netplay_GetPlayers(int *count)
         static struct NetplayPlayerInfo info[NETPLAY_MAX_PLAYERS];
         int i;
 
+        /* Initialize all slots as disconnected */
+        for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
+        {
+                info[i].id = (u8)i;
+                info[i].connected = 0;
+                info[i].ready = 0;
+                info[i].pingMs = 0;
+                info[i].lastFrameReceived = 0;
+                memset(info[i].name, 0, sizeof(info[i].name));
+        }
+
+        /* Fill in peers by their player ID */
         for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
         {
                 if (s_peers[i].active)
                 {
-                        info[i].id = s_peers[i].id;
-                        info[i].connected = 1;
-                        info[i].ready = s_peers[i].ready;
-                        info[i].pingMs = s_peers[i].pingMs;
-                        info[i].lastFrameReceived = s_peers[i].lastFrameReceived;
-                        memcpy(info[i].name, s_peers[i].name, sizeof(info[i].name));
-                }
-                else
-                {
-                        info[i].id = (u8)i;
-                        info[i].connected = 0;
-                        info[i].ready = 0;
-                        info[i].pingMs = 0;
-                        info[i].lastFrameReceived = 0;
-                        memset(info[i].name, 0, sizeof(info[i].name));
+                        u8 pid = s_peers[i].id;
+                        if (pid < NETPLAY_MAX_PLAYERS)
+                        {
+                                info[pid].id = pid;
+                                info[pid].connected = 1;
+                                info[pid].ready = s_peers[i].ready;
+                                info[pid].pingMs = s_peers[i].pingMs;
+                                info[pid].lastFrameReceived = s_peers[i].lastFrameReceived;
+                                memcpy(info[pid].name, s_peers[i].name, sizeof(info[pid].name));
+                        }
                 }
         }
 
-        /* If we're the host, also fill in our own slot (player 0). */
-        if (Netplay_IsHost())
+        /* Fill in local player */
+        if (s_localPlayerId < NETPLAY_MAX_PLAYERS)
         {
-                info[0].id = 0;
-                info[0].connected = 1;
-                info[0].ready = (u8)(s_localReady ? 1 : 0);
-                info[0].pingMs = 0;
-                info[0].lastFrameReceived = 0;
-                memcpy(info[0].name, s_localPlayerName, sizeof(info[0].name));
+                info[s_localPlayerId].id = s_localPlayerId;
+                info[s_localPlayerId].connected = 1;
+                info[s_localPlayerId].ready = (u8)(s_localReady ? 1 : 0);
+                info[s_localPlayerId].pingMs = 0;
+                info[s_localPlayerId].lastFrameReceived = 0;
+                memcpy(info[s_localPlayerId].name, s_localPlayerName, sizeof(info[s_localPlayerId].name));
         }
 
         if (count != NULL)
@@ -2276,8 +2397,8 @@ void Netplay_ResetRaceState(void)
         g_NetplayRemoteChecksumValue = 0;
         g_NetplayDisconnected = 0;
         g_NetplayReturnToLobby = 0;
-        g_NetplayHostCharacter = -1;
-        g_NetplayClientCharacter = -1;
+        memset(g_NetplayCharacters, -1, sizeof(g_NetplayCharacters));
+        memset(g_NetplayEngines, -1, sizeof(g_NetplayEngines));
 
         s_loadedMask = 0;
         s_readyMask = 0;

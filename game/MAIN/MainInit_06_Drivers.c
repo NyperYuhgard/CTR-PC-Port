@@ -31,6 +31,14 @@ void MainInit_Drivers(struct GameTracker *gGT)
 	// Spawn all players,
 	// This MUST be in reverse order,
 	// because of threadBucket linked list order
+#ifdef CTR_NATIVE
+	fprintf(stdout, "[Netplay] MainInit_Drivers: numPlyrCurrGame=%d, g_NetplayRacing=%d, gameMode=0x%x\n",
+		numPlyrCurrGame, g_NetplayRacing, gameMode); fflush(stdout);
+	for (i = 0; i < 8; i++)
+	{
+		fprintf(stdout, "[Netplay]   characterIDs[%d]=%d\n", i, data.characterIDs[i]); fflush(stdout);
+	}
+#endif
 	for (i = numPlyrCurrGame - 1; i >= 0; i--)
 	{
 		gGT->drivers[i] = VehBirth_Player(i);
@@ -98,7 +106,11 @@ void MainInit_Drivers(struct GameTracker *gGT)
 	}
 
 	// if this is main menu
-	if ((gameMode & MAIN_MENU) != 0)
+	if ((gameMode & MAIN_MENU) != 0
+#ifdef CTR_NATIVE
+	    && !g_NetplayRacing
+#endif
+	)
 	{
 		// fill up 4 players
 		for (i = numPlyrCurrGame; i < 4; i++)
@@ -106,6 +118,17 @@ void MainInit_Drivers(struct GameTracker *gGT)
 			gGT->drivers[i] = VehBirth_Player(i);
 		}
 	}
+
+#ifdef CTR_NATIVE
+	{
+		int di;
+		fprintf(stdout, "[Netplay] MainInit_Drivers: after creation, drivers:");
+		for (di = 0; di < 8; di++)
+			if (gGT->drivers[di])
+				fprintf(stdout, " [%d]=%p(inst=%p)", di, (void*)gGT->drivers[di], (void*)gGT->drivers[di]->instSelf);
+		fprintf(stdout, "\n"); fflush(stdout);
+	}
+#endif
 
 	// if you're in time trial, not main menu, not loading.
 	// basically, if you're in time trial gameplay

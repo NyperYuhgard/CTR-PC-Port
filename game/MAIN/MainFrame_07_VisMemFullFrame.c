@@ -123,7 +123,19 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
                 visMemIndex = playerIndex;
 #endif
 
+#ifdef CTR_NATIVE
+                /* Netplay: numPlyrCurrGame is overridden to 1 during rendering
+                 * (MainMain.c:1062), so playerIndex is always 0 — but we must
+                 * use the LOCAL player's driver for PVS, not drivers[0], or
+                 * crates/geometry will be culled based on player 1's position
+                 * even on instances where player 1 is remote. */
+                if (g_NetplayRacing)
+                        driver = gGT->drivers[Netplay_GetLocalPlayerId()];
+                else
+                        driver = gGT->drivers[playerIndex];
+#else
                 driver = gGT->drivers[playerIndex];
+#endif
 
                 if (driver == NULL)
                         continue;
@@ -187,14 +199,22 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 
                         if ((camDC->flags & 0x2000) != 0)
                         {
+#ifdef CTR_NATIVE
+                                MainFrame_VisMemAddDriverPVS(gGT, g_NetplayRacing ? Netplay_GetLocalPlayerId() : playerIndex);
+#else
                                 MainFrame_VisMemAddDriverPVS(gGT, playerIndex);
+#endif
                                 camDC->flags |= 0x4000;
                         }
                 }
 
                 if ((camDC->flags & 0x5000) == 0x1000)
                 {
+#ifdef CTR_NATIVE
+                        MainFrame_VisMemAddDriverPVS(gGT, g_NetplayRacing ? Netplay_GetLocalPlayerId() : playerIndex);
+#else
                         MainFrame_VisMemAddDriverPVS(gGT, playerIndex);
+#endif
                 }
 
                 if ((camDC->cameraMode == 0) && ((camDC->flags & 0x2000) != 0) && (driverPVS != NULL) && (driverPVS->visInstSrc != NULL))

@@ -44,5 +44,31 @@ struct Model *VehBirth_GetModelByName(char *searchName)
 			}
 		}
 	}
+
+	// Fallback: search gGT->modelPtr[] by name. Non-last 1P packs
+	// register their models here via LibraryOfModels_Store (netplay).
+	{
+		struct GameTracker *gGT = sdata->gGT;
+		for (i = 0; i < (int)(sizeof(gGT->modelPtr) / sizeof(gGT->modelPtr[0])); i++)
+		{
+			m = gGT->modelPtr[i];
+			if (m != NULL &&
+			    *(u32 *)&m->name[0] == *(u32 *)&searchName[0] &&
+			    *(u32 *)&m->name[4] == *(u32 *)&searchName[4] &&
+			    *(u32 *)&m->name[8] == *(u32 *)&searchName[8] &&
+			    *(u32 *)&m->name[12] == *(u32 *)&searchName[12])
+			{
+#ifdef CTR_NATIVE
+				fprintf(stdout, "[Netplay] VehBirth_GetModelByName: FALLBACK found '%s' at modelPtr[%d]=%p\n",
+					searchName, i, (void*)m); fflush(stdout);
+#endif
+				return m;
+			}
+		}
+	}
+#ifdef CTR_NATIVE
+	fprintf(stdout, "[Netplay] VehBirth_GetModelByName: '%s' NOT FOUND (returning NULL)\n",
+		searchName); fflush(stdout);
+#endif
 	return NULL;
 }

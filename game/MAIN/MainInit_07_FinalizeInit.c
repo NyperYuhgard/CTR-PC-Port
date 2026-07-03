@@ -140,16 +140,24 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
         {
                 fprintf(stdout, "[Netplay] FinalizeInit: swapping cameras\n"); fflush(stdout);
                 int localId = Netplay_GetLocalPlayerId();
-                fprintf(stdout, "[Netplay] FinalizeInit: localId=%d, cameraDC[0].driverToFollow=%p, cameraDC[1].driverToFollow=%p\n",
-                        localId, (void*)gGT->cameraDC[0].driverToFollow, (void*)gGT->cameraDC[1].driverToFollow); fflush(stdout);
+                fprintf(stdout, "[Netplay] FinalizeInit: localId=%d, cameraDC[0].driverToFollow=%p(drv%d), cameraDC[%d].driverToFollow=%p(drv%d)\n",
+                        localId,
+                        (void*)gGT->cameraDC[0].driverToFollow,
+                        gGT->cameraDC[0].driverToFollow ? gGT->cameraDC[0].driverToFollow->driverID : -1,
+                        localId != 0 ? localId : 1,
+                        (void*)gGT->cameraDC[localId != 0 ? localId : 1].driverToFollow,
+                        gGT->cameraDC[localId != 0 ? localId : 1].driverToFollow ? gGT->cameraDC[localId != 0 ? localId : 1].driverToFollow->driverID : -1); fflush(stdout);
 
-                // Client machine: swap cameras so camera 0 follows the local (client) driver
+                // Client machine: swap cameras so camera 0 follows the local (client) driver.
+                // cameraDC[i] was initialized to follow drivers[i], so for local player at
+                // index localId we swap cameraDC[0] ↔ cameraDC[localId].
                 if (localId != 0)
                 {
                         struct Driver *tmp = gGT->cameraDC[0].driverToFollow;
-                        gGT->cameraDC[0].driverToFollow = gGT->cameraDC[1].driverToFollow;
-                        gGT->cameraDC[1].driverToFollow = tmp;
-                        fprintf(stdout, "[Netplay] FinalizeInit: cameras swapped\n"); fflush(stdout);
+                        gGT->cameraDC[0].driverToFollow = gGT->cameraDC[localId].driverToFollow;
+                        gGT->cameraDC[localId].driverToFollow = tmp;
+                        fprintf(stdout, "[Netplay] FinalizeInit: camera[0] <-> camera[%d] swapped\n",
+                                localId); fflush(stdout);
                 }
 
                 // Force full-screen (1P) rect for single-viewport rendering

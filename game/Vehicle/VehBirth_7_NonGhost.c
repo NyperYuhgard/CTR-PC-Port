@@ -17,17 +17,36 @@ void VehBirth_NonGhost(struct Thread *t, int index)
 	struct Driver *d = t->object;
 	struct GameTracker *gGT = sdata->gGT;
 
+#ifdef CTR_NATIVE
+	fprintf(stdout, "[Netplay] VehBirth_NonGhost: index=%d, gameMode=0x%x, numPlyr=%d\n",
+		index, gGT->gameMode1, gGT->numPlyrCurrGame); fflush(stdout);
+#endif
+
 	int id = data.characterIDs[0];
 	if ((gGT->gameMode1 & 0x2000) == 0)
 	{
 		id = data.characterIDs[index];
 	}
+#ifdef CTR_NATIVE
+	fprintf(stdout, "[Netplay] VehBirth_NonGhost: index=%d -> characterID=%d ('%s')\n",
+		index, id, data.MetaDataCharacters[id].name_Debug); fflush(stdout);
+#endif
 
 	struct Model *m = VehBirth_GetModelByName(data.MetaDataCharacters[id].name_Debug);
+
+#ifdef CTR_NATIVE
+	fprintf(stdout, "[Netplay] VehBirth_NonGhost: index=%d model=%p\n",
+		index, (void*)m); fflush(stdout);
+#endif
 
 	struct Instance *inst = INSTANCE_Birth3D(m, m->name, t);
 
 	t->inst = inst;
+
+#ifdef CTR_NATIVE
+	fprintf(stdout, "[Netplay] VehBirth_NonGhost: index=%d inst=%p, inst->model=%p\n",
+		index, (void*)inst, (void*)(inst ? inst->model : NULL)); fflush(stdout);
+#endif
 
 	// Wake
 	m = gGT->modelPtr[STATIC_WAKE];
@@ -71,8 +90,17 @@ void VehBirth_NonGhost(struct Thread *t, int index)
 	// if you are in cutscene or in main menu
 	if ((gGT->gameMode1 & 0x20002000) != 0)
 	{
+#ifdef CTR_NATIVE
+		fprintf(stdout, "[Netplay] VehBirth_NonGhost: index=%d HIDE_MODEL set (gameMode=0x%x)\n",
+			index, gGT->gameMode1); fflush(stdout);
+#endif
 		// dont update, make invisible
 		t->funcThTick = VehBirth_NullThread;
 		inst->flags |= 0x80;
 	}
+
+#ifdef CTR_NATIVE
+	fprintf(stdout, "[Netplay] VehBirth_NonGhost: index=%d final inst->flags=0x%x\n",
+		index, inst->flags); fflush(stdout);
+#endif
 }

@@ -44,6 +44,15 @@ enum NetplayPacketType
         NETPLAY_PACKET_ITEM_USE        = 0x17, /* bidir: a player used their item (fired weapon) */
         NETPLAY_PACKET_RNG_SEED        = 0x18, /* host -> clients: deterministic RNG seed */
         NETPLAY_PACKET_ENGINE_SELECT   = 0x19, /* bidir: player chose their engine class */
+        NETPLAY_PACKET_RESEND_INPUT    = 0x1A, /* bidir: request resend of missing input frame */
+};
+
+struct NetplayResendPayload
+{
+        u32 frameNum;      /* which frame to resend */
+        u8  playerId;      /* who originally sent the missing input */
+        u8  requesterId;   /* who is requesting the resend */
+        u8  pad[2];
 };
 
 struct NetplayChecksumPayload
@@ -355,10 +364,8 @@ void Netplay_SetAddressString(const char *ipString, u16 port);
 extern int g_NetplayAutoJoin;
 extern int g_NetplayRaceStarting;
 extern int g_NetplayRacing;
-extern int g_NetplayHostCharacter;
-extern int g_NetplayClientCharacter;
-extern int g_NetplayHostEngine;
-extern int g_NetplayClientEngine;
+extern int g_NetplayCharacters[NETPLAY_MAX_PLAYERS];
+extern int g_NetplayEngines[NETPLAY_MAX_PLAYERS];
 extern int g_NetplayTrackId;
 extern int g_NetplayNumLaps;
 extern int g_NetplayLocalLoaded;

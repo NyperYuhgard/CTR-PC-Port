@@ -435,6 +435,12 @@ u32 main(void)
                                                         {
                                                                 pHeld[rid] = inputs[k].buttonsHeld;
                                                                 pTapped[rid] = inputs[k].buttonsTapped;
+                                                                /* Remote item use comes from ITEM_USE
+                                                                 * packets, NOT from predicted input.
+                                                                 * Zero BTN_CIRCLE to prevent phantom
+                                                                 * weapon fires when the engine processes
+                                                                 * the remote player's circle tap. */
+                                                                pTapped[rid] &= ~BTN_CIRCLE;
                                                                 pReleased[rid] = inputs[k].buttonsReleased;
                                                                 pLX[rid] = inputs[k].stickLX;
                                                                 pLY[rid] = inputs[k].stickLY;

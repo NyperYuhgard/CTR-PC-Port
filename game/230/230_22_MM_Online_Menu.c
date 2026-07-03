@@ -16,8 +16,7 @@ enum OnlinePhase
         PHASE_LOBBY,
         PHASE_PICKING_CHARACTER,
         PHASE_PICKING_ENGINE,
-        PHASE_WAITING_FOR_OTHER_CHAR,
-        PHASE_WAITING_FOR_HOST_CHAR,
+        PHASE_WAITING_FOR_PLAYERS,
         PHASE_HOST_PICKING_TRACK,
         PHASE_CLIENT_WAITING_FOR_TRACK,
         PHASE_COUNT
@@ -114,39 +113,33 @@ static void Online_PollChat(void)
         }
 }
 
-static void Online_StartRace(struct GameTracker *gGT, int playerCount, int hostChar, int clientChar, int trackId, int numLaps)
+static void Online_StartRace(struct GameTracker *gGT, int trackId, int numLaps)
 {
+        int playerCount = Netplay_GetPlayerCount();
         g_NetplayRacing = 1;
 
-        /* Apply engine choices to character metadata so VehBirth_SetConsts
-         * reads the correct stats when spawning drivers. */
-        if (hostChar >= 0)
-                data.MetaDataCharacters[hostChar].engineID = g_NetplayHostEngine >= 0
-                        ? g_NetplayHostEngine : 0;
-        if (clientChar >= 0)
-                data.MetaDataCharacters[clientChar].engineID = g_NetplayClientEngine >= 0
-                        ? g_NetplayClientEngine : 0;
-
-        /* Set up race config.
-         * For >2 player games, fill remaining characterIDs with -1 so the game
-         * picks them up as AI-less drivers. Each connected client will set its
-         * own character via CHARACTER_SELECT later. */
         int i;
+        for (i = 0; i < playerCount; i++)
+        {
+                int charId = g_NetplayCharacters[i];
+                if (charId >= 0 && charId < 16)
+                {
+                        data.MetaDataCharacters[charId].engineID = g_NetplayEngines[i] >= 0
+                                ? g_NetplayEngines[i] : 0;
+                }
+        }
+
         for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
         {
-                if (i == 0 && hostChar >= 0)
-                        data.characterIDs[i] = (s16)hostChar;
-                else if (i == 1 && clientChar >= 0)
-                        data.characterIDs[i] = (s16)clientChar;
-                else
-                        data.characterIDs[i] = 0; /* default Crash */
+                int charId = (i < playerCount) ? g_NetplayCharacters[i] : -1;
+                data.characterIDs[i] = (charId >= 0) ? (s16)charId : 0;
         }
 
         gGT->numPlyrCurrGame = playerCount;
         gGT->numPlyrNextGame = playerCount;
         gGT->numLaps = numLaps;
         gGT->currLEV = (s16)trackId;
-        gGT->gameMode1 &= ~(ADVENTURE_MODE | TIME_TRIAL | BATTLE_MODE);
+        gGT->gameMode1 &= ~(ADVENTURE_MODE | TIME_TRIAL | BATTLE_MODE | MAIN_MENU);
         gGT->gameMode1 |= ARCADE_MODE;
 
         MM_Characters_BackupIDs();
@@ -189,10 +182,8 @@ void MM_Online_Init(void)
                         s_chatWindowOpened = 1;
         }
         g_charNamesInited = 0;
-        g_NetplayHostCharacter = -1;
-        g_NetplayClientCharacter = -1;
-        g_NetplayHostEngine = -1;
-        g_NetplayClientEngine = -1;
+        memset(g_NetplayCharacters, -1, sizeof(g_NetplayCharacters));
+        memset(g_NetplayEngines, -1, sizeof(g_NetplayEngines));
         g_NetplayTrackId = 0;
         g_NetplayNumLaps = 3;
 
@@ -213,26 +204,10 @@ void MM_Online_Init(void)
         s_chatWindowOpened = 0;
 }
 
-/* Helper: returns the character ID assigned to player `id` based on netplay state.
- * - For local player: returns its chosen char.
- * - For host: returns g_NetplayHostCharacter.
- * - For clients: returns g_NetplayClientCharacter.
- * NOTE: For >2 player games, this is a 2-player fallback; the actual character
- * for additional players would be carried in a future CHARACTER_SELECT payload
- * extension. */
 static int Online_GetPlayerChar(int id)
 {
-        int localId = Netplay_GetLocalPlayerId();
-        if (id == localId)
-        {
-                if (Netplay_GetState() == NETPLAY_STATE_HOSTING)
-                        return g_NetplayHostCharacter;
-                return g_NetplayClientCharacter;
-        }
-        if (id == 0)
-                return g_NetplayHostCharacter;
-        if (id == 1)
-                return g_NetplayClientCharacter;
+        if (id >= 0 && id < NETPLAY_MAX_PLAYERS)
+                return g_NetplayCharacters[id];
         return 0;
 }
 
@@ -287,10 +262,8 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                 s_onlinePhase = PHASE_LOBBY;
                 s_onlineCursor = 0;
                 s_onlineScroll = 0;
-                g_NetplayHostCharacter = -1;
-                g_NetplayClientCharacter = -1;
-                g_NetplayHostEngine = -1;
-                g_NetplayClientEngine = -1;
+                memset(g_NetplayCharacters, -1, sizeof(g_NetplayCharacters));
+                memset(g_NetplayEngines, -1, sizeof(g_NetplayEngines));
                 RECTMENU_ClearInput();
                 return;
         }
@@ -305,10 +278,8 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         s_onlinePhase = PHASE_LOBBY;
                         s_onlineCursor = 0;
                         s_onlineScroll = 0;
-                        g_NetplayHostCharacter = -1;
-                        g_NetplayClientCharacter = -1;
-                        g_NetplayHostEngine = -1;
-                        g_NetplayClientEngine = -1;
+                        memset(g_NetplayCharacters, -1, sizeof(g_NetplayCharacters));
+                        memset(g_NetplayEngines, -1, sizeof(g_NetplayEngines));
                 }
                 else if (g_NetplayRacing)
                 {
@@ -325,21 +296,16 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                 return;
         }
 
-        /* ---- Handle START_RACE from host (legacy trigger) ---- */
+        /* ---- Handle START_RACE from host: everyone picks char simultaneously ---- */
         if (g_NetplayRaceStarting && s_onlinePhase != PHASE_CLIENT_WAITING_FOR_TRACK)
         {
                 g_NetplayRaceStarting = 0;
                 RECTMENU_ClearInput();
-                if (isHost)
-                {
-                        s_onlinePhase = PHASE_PICKING_CHARACTER;
-                        s_onlineCursor = 0;
-                        s_onlineScroll = 0;
-                }
-                else
-                {
-                        s_onlinePhase = PHASE_WAITING_FOR_HOST_CHAR;
-                }
+                memset(g_NetplayCharacters, -1, sizeof(g_NetplayCharacters));
+                memset(g_NetplayEngines, -1, sizeof(g_NetplayEngines));
+                s_onlinePhase = PHASE_PICKING_CHARACTER;
+                s_onlineCursor = 0;
+                s_onlineScroll = 0;
         }
 
         /* ====================================================================
@@ -631,37 +597,34 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         y += 0x10;
                 }
 
-                /* Status (use FONT_SMALL for sub-heading to give the title
-                 * "ONLINE" more prominence) */
-                snprintf(buf, sizeof(buf), "Status: %s", OnlineMenu_StateText());
+                /* Status + IP on one line for compactness */
+                if (isHost)
+                        snprintf(buf, sizeof(buf), "Hosting  |  %s  |  %d player%s",
+                                 Netplay_GetAddressString(), playerCount,
+                                 playerCount == 1 ? "" : "s");
+                else
+                        snprintf(buf, sizeof(buf), "Connected  |  %d player%s",
+                                 playerCount, playerCount == 1 ? "" : "s");
                 DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y, FONT_SMALL,
-                                     JUSTIFY_CENTER | WHITE, ot);
+                                     JUSTIFY_CENTER | (isHost ? TINY_GREEN : WHITE), ot);
                 y += 0x12;
 
-                if (isHost)
-                {
-                        snprintf(buf, sizeof(buf), "IP: %s", Netplay_GetAddressString());
-                        DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
-                                             FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
-                        y += 0x12;
-                }
+                /* Separator */
+                DecalFont_DrawLineOT("--", ONLINE_MENU_CENTER_X, y,
+                                     FONT_SMALL, JUSTIFY_CENTER | GRAY, ot);
+                y += 0x10;
 
-                /* Player list with names + ready status */
+                /* Player list with names, ping, character, ready status */
                 players = Netplay_GetPlayers(&netCount);
                 if (state == NETPLAY_STATE_HOSTING || state == NETPLAY_STATE_CONNECTED)
                 {
-                        snprintf(buf, sizeof(buf), "- Players: %d -", playerCount);
-                        DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
-                                             FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
-                        y += 0x12;
-
                         for (i = 0; i < netCount && i < NETPLAY_MAX_PLAYERS; i++)
                         {
                                 if (!players[i].connected)
                                         continue;
 
                                 int color = (i == localId) ? TINY_GREEN : WHITE;
-                                char safeName[33];
+                                char safeName[24];
                                 const char *src;
                                 if (players[i].name[0])
                                         src = players[i].name;
@@ -669,58 +632,54 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                         src = Netplay_GetLocalPlayerName();
                                 else
                                         src = "???";
-                                snprintf(safeName, sizeof(safeName), "%.32s", src);
+                                snprintf(safeName, sizeof(safeName), "%.16s", src);
 
-                                const char *readyTag = players[i].ready ? " [R]" : "";
-                                snprintf(buf, sizeof(buf), "P%d %s%s (%dms)",
-                                         i, safeName, readyTag, (int)players[i].pingMs);
+                                const char *readyIcon = players[i].ready ? "\x86" : "\x85";
+                                int pChar = g_NetplayCharacters[i];
+                                const char *charName = (pChar >= 0 && pChar < 16) ? g_charNames[pChar] : "---";
+                                snprintf(buf, sizeof(buf), "P%d %s %s %s %dms",
+                                         i, safeName, readyIcon, charName, (int)players[i].pingMs);
                                 DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
                                                      FONT_SMALL, JUSTIFY_CENTER | color, ot);
                                 y += ONLINE_MENU_ROW_HEIGHT;
                         }
 
-                        /* Ready-up hint */
-                        y += 2;
+                        /* Ready status line */
+                        y += 1;
                         if (Netplay_IsLocalReady())
-                                DecalFont_DrawLineOT("You are READY. SQR: unready",
+                                DecalFont_DrawLineOT("You: READY \x86  (SQR: unready)",
                                                      ONLINE_MENU_CENTER_X, y,
                                                      FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
                         else
-                                DecalFont_DrawLineOT("SQR: toggle ready",
+                                DecalFont_DrawLineOT("You: not ready \x85  (SQR: ready)",
                                                      ONLINE_MENU_CENTER_X, y,
                                                      FONT_SMALL, JUSTIFY_CENTER | WHITE, ot);
-                        y += 0x12;
+                        y += 0x11;
                 }
 
-                /* Chat: show last received message as a small notification.
-                 * The actual chat conversation happens in the separate chat
-                 * window (opened when entering the lobby). */
+                /* Recent chat line */
                 if (s_chatLineCount > 0)
                 {
-                        int chatY = ONLINE_MENU_HELP_Y - 0x10;
-                        /* Show only the most recent message to avoid clutter */
                         DecalFont_DrawLineOT(s_chatLines[s_chatLineCount - 1],
-                                             ONLINE_MENU_CENTER_X, chatY,
+                                             ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y - 0x18,
                                              FONT_SMALL, JUSTIFY_CENTER | GRAY, ot);
                 }
 
                 /* Action bar */
                 {
-                        char *help;
                         if (isHost && Netplay_IsEveryoneReady() && playerCount >= 2)
-                                help = "START:Race  SQR:Ready  TRI:Back";
+                                DecalFont_DrawLineOT("START: Race  |  SQR: Ready  |  TRI: Back",
+                                                     ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y,
+                                                     FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
                         else
-                                help = "SQR:Ready  TRI:Back";
-                        DecalFont_DrawLineOT(help, ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y,
-                                             FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
+                                DecalFont_DrawLineOT("SQR: Ready  |  TRI: Back",
+                                                     ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y,
+                                                     FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
 
-                        /* Hint about chat window */
                         if (Netplay_IsChatWindowOpen())
-                        {
                                 DecalFont_DrawLineOT("(Chat: type in the console window)",
-                                                     ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y + 0x0C,
+                                                     ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y + 0x0E,
                                                      FONT_SMALL, JUSTIFY_CENTER | GRAY, ot);
-                        }
                 }
                 break;
         }
@@ -730,7 +689,8 @@ void MM_Online_MenuProc(struct RectMenu *menu)
         {
                 y = ONLINE_MENU_BODY_Y;
 
-                DecalFont_DrawLineOT("Choose your character:", ONLINE_MENU_CENTER_X, y,
+                snprintf(buf, sizeof(buf), "Pick character  (Player %d)", localId);
+                DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
                                      FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
                 y += 0x14;
 
@@ -751,7 +711,17 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         for (i = s_onlineScroll; i < s_onlineScroll + visible && i < numItems; i++)
                         {
                                 int isSelected = (i == s_onlineCursor);
-                                int isTaken = (!isHost && g_NetplayHostCharacter == i);
+                                int isTaken = 0;
+                                int j;
+                                for (j = 0; j < NETPLAY_MAX_PLAYERS; j++)
+                                {
+                                        if (j == localId) continue;
+                                        if (g_NetplayCharacters[j] == i)
+                                        {
+                                                isTaken = 1;
+                                                break;
+                                        }
+                                }
 
                                 if (isSelected)
                                 {
@@ -765,7 +735,7 @@ void MM_Online_MenuProc(struct RectMenu *menu)
 
                                 int color;
                                 if (isTaken)
-                                        color = 0x80; /* gray */
+                                        color = 0x80;
                                 else if (isSelected)
                                         color = WHITE;
                                 else
@@ -786,16 +756,17 @@ void MM_Online_MenuProc(struct RectMenu *menu)
         /* ==================== PICKING ENGINE ==================== */
         case PHASE_PICKING_ENGINE:
         {
-                int myChar = isHost ? g_NetplayHostCharacter : g_NetplayClientCharacter;
+                int localChar = g_NetplayCharacters[localId];
                 y = ONLINE_MENU_BODY_Y;
 
-                DecalFont_DrawLineOT("Choose your engine:", ONLINE_MENU_CENTER_X, y,
+                snprintf(buf, sizeof(buf), "Choose your engine  (P%d)", localId);
+                DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
                                      FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
                 y += 0x14;
 
-                if (myChar >= 0 && myChar < 16)
+                if (localChar >= 0 && localChar < 16)
                 {
-                        snprintf(buf, sizeof(buf), "Character: %s", g_charNames[myChar]);
+                        snprintf(buf, sizeof(buf), "Character: %s", g_charNames[localChar]);
                         DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
                                              FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
                 }
@@ -827,44 +798,40 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                 break;
         }
 
-        /* ==================== WAITING FOR OTHER CHAR ==================== */
-        case PHASE_WAITING_FOR_OTHER_CHAR:
+        /* ==================== WAITING FOR PLAYERS ==================== */
+        case PHASE_WAITING_FOR_PLAYERS:
         {
-                int myChar = isHost ? g_NetplayHostCharacter : g_NetplayClientCharacter;
-                int myEngine = isHost ? g_NetplayHostEngine : g_NetplayClientEngine;
-                y = ONLINE_MENU_BODY_Y + 0x14;
+                y = ONLINE_MENU_BODY_Y + 0x0E;
 
-                DecalFont_DrawLineOT("Waiting for other player", ONLINE_MENU_CENTER_X, y,
+                DecalFont_DrawLineOT("Waiting for players to pick...", ONLINE_MENU_CENTER_X, y,
                                      FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
-                y += 0x14;
+                y += 0x16;
 
-                if (myChar >= 0 && myChar < 16)
-                        snprintf(buf, sizeof(buf), "Your pick: %s", g_charNames[myChar]);
-                else
-                        snprintf(buf, sizeof(buf), "Your pick: ???");
-                DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
-                                     FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
-                y += 0x10;
-
-                if (myEngine >= 0 && myEngine < NUM_ENGINES)
-                        snprintf(buf, sizeof(buf), "Engine: %s", g_engineNames[myEngine]);
-                else
-                        snprintf(buf, sizeof(buf), "Engine: ???");
-                DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
-                                     FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
-
-                DecalFont_DrawLineOT("TRI: Back", ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y,
-                                     FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
-                break;
-        }
-
-        /* ==================== WAITING FOR HOST CHAR ==================== */
-        case PHASE_WAITING_FOR_HOST_CHAR:
-        {
-                y = ONLINE_MENU_BODY_Y + 0x14;
-
-                DecalFont_DrawLineOT("Host is choosing a character...", ONLINE_MENU_CENTER_X, y,
-                                     FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+                /* Show who is still missing */
+                {
+                        int n;
+                        int pCount;
+                        const struct NetplayPlayerInfo *pInfo = Netplay_GetPlayers(&pCount);
+                        for (n = 0; n < pCount && n < NETPLAY_MAX_PLAYERS; n++)
+                        {
+                                if (!pInfo[n].connected) continue;
+                                const char *pName = Netplay_GetPlayerName((u8)n);
+                                if (g_NetplayCharacters[n] < 0)
+                                {
+                                        snprintf(buf, sizeof(buf), "P%d %s: picking character", n, pName);
+                                        DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
+                                                             FONT_SMALL, JUSTIFY_CENTER | GRAY, ot);
+                                        y += 0x10;
+                                }
+                                else if (g_NetplayEngines[n] < 0)
+                                {
+                                        snprintf(buf, sizeof(buf), "P%d %s: picking engine", n, pName);
+                                        DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
+                                                             FONT_SMALL, JUSTIFY_CENTER | GRAY, ot);
+                                        y += 0x10;
+                                }
+                        }
+                }
 
                 DecalFont_DrawLineOT("TRI: Back", ONLINE_MENU_CENTER_X, ONLINE_MENU_HELP_Y,
                                      FONT_SMALL, JUSTIFY_CENTER | ORANGE, ot);
@@ -929,52 +896,45 @@ void MM_Online_MenuProc(struct RectMenu *menu)
         /* ==================== CLIENT WAITING FOR TRACK ==================== */
         case PHASE_CLIENT_WAITING_FOR_TRACK:
         {
-                y = ONLINE_MENU_BODY_Y + 0x14;
+                y = ONLINE_MENU_BODY_Y + 0x0E;
 
-                if (g_NetplayHostCharacter >= 0)
+                if (g_NetplayCharacters[0] >= 0)
                 {
-                        snprintf(buf, sizeof(buf), "Host: %s", g_charNames[g_NetplayHostCharacter]);
-                        DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
-                                             FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
-                        y += 0x10;
-
-                        DecalFont_DrawLineOT("Host is choosing a track...", ONLINE_MENU_CENTER_X, y,
-                                             FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
-                }
-                else
-                {
-                        DecalFont_DrawLineOT("Waiting for host's character...", ONLINE_MENU_CENTER_X, y,
-                                             FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
-                }
-                y += 0x14;
-
-                if (g_NetplayClientCharacter >= 0 && g_NetplayClientCharacter < 16)
-                {
-                        snprintf(buf, sizeof(buf), "Your character: %s",
-                                 g_charNames[g_NetplayClientCharacter]);
+                        int hostChar = g_NetplayCharacters[0];
+                        snprintf(buf, sizeof(buf), "Host: %s", hostChar >= 0 && hostChar < 16
+                                 ? g_charNames[hostChar] : "???");
                         DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
                                              FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
                         y += 0x10;
                 }
-                if (g_NetplayClientEngine >= 0 && g_NetplayClientEngine < NUM_ENGINES)
+
+                int localChar = g_NetplayCharacters[localId];
+                int localEngine = g_NetplayEngines[localId];
+                if (localChar >= 0 && localChar < 16)
                 {
-                        snprintf(buf, sizeof(buf), "Your engine: %s",
-                                 g_engineNames[g_NetplayClientEngine]);
+                        snprintf(buf, sizeof(buf), "You: %s", g_charNames[localChar]);
                         DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
                                              FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
+                        y += 0x10;
+                }
+                if (localEngine >= 0 && localEngine < NUM_ENGINES)
+                {
+                        snprintf(buf, sizeof(buf), "Engine: %s", g_engineNames[localEngine]);
+                        DecalFont_DrawLineOT(buf, ONLINE_MENU_CENTER_X, y,
+                                             FONT_SMALL, JUSTIFY_CENTER | TINY_GREEN, ot);
+                        y += 0x10;
                 }
 
-                /* Check if host sent track select AND we have the host's character */
-                if (g_NetplayRaceStarting && g_NetplayHostCharacter >= 0)
+                DecalFont_DrawLineOT("Host is choosing track...", ONLINE_MENU_CENTER_X, y,
+                                     FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+
+                /* Check if host sent track select */
+                if (g_NetplayRaceStarting)
                 {
                         g_NetplayRaceStarting = 0;
                         OtherFX_Play(1, 1);
                         RECTMENU_ClearInput();
-                        Online_StartRace(gGT, playerCount,
-                                         g_NetplayHostCharacter,
-                                         g_NetplayClientCharacter,
-                                         g_NetplayTrackId,
-                                         g_NetplayNumLaps);
+                        Online_StartRace(gGT, g_NetplayTrackId, g_NetplayNumLaps);
                         return;
                 }
 
@@ -1313,8 +1273,20 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                 {
                         int chosenChar = s_onlineCursor;
 
-                        /* Block duplicate character selection: client cannot pick the host's character */
-                        if (!isHost && g_NetplayHostCharacter == chosenChar)
+                        /* Block if another player already picked this character */
+                        int conflict = 0;
+                        int p;
+                        for (p = 0; p < NETPLAY_MAX_PLAYERS; p++)
+                        {
+                                if (p == localId) continue;
+                                if (g_NetplayCharacters[p] == chosenChar)
+                                {
+                                        conflict = 1;
+                                        break;
+                                }
+                        }
+
+                        if (conflict)
                         {
                                 OtherFX_Play(2, 1);
                                 RECTMENU_ClearInput();
@@ -1324,24 +1296,17 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                 OtherFX_Play(1, 1);
                                 RECTMENU_ClearInput();
 
-                                if (isHost)
+                                g_NetplayCharacters[localId] = chosenChar;
                                 {
-                                        g_NetplayHostCharacter = chosenChar;
-                                        {
-                                                u8 payload = (u8)chosenChar;
+                                        u8 payload = (u8)chosenChar;
+                                        if (isHost)
                                                 Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT,
                                                                         sizeof(payload), &payload);
-                                        }
-                                }
-                                else
-                                {
-                                        g_NetplayClientCharacter = chosenChar;
-                                        {
-                                                u8 payload = (u8)chosenChar;
+                                        else
                                                 Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT,
                                                                         sizeof(payload), &payload);
-                                        }
                                 }
+
                                 s_onlinePhase = PHASE_PICKING_ENGINE;
                                 s_onlineCursor = 0;
                                 s_onlineScroll = 0;
@@ -1376,15 +1341,30 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         OtherFX_Play(1, 1);
                         RECTMENU_ClearInput();
 
+                        g_NetplayEngines[localId] = chosenEngine;
+                        {
+                                u8 payload = (u8)chosenEngine;
+                                Netplay_BroadcastPacket(NETPLAY_PACKET_ENGINE_SELECT,
+                                                        sizeof(payload), &payload);
+                        }
+
                         if (isHost)
                         {
-                                g_NetplayHostEngine = chosenEngine;
+                                /* Check if all connected players have character + engine */
+                                int allPlayersReady = 1;
+                                int p;
+                                int pCount;
+                                const struct NetplayPlayerInfo *pInfo = Netplay_GetPlayers(&pCount);
+                                for (p = 0; p < pCount && p < NETPLAY_MAX_PLAYERS; p++)
                                 {
-                                        u8 payload = (u8)chosenEngine;
-                                        Netplay_BroadcastPacket(NETPLAY_PACKET_ENGINE_SELECT,
-                                                                sizeof(payload), &payload);
+                                        if (!pInfo[p].connected) continue;
+                                        if (g_NetplayCharacters[p] < 0 || g_NetplayEngines[p] < 0)
+                                        {
+                                                allPlayersReady = 0;
+                                                break;
+                                        }
                                 }
-                                if (g_NetplayClientCharacter >= 0 && g_NetplayClientEngine >= 0)
+                                if (allPlayersReady)
                                 {
                                         s_onlinePhase = PHASE_HOST_PICKING_TRACK;
                                         s_onlineCursor = 0;
@@ -1392,19 +1372,13 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                 }
                                 else
                                 {
-                                        s_onlinePhase = PHASE_WAITING_FOR_OTHER_CHAR;
+                                        s_onlinePhase = PHASE_WAITING_FOR_PLAYERS;
                                         s_onlineCursor = 0;
                                         s_onlineScroll = 0;
                                 }
                         }
                         else
                         {
-                                g_NetplayClientEngine = chosenEngine;
-                                {
-                                        u8 payload = (u8)chosenEngine;
-                                        Netplay_BroadcastPacket(NETPLAY_PACKET_ENGINE_SELECT,
-                                                                sizeof(payload), &payload);
-                                }
                                 s_onlinePhase = PHASE_CLIENT_WAITING_FOR_TRACK;
                         }
                 }
@@ -1413,21 +1387,35 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         OtherFX_Play(2, 1);
                         RECTMENU_ClearInput();
                         s_onlinePhase = PHASE_PICKING_CHARACTER;
-                        if (isHost)
-                                s_onlineCursor = g_NetplayHostCharacter;
-                        else
-                                s_onlineCursor = g_NetplayClientCharacter;
+                        s_onlineCursor = g_NetplayCharacters[localId];
+                        if (s_onlineCursor < 0) s_onlineCursor = 0;
                 }
                 break;
 
-        case PHASE_WAITING_FOR_HOST_CHAR:
-                /* Client: check if host sent their character */
-                if (!isHost && g_NetplayHostCharacter >= 0)
+        case PHASE_WAITING_FOR_PLAYERS:
+                /* Host: check if all players have sent char + engine */
+                if (isHost)
                 {
-                        s_onlinePhase = PHASE_PICKING_CHARACTER;
-                        s_onlineCursor = 0;
-                        s_onlineScroll = 0;
-                        RECTMENU_ClearInput();
+                        int allReady = 1;
+                        int p;
+                        int pCount;
+                        const struct NetplayPlayerInfo *pInfo = Netplay_GetPlayers(&pCount);
+                        for (p = 0; p < pCount && p < NETPLAY_MAX_PLAYERS; p++)
+                        {
+                                if (!pInfo[p].connected) continue;
+                                if (g_NetplayCharacters[p] < 0 || g_NetplayEngines[p] < 0)
+                                {
+                                        allReady = 0;
+                                        break;
+                                }
+                        }
+                        if (allReady)
+                        {
+                                s_onlinePhase = PHASE_HOST_PICKING_TRACK;
+                                s_onlineCursor = 0;
+                                s_onlineScroll = 0;
+                                RECTMENU_ClearInput();
+                        }
                 }
                 if (sdata->buttonTapPerPlayer[0] & (BTN_TRIANGLE | BTN_SQUARE))
                 {
@@ -1436,25 +1424,8 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         s_onlinePhase = PHASE_LOBBY;
                         s_onlineCursor = 0;
                         s_onlineScroll = 0;
-                }
-                break;
-
-        case PHASE_WAITING_FOR_OTHER_CHAR:
-                /* Host: check if client sent their character AND engine */
-                if (isHost && g_NetplayClientCharacter >= 0 && g_NetplayClientEngine >= 0)
-                {
-                        s_onlinePhase = PHASE_HOST_PICKING_TRACK;
-                        s_onlineCursor = 0;
-                        s_onlineScroll = 0;
-                }
-                if (sdata->buttonTapPerPlayer[0] & (BTN_TRIANGLE | BTN_SQUARE))
-                {
-                        OtherFX_Play(2, 1);
-                        RECTMENU_ClearInput();
-                        s_onlinePhase = PHASE_LOBBY;
-                        s_onlineCursor = 0;
-                        g_NetplayClientCharacter = -1;
-                        g_NetplayClientEngine = -1;
+                        g_NetplayCharacters[localId] = -1;
+                        g_NetplayEngines[localId] = -1;
                 }
                 break;
 
@@ -1493,18 +1464,24 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         g_NetplayTrackId = (int)levID;
 
                         {
-                                u8 payload[2];
-                                payload[0] = (u8)levID;
-                                payload[1] = (u8)g_NetplayNumLaps;
+                                /* Include character/engine arrays so clients
+                                 * don't miss a player's choice when the
+                                 * CHARACTER_SELECT relay arrives late. */
+                                s8 payload[3 + NETPLAY_MAX_PLAYERS * 2];
+                                payload[0] = (s8)levID;
+                                payload[1] = (s8)g_NetplayNumLaps;
+                                payload[2] = (s8)Netplay_GetPlayerCount();
+                                int pi;
+                                for (pi = 0; pi < NETPLAY_MAX_PLAYERS; pi++)
+                                {
+                                        payload[3 + pi] = (s8)g_NetplayCharacters[pi];
+                                        payload[3 + NETPLAY_MAX_PLAYERS + pi] = (s8)g_NetplayEngines[pi];
+                                }
                                 Netplay_BroadcastPacket(NETPLAY_PACKET_TRACK_SELECT,
                                                         sizeof(payload), payload);
                         }
 
-                        Online_StartRace(gGT, playerCount,
-                                         g_NetplayHostCharacter,
-                                         g_NetplayClientCharacter,
-                                         g_NetplayTrackId,
-                                         g_NetplayNumLaps);
+                        Online_StartRace(gGT, g_NetplayTrackId, g_NetplayNumLaps);
                         return;
                 }
                 else if (sdata->buttonTapPerPlayer[0] & (BTN_TRIANGLE | BTN_SQUARE))
@@ -1512,7 +1489,8 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         OtherFX_Play(2, 1);
                         RECTMENU_ClearInput();
                         s_onlinePhase = PHASE_PICKING_CHARACTER;
-                        s_onlineCursor = g_NetplayHostCharacter;
+                        s_onlineCursor = g_NetplayCharacters[0];
+                        if (s_onlineCursor < 0) s_onlineCursor = 0;
                 }
                 break;
 
@@ -1522,7 +1500,8 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         OtherFX_Play(2, 1);
                         RECTMENU_ClearInput();
                         s_onlinePhase = PHASE_PICKING_CHARACTER;
-                        s_onlineCursor = g_NetplayClientCharacter;
+                        s_onlineCursor = g_NetplayCharacters[localId];
+                        if (s_onlineCursor < 0) s_onlineCursor = 0;
                 }
                 break;
         }
