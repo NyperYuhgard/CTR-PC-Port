@@ -189,6 +189,7 @@ global_variable u8 s_itemPickupId[NETPLAY_MAX_PLAYERS];
 global_variable u8 s_itemPickupNum[NETPLAY_MAX_PLAYERS];
 global_variable u8 s_itemUsePending[NETPLAY_MAX_PLAYERS];
 global_variable u8 s_itemUseId[NETPLAY_MAX_PLAYERS];
+global_variable u8 s_itemUseSecondary[NETPLAY_MAX_PLAYERS];
 
 /* RNG seed (one-shot, host -> clients) */
 global_variable u32 s_rngSeedPending;
@@ -2520,6 +2521,7 @@ internal void Netplay_HandleItemUse(const struct NetplayPacketHeader *header,
                 return;
 
         s_itemUseId[playerId] = ip->itemId;
+        s_itemUseSecondary[playerId] = ip->reserved;
         s_itemUsePending[playerId] = 1;
 
         /* Relay (host only) so other clients see the item use too */
@@ -2564,7 +2566,7 @@ void Netplay_BroadcastItemPickup(u8 playerId, u8 itemId, u8 numHeldItems, u32 fr
                 Netplay_SendPacket(NETPLAY_PACKET_ITEM_PICKUP, sizeof(ip), &ip, &s_hostAddr);
 }
 
-void Netplay_BroadcastItemUse(u8 playerId, u8 itemId, u32 frameNum)
+void Netplay_BroadcastItemUse(u8 playerId, u8 itemId, u32 frameNum, u8 isSecondary)
 {
         struct NetplayItemPayload ip;
         if (s_netplayState != NETPLAY_STATE_HOSTING && s_netplayState != NETPLAY_STATE_CONNECTED)
@@ -2574,7 +2576,7 @@ void Netplay_BroadcastItemUse(u8 playerId, u8 itemId, u32 frameNum)
         ip.playerId = playerId;
         ip.itemId = itemId;
         ip.numHeldItems = 0;
-        ip.reserved = 0;
+        ip.reserved = isSecondary;
         ip.frameNum = frameNum;
 
         if (Netplay_IsHost())
@@ -2596,7 +2598,7 @@ int Netplay_DequeueItemPickup(u8 playerId, u8 *outItemId, u8 *outNumItems)
         return 1;
 }
 
-int Netplay_DequeueItemUse(u8 playerId, u8 *outItemId)
+int Netplay_DequeueItemUse(u8 playerId, u8 *outItemId, u8 *outIsSecondary)
 {
         if (playerId >= NETPLAY_MAX_PLAYERS)
                 return 0;
@@ -2604,6 +2606,7 @@ int Netplay_DequeueItemUse(u8 playerId, u8 *outItemId)
                 return 0;
 
         if (outItemId) *outItemId = s_itemUseId[playerId];
+        if (outIsSecondary) *outIsSecondary = s_itemUseSecondary[playerId];
         s_itemUsePending[playerId] = 0;
         return 1;
 }

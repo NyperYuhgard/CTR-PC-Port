@@ -1506,3 +1506,77 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                 break;
         }
 }
+
+#ifdef CTR_NATIVE
+/* ---- PC keyboard helpers for the IP input field ---- */
+int MM_Online_IsIpActive(void)
+{
+        return (s_onlinePhase == PHASE_ENTER_HOST_IP) ? 1 : 0;
+}
+
+void MM_Online_IpTypeChar(char c)
+{
+        if (c < ' ' || c > '~')
+                return;
+        if (s_hostIPLen < (int)sizeof(s_hostIPInput) - 1)
+        {
+                s_hostIPInput[s_hostIPLen++] = c;
+                s_hostIPInput[s_hostIPLen] = '\0';
+                OtherFX_Play(0, 1);
+                RECTMENU_ClearInput();
+        }
+}
+
+void MM_Online_IpBackspace(void)
+{
+        if (s_hostIPLen > 0)
+        {
+                s_hostIPLen--;
+                s_hostIPInput[s_hostIPLen] = '\0';
+                OtherFX_Play(0, 1);
+                RECTMENU_ClearInput();
+        }
+}
+
+void MM_Online_IpClear(void)
+{
+        s_hostIPLen = 0;
+        s_hostIPInput[0] = '\0';
+        OtherFX_Play(0, 1);
+        RECTMENU_ClearInput();
+}
+
+void MM_Online_IpConfirm(void)
+{
+        if (s_hostIPLen > 0)
+        {
+                OtherFX_Play(1, 1);
+                RECTMENU_ClearInput();
+
+                if (!Netplay_GetLocalPlayerName() ||
+                    Netplay_GetLocalPlayerName()[0] == '\0' ||
+                    strcmp(Netplay_GetLocalPlayerName(), "Me") == 0)
+                        Netplay_SetPlayerName("Player");
+
+                Netplay_Init();
+                if (Netplay_Connect(s_hostIPInput, s_netplayPort))
+                        s_onlinePhase = PHASE_CONNECTING;
+                else
+                        fprintf(stderr, "[Online] Failed to connect to %s:%u\n",
+                                s_hostIPInput, s_netplayPort);
+        }
+        else
+        {
+                OtherFX_Play(2, 1);
+                RECTMENU_ClearInput();
+        }
+}
+
+void MM_Online_IpCancel(void)
+{
+        OtherFX_Play(2, 1);
+        RECTMENU_ClearInput();
+        s_onlinePhase = PHASE_PICK_ROLE;
+        s_onlineCursor = 0;
+}
+#endif

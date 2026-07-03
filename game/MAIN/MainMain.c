@@ -790,20 +790,46 @@ u32 main(void)
                                         // next frame, fire the weapon ONCE, and clear the
                                         // flag. This is the natural code path and avoids
                                         // double-firing or infinite loops.
+                                        //
+                                        // Secondary use (isSecondary=1): detonate an already-
+                                        // thrown bomb or launch an active shield. This is done
+                                        // directly here since the fire-flag path would call
+                                        // ShootNow again, creating a duplicate weapon.
                                         for (p = 0; p < playerCount; p++)
                                         {
                                                 if (p == localId) continue;
                                                 {
                                                         u8 itemId;
-                                                        if (Netplay_DequeueItemUse((u8)p, &itemId))
+                                                        u8 isSecondary;
+                                                        if (Netplay_DequeueItemUse((u8)p, &itemId, &isSecondary))
                                                         {
                                                                 struct Driver *remoteDriver = gGT->drivers[p];
                                                                 if (remoteDriver != NULL)
                                                                 {
-                                                                        /* Only fire if the remote driver
-                                                                         * actually has an item. */
-                                                                        if (remoteDriver->heldItemID != 0xF &&
-                                                                            remoteDriver->heldItemID != 0x10)
+                                                                        if (isSecondary)
+                                                                        {
+                                                                                /* Detonate bomb or launch shield */
+                                                                                if (remoteDriver->instBombThrow != 0)
+                                                                                {
+                                                                                        struct TrackerWeapon *tw =
+                                                                                                (struct TrackerWeapon *)
+                                                                                                remoteDriver->instBombThrow->thread->object;
+                                                                                        if (tw != NULL)
+                                                                                                tw->flags |= 2;
+                                                                                        remoteDriver->instBombThrow = NULL;
+                                                                                }
+                                                                                else if (remoteDriver->instBubbleHold != 0)
+                                                                                {
+                                                                                        struct Shield *shield =
+                                                                                                (struct Shield *)
+                                                                                                remoteDriver->instBubbleHold->thread->object;
+                                                                                        if (shield != NULL)
+                                                                                                shield->flags |= 2;
+                                                                                        remoteDriver->instBubbleHold = NULL;
+                                                                                }
+                                                                        }
+                                                                        else if (remoteDriver->heldItemID != 0xF &&
+                                                                                 remoteDriver->heldItemID != 0x10)
                                                                         {
                                                                                 /* Set the fire flag. The engine's
                                                                                  * VehPickupItem_ShootOnCirclePress

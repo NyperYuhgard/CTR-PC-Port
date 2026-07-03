@@ -128,6 +128,29 @@ internal void Platform_HandleKey(int key, char down)
         else
                 SubmitName_UseKeyboard(key);
 
+        /* PC keyboard input for the netplay IP address field.
+         * Supports main keyboard number row, numpad, period, backspace,
+         * enter (connect), escape (cancel). */
+        if (down && MM_Online_IsIpActive())
+        {
+                if (key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_9)
+                        MM_Online_IpTypeChar('1' + (key - SDL_SCANCODE_1));
+                else if (key == SDL_SCANCODE_0)
+                        MM_Online_IpTypeChar('0');
+                else if (key >= SDL_SCANCODE_KP_1 && key <= SDL_SCANCODE_KP_9)
+                        MM_Online_IpTypeChar('1' + (key - SDL_SCANCODE_KP_1));
+                else if (key == SDL_SCANCODE_KP_0)
+                        MM_Online_IpTypeChar('0');
+                else if (key == SDL_SCANCODE_PERIOD || key == SDL_SCANCODE_KP_PERIOD)
+                        MM_Online_IpTypeChar('.');
+                else if (key == SDL_SCANCODE_BACKSPACE)
+                        MM_Online_IpBackspace();
+                else if (key == SDL_SCANCODE_RETURN || key == SDL_SCANCODE_KP_ENTER)
+                        MM_Online_IpConfirm();
+                else if (key == SDL_SCANCODE_ESCAPE)
+                        MM_Online_IpCancel();
+        }
+
 #ifdef CTR_INTERNAL
         if (!down)
         {

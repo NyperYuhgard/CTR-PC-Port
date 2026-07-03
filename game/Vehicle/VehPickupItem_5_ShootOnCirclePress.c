@@ -38,7 +38,7 @@ void VehPickupItem_ShootOnCirclePress(struct Driver *d)
         // THEIR broadcast here.
         if (g_NetplayRacing && d->driverID == Netplay_GetLocalPlayerId())
         {
-                Netplay_BroadcastItemUse((u8)d->driverID, weapon, (u32)sdata->frameCounter);
+                Netplay_BroadcastItemUse((u8)d->driverID, weapon, (u32)sdata->frameCounter, 0);
         }
 #endif
 

@@ -6,24 +6,67 @@
 static void (*const LOAD_DriverMPK_SetPointer)(struct LoadQueueSlot *) = (void (*)(struct LoadQueueSlot *))-2;
 
 #ifdef CTR_NATIVE
+/* Saved model pointers from non-last 1P arcade packs.
+ * LibraryOfModels_Clear in state 5 wipes gGT->modelPtr[], so we save
+ * the actual model pointers here and re-register them after the clear +
+ * LOAD_GlobalModelPtrs_MPK. We must save model pointers (not pack
+ * addresses) because the MEMPACK region at ptrMPK+4 gets overwritten
+ * by subsequent loading operations before state 5 runs. */
+#define MAX_SAVED_MODELS 256
+static struct Model *s_savedModels[MAX_SAVED_MODELS];
+static int s_savedModelCount;
+
 /* Netplay: callback for non-last 1P arcade packs. Registers the pack's
  * models immediately in gGT->modelPtr[] via LibraryOfModels_Store, so
  * that characters from earlier packs are visible even though ptrMPK
- * ends up pointing to the last pack. */
+ * ends up pointing to the last pack. Also saves model pointers so they
+ * survive LibraryOfModels_Clear in state 5. */
 static void LOAD_Callback_DriverModels_Netplay(struct LoadQueueSlot *lqs)
 {
         struct GameTracker *gGT = sdata->gGT;
         int ptrMPK = (int)lqs->ptrDestination;
         if (ptrMPK != 0)
         {
-                int **plyrObjList = (int **)((u32)ptrMPK + 4);
-                if (plyrObjList != NULL && *plyrObjList != NULL)
+                struct Model **arr = (struct Model **)((u32)ptrMPK + 4);
+                if (arr != NULL && *arr != NULL)
                 {
-                        /* Register up to 8 models (a 1P pack has 8 karts) */
-                        LibraryOfModels_Store(gGT, 8, (struct Model **)plyrObjList);
+                        /* Register ALL models until NULL terminator (use -1).
+                         * The 1P arcade pack's PLYROBJECTLIST includes both
+                         * item/world models at low indices and the character
+                         * model at higher indices. With -1, we capture them
+                         * all instead of only the first 8. */
+                        LibraryOfModels_Store(gGT, -1, arr);
+
+                        /* Save each model pointer so it survives the
+                         * LibraryOfModels_Clear in state 5. The model objects
+                         * themselves live within the MEMPACK allocation and
+                         * remain valid. */
+                        for (int mi = 0; ; mi++)
+                        {
+                                struct Model *m = arr[mi];
+                                if (m == NULL)
+                                        break;
+                                if (s_savedModelCount < MAX_SAVED_MODELS)
+                                        s_savedModels[s_savedModelCount++] = m;
+                        }
                 }
         }
         BFDBG_PRINTF("Callback_DriverModels_Netplay: registered models from pack at %p", lqs->ptrDestination);
+}
+
+/* Re-register models from non-last 1P arcade packs after
+ * LibraryOfModels_Clear wiped gGT->modelPtr[]. Called from state 5
+ * of LOAD_TenStages right after LOAD_GlobalModelPtrs_MPK. */
+void Netplay_RestoreDriverModels(struct GameTracker *gGT)
+{
+        int arrSize = sizeof(gGT->modelPtr) / sizeof(gGT->modelPtr[0]);
+        for (int i = 0; i < s_savedModelCount; i++)
+        {
+                struct Model *m = s_savedModels[i];
+                if (m != NULL && m->id >= 0 && m->id < arrSize)
+                        gGT->modelPtr[m->id] = m;
+        }
+        s_savedModelCount = 0;
 }
 #endif
 

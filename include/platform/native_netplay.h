@@ -306,7 +306,7 @@ void Netplay_BroadcastItemPickup(u8 playerId, u8 itemId, u8 numHeldItems, u32 fr
 /* Called by the game (VehPickupItem_ShootOnCirclePress hook) right before a
  * driver fires their weapon. Broadcasts (playerId, itemId) so peers can
  * trigger the same ShootNow on the remote driver. */
-void Netplay_BroadcastItemUse(u8 playerId, u8 itemId, u32 frameNum);
+void Netplay_BroadcastItemUse(u8 playerId, u8 itemId, u32 frameNum, u8 isSecondary);
 
 /* Game-side consumer: returns 1 if there's a pending item-pickup event for
  * the given playerId, fills outItemId/outNumItems. The caller is expected
@@ -316,7 +316,7 @@ int Netplay_DequeueItemPickup(u8 playerId, u8 *outItemId, u8 *outNumItems);
 /* Game-side consumer: returns 1 if there's a pending item-use event for the
  * given playerId, fills outItemId. The caller is expected to call
  * VehPickupItem_ShootNow(remoteDriver, itemId, 0). */
-int Netplay_DequeueItemUse(u8 playerId, u8 *outItemId);
+int Netplay_DequeueItemUse(u8 playerId, u8 *outItemId, u8 *outIsSecondary);
 
 /* ---- RNG seed (host -> clients at race start) ---- */
 /* Host: pick a seed and broadcast it. Clients should call this with the
@@ -360,6 +360,11 @@ const char *Netplay_GetInterfaceIPByIndex(int index);
  * returns the actual interface IP instead of falling back to gethostname()
  * which on Linux yields 127.0.1.1. */
 void Netplay_SetAddressString(const char *ipString, u16 port);
+
+struct GameTracker; /* forward decl — full type in namespace_Main.h */
+/* Re-register non-last-pack driver models wiped by LibraryOfModels_Clear.
+ * Called from LOAD_TenStages state 5 during netplay race loading. */
+void Netplay_RestoreDriverModels(struct GameTracker *gGT);
 
 extern int g_NetplayAutoJoin;
 extern int g_NetplayRaceStarting;

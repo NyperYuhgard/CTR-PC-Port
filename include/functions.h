@@ -590,6 +590,12 @@ void SubmitName_MenuProc(struct RectMenu *menu);
 void SubmitName_RestoreName(s16 param_1);
 #if defined(CTR_NATIVE)
 void SubmitName_UseKeyboard(int key);
+int  MM_Online_IsIpActive(void);
+void MM_Online_IpTypeChar(char c);
+void MM_Online_IpBackspace(void);
+void MM_Online_IpClear(void);
+void MM_Online_IpConfirm(void);
+void MM_Online_IpCancel(void);
 #endif
 
 void Timer_Init(void);

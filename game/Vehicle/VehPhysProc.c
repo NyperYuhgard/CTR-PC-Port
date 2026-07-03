@@ -476,6 +476,12 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 			bomb = (struct TrackerWeapon *)driver->instBombThrow->thread->object;
 			bomb->flags |= 2;
 			driver->instBombThrow = NULL;
+#ifdef CTR_NATIVE
+			// Netplay: broadcast secondary use so remote machines detonate
+			// their copy of this bomb instead of leaving it on the track.
+			if (g_NetplayRacing && driver->driverID == Netplay_GetLocalPlayerId())
+				Netplay_BroadcastItemUse((u8)driver->driverID, 2, (u32)sdata->frameCounter, 1);
+#endif
 			goto CheckJumpButtons;
 		}
 
@@ -486,6 +492,12 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 			shield = (struct Shield *)driver->instBubbleHold->thread->object;
 			shield->flags |= 2;
 			driver->instBubbleHold = NULL;
+#ifdef CTR_NATIVE
+			// Netplay: broadcast secondary use so remote machines launch
+			// their copy of this shield instead of keeping it active.
+			if (g_NetplayRacing && driver->driverID == Netplay_GetLocalPlayerId())
+				Netplay_BroadcastItemUse((u8)driver->driverID, 6, (u32)sdata->frameCounter, 1);
+#endif
 			goto CheckJumpButtons;
 		}
 
