@@ -95,7 +95,11 @@ void UI_RaceStart_IntroText1P(void)
 			// Get the name of the cup
 			// Wumpa, Nitro, Crystal
 			// Red, Green, Purple, etc
-			textID = txtArray[iVar2];
+			// Oxide Cup (index 4+) in arcade mode uses hardcoded name
+			if (iVar2 >= 4 && (gGT->gameMode2 & 0x10) != 0)
+				textID = 0xFFFF; // sentinel for "OXIDE CUP" hardcoded
+			else
+				textID = txtArray[iVar2];
 		}
 	}
 
@@ -147,10 +151,10 @@ LAB_80055930:
 		// If you are in any cup of any kind
 		else
 		{
-			// Name of Cup
+			// Name of Cup (Oxide Cup uses hardcoded string)
 
 			// uVar9 * 4
-			DecalFont_DrawLine(sdata->lngStrings[textID],
+			DecalFont_DrawLine(textID == 0xFFFF ? "OXIDE CUP" : sdata->lngStrings[textID],
 
 			                   gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
 

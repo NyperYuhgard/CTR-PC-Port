@@ -26,15 +26,15 @@ void MM_Characters_RestoreIDs(void)
 
 	MM_Characters_SetMenuLayout();
 
-#define NUM_ICONS 0xF
+#define NUM_ICONS 0x10
 
 	for (i = 0; i < NUM_ICONS; i++)
 	{
 		// would not need this if CSM was sorted
 		// by order of character ID
 
-		// Basically sets them to 0, 1, 2, 3, 4... up to 0xE,
-		// setting Oxide's manually to 0xF is needed to make his icon appear
+		// Basically sets them to 0, 1, 2, 3, 4... up to 0xF,
+		// setting Oxide's manually to 0x10 is needed to make his icon appear
 
 		D230.characterMenuID[D230.csm_Active[i].characterID] = i;
 	}

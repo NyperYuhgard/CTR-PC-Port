@@ -442,7 +442,7 @@ dontDrawSelectCharacter:
 
 	csm_Active = D230.csm_Active;
 
-#define NUM_ICONS 0xF
+#define NUM_ICONS 0x10
 
 	// loop through character icons
 	for (i = 0; i < NUM_ICONS; i++)

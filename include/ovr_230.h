@@ -281,7 +281,7 @@ struct OverlayDATA_230
 	// 800b470c - UsaRetail
 	// 800b4ee4 - EurRetail
 	// 800b8190 - JpnRetail
-	struct MenuRow rowsCupSelect[5];
+	struct MenuRow rowsCupSelect[6];
 
 // ????
 #if (BUILD == EurRetail) || (BUILD == UsaRetail)
@@ -437,7 +437,7 @@ struct OverlayDATA_230
 #if BUILD == JpnRetail
 	cheats[0x15];
 #else
-	cheats[0x16];
+	cheats[0x17];
 #endif
 
 	// 800B4D04 - UsaRetail
@@ -498,19 +498,19 @@ struct OverlayDATA_230
 
 	// 800b4dcc - UsaRetail
 	// 800b55a8 - EurRetail
-	struct CharacterSelectMeta csm_1P2P_limited[0xF];
+	struct CharacterSelectMeta csm_1P2P_limited[0x10];
 
 	// 800b4e80 - UsaRetail
 	// 800b565c - EurRetail
-	struct CharacterSelectMeta csm_1P2P[0xF];
+	struct CharacterSelectMeta csm_1P2P[0x10];
 
 	// 800b4f34 - UsaRetail
 	// 800b5710 - EurRetail
-	struct CharacterSelectMeta csm_3P[0xF];
+	struct CharacterSelectMeta csm_3P[0x10];
 
 	// 800b4fe8 - UsaRetail
 	// 800b57c4 - EurRetail
-	struct CharacterSelectMeta csm_4P[0xF];
+	struct CharacterSelectMeta csm_4P[0x10];
 
 	// 800b509C - UsaRetail
 	// 800b5878 - EurRetail
@@ -529,7 +529,7 @@ struct OverlayDATA_230
 	// 800b50D4 - UsaRetail
 	// 800b58b0 - EurRetail
 	// 1P/2P mode
-	struct TransitionMeta transitionMeta_csm_1P2P[0x15];
+	struct TransitionMeta transitionMeta_csm_1P2P[0x16];
 
 	// 0x2 byte padding
 	s16 padding800b51A6;
@@ -537,7 +537,7 @@ struct OverlayDATA_230
 	// 3P mode
 	// 800b51A8 - UsaRetail
 	// 800b5984 - EurRetail
-	struct TransitionMeta transitionMeta_csm_3P[0x15];
+	struct TransitionMeta transitionMeta_csm_3P[0x16];
 
 	// 0x2 byte padding
 	s16 padding800B527A;
@@ -545,7 +545,7 @@ struct OverlayDATA_230
 	// 4P mode
 	// 800b527c - UsaRetail
 	// 800b5a58 - EurRetail
-	struct TransitionMeta transitionMeta_csm_4P[0x15];
+	struct TransitionMeta transitionMeta_csm_4P[0x16];
 
 	// 0x2 byte padding
 	s16 padding800B534E;
@@ -878,6 +878,9 @@ struct OverlayDATA_230
 	// 800b59c0 - UsaRetail
 	// 800b6264 - EurRetail
 	s16 cupSel_transitionFrames;
+
+	// CTR_NATIVE-only: scroll offset for >4 cups
+	s16 cupSel_scrollOffset;
 
 	// ============== Battle DYN ==========================
 

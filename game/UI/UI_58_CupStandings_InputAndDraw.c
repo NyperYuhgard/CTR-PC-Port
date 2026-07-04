@@ -124,12 +124,18 @@ void UI_CupStandings_InputAndDraw(void)
 		// If Arcade or VS cup
 		else
 		{
-			index = data.ArcadeCups[cupID].lngIndex_CupName;
+			if (cupID < 4)
+				index = data.ArcadeCups[cupID].lngIndex_CupName;
+			else
+				index = 0xC0; // WUMPA CUP string (drawn below as "OXIDE CUP")
 		}
 	}
 
-	// title text
-	DecalFont_DrawLine(sdata->lngStrings[index], local_58[0], local_58[1] - 0x11, 1, 0xffff8000);
+	// title text (Oxide Cup uses hardcoded string)
+	if (cupID < 4)
+		DecalFont_DrawLine(sdata->lngStrings[index], local_58[0], local_58[1] - 0x11, 1, 0xffff8000);
+	else
+		DecalFont_DrawLine("OXIDE CUP", local_58[0], local_58[1] - 0x11, 1, 0xffff8000);
 
 	DecalFont_DrawLine(sdata->lngStrings[LNG_STANDINGS], local_58[0], local_58[1], 1, 0xffff8000);
 
@@ -163,8 +169,8 @@ void UI_CupStandings_InputAndDraw(void)
 	for (i = 0; i < sdata->numIconsEOR; i++)
 	{
 		sVar5 = (s16)i;
-		// If you are in Purple Gem Cup
-		if (gGT->cup.cupID == 4)
+		// If you are in Purple Gem Cup (Adventure mode only)
+		if (gGT->cup.cupID == 4 && (gGT->gameMode2 & 0x10) == 0)
 		{
 			if (i < 5)
 			{
@@ -433,7 +439,13 @@ void UI_CupStandings_InputAndDraw(void)
 				// If Arcade or VS cup
 				else
 				{
-					index = data.ArcadeCups[cupID].CupTrack[cupTrack].trackID;
+					if (cupID < 4)
+						index = data.ArcadeCups[cupID].CupTrack[cupTrack].trackID;
+					else
+					{
+						static const int oxideTracks[4] = {13, 17, 16, 8};
+						index = oxideTracks[cupTrack];
+					}
 				}
 
 				MainRaceTrack_RequestLoad(index);
@@ -529,42 +541,100 @@ void UI_CupStandings_InputAndDraw(void)
 
 						int *rewardsSet = &sdata->gameProgress.unlocks[0];
 
-						int baseIndex = sdata->UnlockBitIndex.CupCompletion_prev[difficulty];
-
-						// if track was not unlocked "previously",
-						// this writes when TakeCupProgress is saved
-						int bitIndex = baseIndex + gGT->cup.cupID;
-						if (CHECK_ADV_BIT(rewardsSet, bitIndex) == 0)
+						// === Standard Cup (cupID 0-3) ===
+						if (gGT->cup.cupID < 4)
 						{
-							// lets 233 know to prompt the Save Game box
-							gGT->gameMode2 |= 0x1000;
+							int baseIndex = sdata->UnlockBitIndex.CupCompletion_prev[difficulty];
 
-							baseIndex = sdata->UnlockBitIndex.CupCompletion_curr[difficulty];
-
-							bitIndex = baseIndex + gGT->cup.cupID;
-							UNLOCK_ADV_BIT(rewardsSet, bitIndex);
-
-							int boolUnlockMap = 1;
-							for (i = 0; i < 4; i++)
+							// if track was not unlocked "previously",
+							// this writes when TakeCupProgress is saved
+							int bitIndex = baseIndex + gGT->cup.cupID;
+							if (CHECK_ADV_BIT(rewardsSet, bitIndex) == 0)
 							{
-								// if any of four cups on this difficulty was not won
-								bitIndex = baseIndex + i;
-								if (CHECK_ADV_BIT(rewardsSet, bitIndex) == 0)
+								// lets 233 know to prompt the Save Game box
+								gGT->gameMode2 |= 0x1000;
+
+								baseIndex = sdata->UnlockBitIndex.CupCompletion_curr[difficulty];
+
+								bitIndex = baseIndex + gGT->cup.cupID;
+								UNLOCK_ADV_BIT(rewardsSet, bitIndex);
+
+								int boolUnlockMap = 1;
+								for (i = 0; i < 4; i++)
 								{
-									// you dont deserve to unlock a battle map
-									boolUnlockMap = 0;
-									break;
+									// if any of four cups on this difficulty was not won
+									bitIndex = baseIndex + i;
+									if (CHECK_ADV_BIT(rewardsSet, bitIndex) == 0)
+									{
+										// you dont deserve to unlock a battle map
+										boolUnlockMap = 0;
+										break;
+									}
+								}
+
+								// If new Battle unlocked
+								if (boolUnlockMap)
+								{
+									bitIndex = sdata->UnlockBitIndex.UnlockBattleMap[difficulty];
+									UNLOCK_ADV_BIT(rewardsSet, bitIndex);
+
+									// battle map is now unlocked (233 overlay)
+									gGT->gameMode2 |= 0x2000;
 								}
 							}
 
-							// If new Battle unlocked
-							if (boolUnlockMap)
+							// === Auto-unlock Oxide Cup when all 4 cups have 3 stars ===
+							int allStandardStars = 1;
+							for (int d = 0; d < 3; d++)
 							{
-								bitIndex = sdata->UnlockBitIndex.UnlockBattleMap[difficulty];
-								UNLOCK_ADV_BIT(rewardsSet, bitIndex);
+								int base = sdata->UnlockBitIndex.CupCompletion_curr[d];
+								for (int c = 0; c < 4; c++)
+								{
+									if (CHECK_ADV_BIT(rewardsSet, base + c) == 0)
+									{
+										allStandardStars = 0;
+										d = 3;
+										break;
+									}
+								}
+							}
+							if (allStandardStars && (sdata->gameProgress.unlocks[1] & (1 << 5)) == 0)
+							{
+								sdata->gameProgress.unlocks[1] |= (1 << 5);
+								gGT->gameMode2 |= 0x1000;
+							}
+						}
 
-								// battle map is now unlocked (233 overlay)
-								gGT->gameMode2 |= 0x2000;
+						// === Oxide Cup (cupID 4) star tracking ===
+						else
+						{
+							int oxideStarBit = 38 + difficulty; // unlocks[1] bits 6-8
+							if (CHECK_ADV_BIT(rewardsSet, oxideStarBit) == 0)
+							{
+								UNLOCK_ADV_BIT(rewardsSet, oxideStarBit);
+								gGT->gameMode2 |= 0x1000;
+
+								// Check if all 3 Oxide Cup stars are earned
+								int allOxideStars = 1;
+								for (i = 0; i < 3; i++)
+								{
+									if (CHECK_ADV_BIT(rewardsSet, 38 + i) == 0)
+									{
+										allOxideStars = 0;
+										break;
+									}
+								}
+								if (allOxideStars)
+								{
+									// Unlock Penta Penguin
+									sdata->gameProgress.unlocks[0] |= 0x40;
+									// Unlock Nitros Oxide character
+									if ((sdata->gameProgress.unlocks[0] & 0x1) == 0)
+									{
+										sdata->gameProgress.unlocks[0] |= 0x1;
+									}
+									gGT->gameMode2 |= 0x1000;
+								}
 							}
 						}
 					}

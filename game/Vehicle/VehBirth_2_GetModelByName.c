@@ -33,7 +33,8 @@ struct Model *VehBirth_GetModelByName(char *searchName)
 	    (models != NULL) && (models[0] != NULL))
 	{
 		// loop until all strings are checked (until current is not nullptr)
-		for (i = 0, m = models[i]; m != NULL; i++, m = models[i])
+		// max 32 entries as safety against missing NULL terminator
+		for (i = 0, m = models[i]; m != NULL && i < 32; i++, m = models[i])
 		{
 			// 12/16 bytes is enough
 			if ((*(u32 *)&m->name[0] == *(u32 *)&searchName[0]) && (*(u32 *)&m->name[4] == *(u32 *)&searchName[4]) &&

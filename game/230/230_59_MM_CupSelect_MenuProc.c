@@ -1,5 +1,3 @@
-#include <common.h>
-
 // NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800b0eec-0x800b164c.
 void MM_CupSelect_MenuProc(struct RectMenu *menu)
 {
@@ -45,11 +43,11 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 
 			else
 			{
-#ifdef CTR_NATIVE
+ #ifdef CTR_NATIVE
 				{ static int s_60fpsCupSelToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsCupSelToggle ^= 1)) elapsedFrames--; }
-#else
+ #else
 				elapsedFrames--;
-#endif
+ #endif
 			}
 		}
 		// if transitioning out
@@ -82,8 +80,14 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 					// passthrough Menu for the function
 					sdata->ptrDesiredMenu = &data.menuQueueLoadTrack;
 
-					// set current level
-					gGT->currLEV = data.ArcadeCups[gGT->cup.cupID].CupTrack[gGT->cup.trackIndex].trackID;
+					// set current level (Oxide Cup uses hardcoded tracks)
+					if (gGT->cup.cupID < 4)
+						gGT->currLEV = data.ArcadeCups[gGT->cup.cupID].CupTrack[gGT->cup.trackIndex].trackID;
+					else
+					{
+						static const int oxideTracks[4] = {13, 17, 16, 8};
+						gGT->currLEV = oxideTracks[gGT->cup.trackIndex];
+					}
 					return;
 				}
 
@@ -98,12 +102,52 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 
 	D230.cupSel_transitionFrames = elapsedFrames;
 
-	DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CUP_RACE], (D230.transitionMeta_cupSel[4].currX + 0x100), (D230.transitionMeta_cupSel[4].currY + 0x10), 1,
-	                   0xffff8000);
+DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CUP_RACE], (D230.transitionMeta_cupSel[4].currX + 0x100), (D230.transitionMeta_cupSel[4].currY + 0x10), 1,
+                   0xffff8000);
 
-	// Loop through all four cups
-	for (cupIndex = 0; cupIndex < 4; cupIndex++)
+// Loop through all cups (4 standard cups; Oxide Cup at index 4 if unlocked)
+int numCups = 4;
+if ((sdata->gameProgress.unlocks[1] & (1 << 5)) != 0)
+    numCups = 5;
+
+// Scroll handling: L1/R1 to scroll pages (4 cups per page)
+int cupsPerPage = 4;
+int maxScroll = numCups > cupsPerPage ? numCups - cupsPerPage : 0;
+if (numCups > cupsPerPage)
+{
+    struct GamepadBuffer *gpad = &sdata->gGamepads->gamepad[0];
+    int tap = gpad->buttonsTapped;
+    
+    // L2 (scroll left/up) / R2 (scroll right/down)
+    if (tap & BTN_L2)
+    {
+        if (D230.cupSel_scrollOffset > 0)
+        {
+            D230.cupSel_scrollOffset--;
+            OtherFX_Play(0x66, 1);
+        }
+    }
+    else if (tap & BTN_R2)
+    {
+        if (D230.cupSel_scrollOffset < maxScroll)
+        {
+            D230.cupSel_scrollOffset++;
+            OtherFX_Play(0x66, 1);
+        }
+    }
+}
+
+// Draw only visible cups (4 per page, starting from scrollOffset)
+int drawStart = D230.cupSel_scrollOffset;
+int drawEnd = drawStart + 4;
+if (drawEnd > numCups)
+    drawEnd = numCups;
+
+for (cupIndex = drawStart; cupIndex < drawEnd; cupIndex++)
 	{
+		// Visible index within the current page (0-3)
+		int visIndex = cupIndex - drawStart;
+		
 		// Use solid color
 		txtColor = 0xffff8000;
 
@@ -115,11 +159,19 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 				txtColor |= 4;
 		}
 
-		startX = (s16)D230.transitionMeta_cupSel[cupIndex].currX + (cupIndex & 1) * 200;
-		startY = (s16)D230.transitionMeta_cupSel[cupIndex].currY + (cupIndex >> 1) * 0x54;
+		startX = (s16)D230.transitionMeta_cupSel[visIndex].currX + (visIndex & 1) * 200;
+		startY = (s16)D230.transitionMeta_cupSel[visIndex].currY + (visIndex >> 1) * 0x54;
 
 		// draw the name of the cup
-		DecalFont_DrawLine(sdata->lngStrings[data.ArcadeCups[cupIndex].lngIndex_CupName], startX + 0xa2, startY + 0x44, 3, txtColor);
+		if (cupIndex < 4)
+		{
+			DecalFont_DrawLine(sdata->lngStrings[data.ArcadeCups[cupIndex].lngIndex_CupName], startX + 0xa2, startY + 0x44, 3, txtColor);
+		}
+		else
+		{
+			// Oxide Cup (index 4) - hardcoded name
+			DecalFont_DrawLine("OXIDE CUP", startX + 0xa2, startY + 0x44, 3, txtColor);
+		}
 
 		startX = startX + 0x4e;
 		startY = startY + 0x29;
@@ -127,7 +179,11 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 		// loop through 3 stars to draw
 		for (starIndex = 0; starIndex < 3; starIndex++)
 		{
-			int starUnlock = D230.cupSel_StarUnlockFlag[starIndex] + cupIndex;
+			int starUnlock;
+			if (cupIndex < 4)
+				starUnlock = D230.cupSel_StarUnlockFlag[starIndex] + cupIndex;
+			else
+				starUnlock = 38 + starIndex; // unlocks[1] bits 6-8 for Oxide Cup stars
 			if (CHECK_ADV_BIT(sdata->gameProgress.unlocks, starUnlock) != 0)
 			{
 				// array of colorIDs
@@ -139,7 +195,7 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 
 				struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[5]);
 
-				DecalHUD_DrawPolyGT4(iconPtrArray[0x37], (startX + (cupIndex & 1) * 0xCA - 0x16), (startY + ((starIndex * 0x10) + 0x10)),
+				DecalHUD_DrawPolyGT4(iconPtrArray[0x37], (startX + (visIndex & 1) * 0xCA - 0x16), (startY + ((starIndex * 0x10) + 0x10)),
 				                     &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, starColor[0], starColor[1], starColor[2], starColor[3], 0, FP(1.0));
 			}
 		}
@@ -150,8 +206,20 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 			int posX = (startX + (trackIndex & 1) * 0x54);
 			int posY = (startY + (trackIndex >> 1) * 0x23);
 
+			int trackIconID;
+			if (cupIndex < 4)
+			{
+				trackIconID = data.ArcadeCups[cupIndex].CupTrack[trackIndex].iconID;
+			}
+			else
+			{
+				// Oxide Cup tracks: Oxide Station, Turbo Track, Slide Coliseum, Sewer Speedway
+				static const int oxideCupIcons[4] = {0x58, 0x56, 0x55, 0x57};
+				trackIconID = oxideCupIcons[trackIndex];
+			}
+
 			// Draw Icon of each track
-			RECTMENU_DrawPolyGT4(gGT->ptrIcons[data.ArcadeCups[cupIndex].CupTrack[trackIndex].iconID], posX, posY, &gGT->backBuffer->primMem,
+			RECTMENU_DrawPolyGT4(gGT->ptrIcons[trackIconID], posX, posY, &gGT->backBuffer->primMem,
 			                     gGT->pushBuffer_UI.ptrOT, D230.cupSel_Color, D230.cupSel_Color, D230.cupSel_Color, D230.cupSel_Color, 0, FP(0.5));
 		}
 

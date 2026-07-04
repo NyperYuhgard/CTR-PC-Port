@@ -19,7 +19,7 @@ void MM_Characters_SetMenuLayout(void)
 	iVar3 = numPlyrNextGame - 1;
 
 	// original game
-#define NUM_ICONS 0xF
+#define NUM_ICONS 0x10
 
 	// Loop through bottom characters,
 	// if any are unlocked, use expanded

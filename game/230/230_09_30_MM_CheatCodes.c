@@ -143,11 +143,34 @@ void MM_Cheat_OneLap(void)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ace78-0x800aceb4.
 void MM_Cheat_TurboCounter(void)
 {
-	sdata->gGT->gameMode2 |= CHEAT_TURBOCOUNT;
-	OtherFX_Play(0x67, 1);
+    sdata->gGT->gameMode2 |= CHEAT_TURBOCOUNT;
+    OtherFX_Play(0x67, 1);
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800aceb4-0x800acff4.
+// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800aceb4-0x800acff4.
+void MM_Cheat_UnlockOxideCup(void)
+{
+    struct GameTracker *gGT = sdata->gGT;
+    
+    // Check if Oxide Cup is not already unlocked
+    // The Oxide Cup unlock bit is at position 5 in unlocks[1] (bit 5 = 0x20)
+    if ((sdata->gameProgress.unlocks[1] & (1 << 5)) == 0)
+    {
+        // Set the Oxide Cup unlock bit
+        sdata->gameProgress.unlocks[1] |= (1 << 5);
+        OtherFX_Play(0x67, 1);
+    }
+}
+
+// NOTE(aalhendi): New function for Nitros Oxide character unlock.
+void MM_Cheat_UnlockOxide(void)
+{
+    sdata->gameProgress.unlocks[0] |= 0x1;
+    OtherFX_Play(0x67, 1);
+}
+
+#define CHEAT_UNLOCK_OXIDE_CUP 0x200000
+
 void MM_ParseCheatCodes(void)
 {
 	int i;

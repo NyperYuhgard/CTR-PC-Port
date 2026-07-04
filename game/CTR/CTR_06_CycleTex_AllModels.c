@@ -12,6 +12,29 @@ void CTR_CycleTex_AllModels(u32 numModels, struct Model **pModelArray, int timer
 	if (numModels == 0)
 		return;
 
+	// -1 (UINT_MAX) sentinel means "iterate until NULL terminator"
+	if (numModels == 0xFFFFFFFFU)
+	{
+		while (true)
+		{
+			pModel = *pModelArray;
+			if (pModel == NULL)
+				return;
+
+			for (int j = 0; j < pModel->numHeaders; j++)
+			{
+				pHeader = &pModel->headers[j];
+
+				if ((pHeader->animtex != NULL) && ((pHeader->flags & 2) == 0))
+				{
+					CTR_CycleTex_Model(pHeader->animtex, timer);
+				}
+			}
+
+			pModelArray++;
+		}
+	}
+
 	while (true)
 	{
 		pModel = *pModelArray;

@@ -8,6 +8,9 @@ void MM_Online_Init(void);
 void MM_Online_MenuProc(struct RectMenu *menu);
 #endif
 
+void MM_Cheat_UnlockOxideCup(void);
+void MM_Cheat_UnlockOxide(void);
+
 #define CHEAT_N BTN_UP
 #define CHEAT_U BTN_UP
 #define CHEAT_S BTN_DOWN
@@ -326,13 +329,10 @@ struct OverlayDATA_230 D230 = {
 
     .cheats =
         {
-            {4,
-             {CHEAT_S, CHEAT_O, CHEAT_A, CHEAT_R},
-#if defined(CTR_NATIVE)
-             NULL},
-#else
-             MainKillGame_LaunchSpyro2},
-#endif
+            {5,
+             {CHEAT_O, CHEAT_X, CHEAT_D, CHEAT_U, CHEAT_E},
+             MM_Cheat_UnlockOxideCup},
+            {5, {CHEAT_O, CHEAT_X, CHEAT_U, CHEAT_S, CHEAT_E}, MM_Cheat_UnlockOxide},
             {5, {CHEAT_S, CHEAT_E, CHEAT_E, CHEAT_D, CHEAT_S}, MM_Cheat_MaxWumpa},
             {7, {CHEAT_R, CHEAT_O, CHEAT_O, CHEAT_D, CHEAT_U, CHEAT_D, CHEAT_E}, MM_Cheat_UnlockRoo},
             {9, {CHEAT_L, CHEAT_A, CHEAT_R, CHEAT_D, CHEAT_R, CHEAT_O, CHEAT_L, CHEAT_L, CHEAT_S}, MM_Cheat_UnlockPapu},
@@ -445,7 +445,9 @@ struct OverlayDATA_230 D230 = {
          // Penta
          {0xE0, 0xCE, {5, 13, 12, 14}, 13, 0x6},
          // Fake Crash
-         {0x120, 0xCE, {6, 14, 13, 14}, 14, 0xB}},
+         {0x120, 0xCE, {6, 14, 13, 15}, 14, 0xB},
+         // Nitros Oxide
+         {0x160, 0xCE, {7, 15, 14, 15}, 15, 0}},
 
     .csm_1P2P =
         {// Crash
@@ -477,7 +479,9 @@ struct OverlayDATA_230 D230 = {
          // Penta
          {0xE0, 0xAE, {5, 13, 12, 14}, 13, 0x6},
          // Fake Crash
-         {0x120, 0xAE, {6, 14, 13, 14}, 14, 0xB}},
+         {0x120, 0xAE, {6, 14, 13, 15}, 14, 0xB},
+         // Nitros Oxide
+         {0x160, 0xAE, {7, 15, 14, 15}, 15, 0}},
 
     .csm_3P =
         {// Crash
@@ -509,7 +513,9 @@ struct OverlayDATA_230 D230 = {
          // Penta
          {0x80, 0x20, {13, 2, 12, 14}, 13, 0x6},
          // Fake Crash
-         {0xC0, 0x20, {14, 3, 13, 14}, 14, 0xB}},
+         {0xC0, 0x20, {14, 3, 13, 15}, 14, 0xB},
+         // Nitros Oxide
+         {0x100, 0x20, {15, 3, 14, 15}, 15, 0}},
 
     .csm_4P =
         {// Crash
@@ -529,7 +535,7 @@ struct OverlayDATA_230 D230 = {
          // Pura
          {0x140, 0x6E, {3, 7, 6, 13}, 7, 0xFFFF},
          // N. Tropy
-         {0xC0, 0x95, {5, 8, 8, 9}, 12, 0x5},
+         {0xC0, 0x95, {5, 8, 15, 9}, 12, 0x5},
          // Fake Crash
          {0x100, 0x95, {6, 9, 8, 9}, 14, 0xB},
          // Roo
@@ -541,7 +547,9 @@ struct OverlayDATA_230 D230 = {
          // Pinstripe
          {0x180, 0x6E, {11, 13, 7, 13}, 8, 0xA},
          // Penta
-         {0xE0, 0x20, {14, 1, 14, 14}, 13, 0x6}},
+         {0xE0, 0x20, {14, 1, 14, 14}, 13, 0x6},
+         // Nitros Oxide
+         {0x80, 0x95, {4, 15, 15, 8}, 15, 0}},
 
     .ptrCsmArr = {&D230.csm_1P2P[0], &D230.csm_1P2P[0], &D230.csm_3P[0], &D230.csm_4P[0], &D230.csm_1P2P_limited[0], &D230.csm_1P2P_limited[0]},
 
@@ -569,21 +577,24 @@ struct OverlayDATA_230 D230 = {
         {
             {0, 0xC8, 6, 0, 0}, {0, 0xC8, 5, 0, 0}, {0, 0xC8, 4, 0, 0}, {0, 0xC8, 3, 0, 0}, {0, 0xC8, 5, 0, 0}, {0, 0xC8, 4, 0, 0}, {0, 0xC8, 3, 0, 0},
             {0, 0xC8, 2, 0, 0}, {0, 0xC8, 7, 0, 0}, {0, 0xC8, 1, 0, 0}, {0, 0xC8, 6, 0, 0}, {0, 0xC8, 0, 0, 0}, {0, 0xC8, 4, 0, 0}, {0, 0xC8, 3, 0, 0},
-            {0, 0xC8, 2, 0, 0}, {-512, 0, 2, 0, 0}, {512, 0, 3, 0, 0},  {512, 0, 1, 0, 0},  {512, 0, 7, 0, 0},  {512, 0, 5, 0, 0},  {0, 0, -1, 0, 0},
+            {0, 0xC8, 2, 0, 0}, {0, 0xC8, 2, 0, 0}, {-512, 0, 2, 0, 0}, {512, 0, 3, 0, 0},  {512, 0, 1, 0, 0},  {512, 0, 7, 0, 0},  {512, 0, 5, 0, 0},
+            {0, 0, -1, 0, 0},
         },
 
     .transitionMeta_csm_3P =
         {
             {-512, 0, 2, 0, 0}, {-512, 0, 3, 0, 0}, {-512, 0, 4, 0, 0}, {-512, 0, 5, 0, 0}, {-512, 0, 1, 0, 0}, {-512, 0, 2, 0, 0}, {-512, 0, 3, 0, 0},
             {-512, 0, 4, 0, 0}, {-512, 0, 0, 0, 0}, {-512, 0, 1, 0, 0}, {-512, 0, 2, 0, 0}, {-512, 0, 3, 0, 0}, {-512, 0, 2, 0, 0}, {-512, 0, 3, 0, 0},
-            {-512, 0, 4, 0, 0}, {-512, 0, 0, 0, 0}, {512, 0, 5, 0, 0},  {512, 0, 3, 0, 0},  {512, 0, 1, 0, 0},  {512, 0, 5, 0, 0},  {0, 0, -1, 0, 0},
+            {-512, 0, 4, 0, 0}, {-512, 0, 5, 0, 0}, {-512, 0, 0, 0, 0}, {512, 0, 5, 0, 0},  {512, 0, 3, 0, 0},  {512, 0, 1, 0, 0},  {512, 0, 5, 0, 0},
+            {0, 0, -1, 0, 0},
         },
 
     .transitionMeta_csm_4P =
         {
             {-512, 0, 1, 0, 0}, {-512, 0, 2, 0, 0}, {-512, 0, 3, 0, 0}, {-512, 0, 4, 0, 0}, {-512, 0, 2, 0, 0}, {-512, 0, 3, 0, 0}, {-512, 0, 4, 0, 0},
             {-512, 0, 5, 0, 0}, {-512, 0, 3, 0, 0}, {-512, 0, 4, 0, 0}, {-512, 0, 0, 0, 0}, {-512, 0, 5, 0, 0}, {-512, 0, 1, 0, 0}, {-512, 0, 6, 0, 0},
-            {-512, 0, 2, 0, 0}, {-512, 0, 0, 0, 0}, {512, 0, 3, 0, 0},  {512, 0, 1, 0, 0},  {512, 0, 7, 0, 0},  {512, 0, 5, 0, 0},  {0, 0, -1, 0, 0},
+            {-512, 0, 2, 0, 0}, {-512, 0, 2, 0, 0}, {-512, 0, 0, 0, 0}, {512, 0, 3, 0, 0},  {512, 0, 1, 0, 0},  {512, 0, 7, 0, 0},  {512, 0, 5, 0, 0},
+            {0, 0, -1, 0, 0},
         },
 
     .ptr_transitionMeta_csm = {&D230.transitionMeta_csm_1P2P[0], &D230.transitionMeta_csm_1P2P[0], &D230.transitionMeta_csm_3P[0],
@@ -867,6 +878,7 @@ struct OverlayDATA_230 D230 = {
     .cupSel_transitionState = 0,
     .cupSel_postTransition_boolStart = 0,
     .cupSel_transitionFrames = 0,
+    .cupSel_scrollOffset = 0,
 
     // BATTLE DYN
     .battle_transitionState = 0,
