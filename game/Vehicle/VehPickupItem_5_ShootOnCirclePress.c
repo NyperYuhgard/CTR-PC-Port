@@ -30,15 +30,10 @@ void VehPickupItem_ShootOnCirclePress(struct Driver *d)
         }
 
 #ifdef CTR_NATIVE
-        // Netplay: broadcast that the LOCAL player just fired their weapon.
-        // Remote machines will receive this and trigger ShootNow on the
-        // remote copy of this driver, so the weapon appears for everyone.
-        // We only broadcast for the local player — remote drivers fire their
-        // weapons via this same hook on their own machine, and we receive
-        // THEIR broadcast here.
         if (g_NetplayRacing && d->driverID == Netplay_GetLocalPlayerId())
         {
                 Netplay_BroadcastItemUse((u8)d->driverID, weapon, (u32)sdata->frameCounter, 0);
+                Netplay_SendWeaponUse((uint8_t)weapon, 0);
         }
 #endif
 

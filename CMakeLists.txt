@@ -97,6 +97,23 @@ add_subdirectory(externals/SDL)
 # Lua
 add_subdirectory(externals/lua)
 
+# ENet
+add_library(enet STATIC
+    externals/enet/callbacks.c
+    externals/enet/compress.c
+    externals/enet/host.c
+    externals/enet/list.c
+    externals/enet/packet.c
+    externals/enet/peer.c
+    externals/enet/protocol.c
+    externals/enet/unix.c
+)
+target_include_directories(enet PUBLIC externals/enet/include)
+if(WIN32)
+    target_sources(enet PRIVATE externals/enet/win32.c)
+    target_link_libraries(enet ws2_32)
+endif()
+
 # CTR Native
 add_executable(ctr_native main.c)
 target_include_directories(ctr_native PRIVATE ${GAME_INCLUDES})
@@ -112,10 +129,22 @@ if(CTR_NATIVE_DEV_GHOST)
     target_compile_definitions(ctr_native PRIVATE CTR_NATIVE_DEV_GHOST)
 endif()
 target_compile_options(ctr_native PRIVATE -O2)
-target_link_libraries(ctr_native SDL3::SDL3 lua)
+target_link_libraries(ctr_native SDL3::SDL3 lua enet)
+target_include_directories(ctr_native PRIVATE externals/enet/include)
 if(WIN32)
     target_link_options(ctr_native PRIVATE -static -static-libgcc -Wl,--image-base,0x400000 -Wl,--disable-dynamicbase -Wl,--disable-reloc-section)
     target_link_libraries(ctr_native ws2_32 iphlpapi)
 else()
     target_link_options(ctr_native PRIVATE -static-libgcc -Wl,--image-base,0x400000 -no-pie -Wl,--allow-multiple-definition)
+endif()
+
+# CTR-Netplay Server (standalone dedicated server)
+add_executable(ctr_server platform/netplay_server.c)
+target_include_directories(ctr_server PRIVATE externals/enet/include include)
+target_link_libraries(ctr_server enet)
+target_compile_options(ctr_server PRIVATE -O2 -g)
+if(WIN32)
+    target_link_options(ctr_server PRIVATE -static -static-libgcc)
+else()
+    target_link_options(ctr_server PRIVATE -static-libgcc)
 endif()

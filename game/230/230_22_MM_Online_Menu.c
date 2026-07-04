@@ -47,6 +47,8 @@ static u16 s_netplayPort = NETPLAY_DEFAULT_PORT;  /* default 14200, editable */
  * separate OS window, not ingame. */
 static int s_chatWindowOpened;
 
+static char s_connectError[64];
+
 static const char *g_charNames[16];
 static int g_charNamesInited;
 
@@ -87,10 +89,10 @@ static const char *OnlineMenu_StateText(void)
 {
         switch (Netplay_GetState())
         {
-        case NETPLAY_STATE_DISCONNECTED: return "Disconnected";
-        case NETPLAY_STATE_HOSTING:      return "Hosting";
-        case NETPLAY_STATE_CONNECTING:   return "Connecting...";
-        case NETPLAY_STATE_CONNECTED:    return "Connected";
+        case NETPLAY_LEGACY_DISCONNECTED: return "Disconnected";
+        case NETPLAY_LEGACY_HOSTING:      return "Hosting";
+        case NETPLAY_LEGACY_CONNECTING:   return "Connecting...";
+        case NETPLAY_LEGACY_CONNECTED:    return "Connected";
         default:                         return "Unknown";
         }
 }
@@ -152,7 +154,7 @@ static void Online_StartRace(struct GameTracker *gGT, int trackId, int numLaps)
          * other non-deterministic consumers will still drift, which is why
          * we also broadcast item pickups explicitly via ITEM_PICKUP). */
 #ifdef CTR_NATIVE
-        if (Netplay_GetState() == NETPLAY_STATE_HOSTING)
+        if (Netplay_GetState() == NETPLAY_LEGACY_HOSTING)
         {
                 u32 seed = (u32)(sdata->randomNumber & 0xFFFF);
                 /* Mix in the frame counter for extra entropy */
@@ -169,7 +171,7 @@ void MM_Online_Init(void)
         g_NetplayRacing = 0;
         /* Start at the role picker. If g_NetplayAutoJoin was set (we launched
          * with --host or --connect), skip directly to the lobby. */
-        s_onlinePhase = (g_NetplayAutoJoin && Netplay_GetState() != NETPLAY_STATE_DISCONNECTED)
+        s_onlinePhase = (g_NetplayAutoJoin && Netplay_GetState() != NETPLAY_LEGACY_DISCONNECTED)
                         ? PHASE_LOBBY : PHASE_PICK_ROLE;
         s_onlineCursor = 0;
         s_onlineScroll = 0;
@@ -245,13 +247,21 @@ void MM_Online_MenuProc(struct RectMenu *menu)
         u_long *ot = &gGT->backBuffer->otMem.startPlusFour[3];
         int state = Netplay_GetState();
         int playerCount = Netplay_GetPlayerCount();
-        int isHost = (state == NETPLAY_STATE_HOSTING);
+        int isHost = (state == NETPLAY_LEGACY_HOSTING);
         int localId = Netplay_GetLocalPlayerId();
         char buf[128];
         RECT border;
 
         Online_InitCharNames();
         Online_PollChat();
+
+        /* New protocol: server says start loading (only for non-host clients) */
+        if (g_NetplayStartRaceRequested && !isHost)
+        {
+                g_NetplayStartRaceRequested = 0;
+                if (g_NetplayTrackId >= 0 && g_NetplayNumLaps >= 1)
+                        Online_StartRace(gGT, g_NetplayTrackId, g_NetplayNumLaps);
+        }
 
         /* Check if host sent a RETURN_LOBBY packet while we're returning from
          * a race (the racing flag may already be 0 by then). */
@@ -489,6 +499,14 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                      FONT_SMALL, JUSTIFY_CENTER | GRAY, ot);
                 y += 0x10;
 
+                /* Connection error message (if any) */
+                if (s_connectError[0])
+                {
+                        DecalFont_DrawLineOT(s_connectError, ONLINE_MENU_CENTER_X, y,
+                                             FONT_SMALL, JUSTIFY_CENTER | 0x80, ot);
+                        y += 0x10;
+                }
+
                 /* Keyboard grid */
                 {
                         int kx, ky;
@@ -557,14 +575,14 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                              FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
 
                         /* Auto-advance to lobby once connected */
-                        if (Netplay_GetState() == NETPLAY_STATE_CONNECTED)
+                        if (Netplay_GetState() == NETPLAY_LEGACY_CONNECTED)
                         {
                                 Online_EnterLobby();
                                 RECTMENU_ClearInput();
                                 return;
                         }
                         /* Auto-back to IP entry on timeout */
-                        if (Netplay_GetState() == NETPLAY_STATE_DISCONNECTED)
+                        if (Netplay_GetState() == NETPLAY_LEGACY_DISCONNECTED)
                         {
                                 s_onlinePhase = PHASE_ENTER_HOST_IP;
                                 RECTMENU_ClearInput();
@@ -616,7 +634,7 @@ void MM_Online_MenuProc(struct RectMenu *menu)
 
                 /* Player list with names, ping, character, ready status */
                 players = Netplay_GetPlayers(&netCount);
-                if (state == NETPLAY_STATE_HOSTING || state == NETPLAY_STATE_CONNECTED)
+                if (state == NETPLAY_LEGACY_HOSTING || state == NETPLAY_LEGACY_CONNECTED)
                 {
                         for (i = 0; i < netCount && i < NETPLAY_MAX_PLAYERS; i++)
                         {
@@ -1009,6 +1027,7 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                 s_onlineCursor = 0;
                                 s_hostIPInput[0] = '\0';
                                 s_hostIPLen = 0;
+                                s_connectError[0] = '\0';
                         }
                 }
                 else if (sdata->buttonTapPerPlayer[0] & (BTN_TRIANGLE | BTN_SQUARE))
@@ -1184,16 +1203,18 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                             strcmp(Netplay_GetLocalPlayerName(), "Me") == 0)
                                                 Netplay_SetPlayerName("Player");
 
+                                        Netplay_Disconnect();
                                         Netplay_Init();
+                                        s_connectError[0] = '\0';
                                         if (Netplay_Connect(s_hostIPInput, s_netplayPort))
                                         {
                                                 s_onlinePhase = PHASE_CONNECTING;
                                         }
                                         else
                                         {
-                                                fprintf(stderr, "[Online] Failed to connect to %s:%u\n",
-                                                        s_hostIPInput, s_netplayPort);
-                                                fflush(stderr);
+                                                snprintf(s_connectError, sizeof(s_connectError),
+                                                         "Failed to connect to %s:%u",
+                                                         s_hostIPInput, s_netplayPort);
                                         }
                                 }
                                 else
@@ -1213,6 +1234,21 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                 break;
 
         case PHASE_CONNECTING:
+                /* Auto-transition to lobby once connected */
+                if (Netplay_GetState() != NETPLAY_LEGACY_DISCONNECTED &&
+                    Netplay_GetState() != NETPLAY_LEGACY_CONNECTING)
+                {
+                        s_onlinePhase = PHASE_LOBBY;
+                        s_onlineCursor = 0;
+                        s_onlineScroll = 0;
+                        if (!s_chatWindowOpened)
+                        {
+                                if (Netplay_OpenChatWindow())
+                                        s_chatWindowOpened = 1;
+                        }
+                        RECTMENU_ClearInput();
+                        break;
+                }
                 if (sdata->buttonTapPerPlayer[0] & (BTN_TRIANGLE | BTN_SQUARE))
                 {
                         OtherFX_Play(2, 1);
@@ -1240,7 +1276,6 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                 s_onlinePhase = PHASE_PICKING_CHARACTER;
                                 s_onlineCursor = 0;
                                 s_onlineScroll = 0;
-                                Netplay_BroadcastPacket(NETPLAY_PACKET_START_RACE, 0, NULL);
                         }
                         else
                         {
@@ -1297,15 +1332,7 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                                 RECTMENU_ClearInput();
 
                                 g_NetplayCharacters[localId] = chosenChar;
-                                {
-                                        u8 payload = (u8)chosenChar;
-                                        if (isHost)
-                                                Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT,
-                                                                        sizeof(payload), &payload);
-                                        else
-                                                Netplay_BroadcastPacket(NETPLAY_PACKET_CHARACTER_SELECT,
-                                                                        sizeof(payload), &payload);
-                                }
+                                Netplay_SetCharacter((uint8_t)chosenChar, g_NetplayEngines[localId]);
 
                                 s_onlinePhase = PHASE_PICKING_ENGINE;
                                 s_onlineCursor = 0;
@@ -1342,11 +1369,7 @@ void MM_Online_MenuProc(struct RectMenu *menu)
                         RECTMENU_ClearInput();
 
                         g_NetplayEngines[localId] = chosenEngine;
-                        {
-                                u8 payload = (u8)chosenEngine;
-                                Netplay_BroadcastPacket(NETPLAY_PACKET_ENGINE_SELECT,
-                                                        sizeof(payload), &payload);
-                        }
+                        Netplay_SetCharacter((uint8_t)g_NetplayCharacters[localId], chosenEngine);
 
                         if (isHost)
                         {
@@ -1463,23 +1486,8 @@ void MM_Online_MenuProc(struct RectMenu *menu)
 
                         g_NetplayTrackId = (int)levID;
 
-                        {
-                                /* Include character/engine arrays so clients
-                                 * don't miss a player's choice when the
-                                 * CHARACTER_SELECT relay arrives late. */
-                                s8 payload[3 + NETPLAY_MAX_PLAYERS * 2];
-                                payload[0] = (s8)levID;
-                                payload[1] = (s8)g_NetplayNumLaps;
-                                payload[2] = (s8)Netplay_GetPlayerCount();
-                                int pi;
-                                for (pi = 0; pi < NETPLAY_MAX_PLAYERS; pi++)
-                                {
-                                        payload[3 + pi] = (s8)g_NetplayCharacters[pi];
-                                        payload[3 + NETPLAY_MAX_PLAYERS + pi] = (s8)g_NetplayEngines[pi];
-                                }
-                                Netplay_BroadcastPacket(NETPLAY_PACKET_TRACK_SELECT,
-                                                        sizeof(payload), payload);
-                        }
+                        Netplay_SetTrack((uint8_t)g_NetplayTrackId, (uint8_t)g_NetplayNumLaps);
+                        Netplay_RequestStartLoading();
 
                         Online_StartRace(gGT, g_NetplayTrackId, g_NetplayNumLaps);
                         return;

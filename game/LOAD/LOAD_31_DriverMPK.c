@@ -5,62 +5,6 @@
 
 static void (*const LOAD_DriverMPK_SetPointer)(struct LoadQueueSlot *) = (void (*)(struct LoadQueueSlot *))-2;
 
-#ifdef CTR_NATIVE
-/* Saved model+charId pairs from individual BI_RACERMODELHI loads for
- * remote players. LibraryOfModels_Clear in state 5 wipes gGT->modelPtr[],
- * so we save the pointers here and re-register them after the clear. */
-#define MAX_SAVED_MODELS 256
-static struct Model *s_savedModels[MAX_SAVED_MODELS];
-static int s_savedModelCharIds[MAX_SAVED_MODELS];
-static int s_savedModelCount;
-
-/* Netplay: callback for loading BI_RACERMODELHI (individual high-res model)
- * for a remote player's character. Extracts the Model pointer from the
- * loaded file and saves it together with the character ID for later
- * registration in gGT->modelPtr[]. The HI model files all have id = -1,
- * so we use charId as the array index instead. */
-static void LOAD_Callback_RemoteModel(struct LoadQueueSlot *lqs)
-{
-        struct Model *m = (struct Model *)lqs->ptrDestination;
-        int charId = lqs->subfileIndex - BI_RACERMODELHI;
-        fprintf(stdout, "[Netplay] LOAD_Callback_RemoteModel: subfile=%d charId=%d m=%p name='%s'\n",
-                lqs->subfileIndex, charId, (void*)m, m ? m->name : "NULL"); fflush(stdout);
-        if (m != NULL && charId >= 0 && charId < 16 && s_savedModelCount < MAX_SAVED_MODELS)
-        {
-                s_savedModels[s_savedModelCount] = m;
-                s_savedModelCharIds[s_savedModelCount] = charId;
-                s_savedModelCount++;
-                fprintf(stdout, "[Netplay] LOAD_Callback_RemoteModel: SAVED at slot %d (charId=%d modelPtr[%d])\n",
-                        s_savedModelCount - 1, charId, charId); fflush(stdout);
-        }
-}
-
-/* Re-register remote-player models after LibraryOfModels_Clear wiped
- * gGT->modelPtr[]. Called from state 5 right after
- * LOAD_GlobalModelPtrs_MPK. HI model files have id = -1, so we use
- * the saved charId as the array index. */
-void Netplay_RestoreDriverModels(struct GameTracker *gGT)
-{
-        int arrSize = sizeof(gGT->modelPtr) / sizeof(gGT->modelPtr[0]);
-        fprintf(stdout, "[Netplay] Netplay_RestoreDriverModels: s_savedModelCount=%d, arrSize=%d\n",
-                s_savedModelCount, arrSize); fflush(stdout);
-        for (int i = 0; i < s_savedModelCount; i++)
-        {
-                struct Model *m = s_savedModels[i];
-                int charId = s_savedModelCharIds[i];
-                fprintf(stdout, "[Netplay] Netplay_RestoreDriverModels[%d]: charId=%d m=%p name='%s'\n",
-                        i, charId, (void*)m, m ? m->name : "NULL"); fflush(stdout);
-                if (m != NULL && charId >= 0 && charId < arrSize)
-                {
-                        gGT->modelPtr[charId] = m;
-                        fprintf(stdout, "[Netplay] Netplay_RestoreDriverModels[%d]: wrote to modelPtr[%d] = %p\n",
-                                i, charId, (void*)m); fflush(stdout);
-                }
-        }
-        s_savedModelCount = 0;
-}
-#endif
-
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003282c-0x80032b50.
 int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(struct LoadQueueSlot *))
 {
@@ -74,39 +18,38 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 
 #ifdef CTR_NATIVE
         /* Netplay: load player 0's 1P arcade pack for icons/DecalGlobal,
-         * then load individual BI_RACERMODELHI files for each unique
-         * remote character so they are visible. levelLOD is forced to 1
-         * in LOAD_44_TenStages. */
+         * then load individual BI_RACERMODELHI files for each remote
+         * player into g_NetplayRemoteModels[]. Models in this persistent
+         * array survive LibraryOfModels_Clear (which only wipes
+         * gGT->modelPtr[] and is called between the driver-MPK load
+         * and stage 5). VehBirth_GetModelByName searches this array
+         * first during netplay races. levelLOD is forced to 1 in
+         * LOAD_44_TenStages. */
         if (g_NetplayRacing)
         {
                 int n = gGT->numPlyrCurrGame;
+
+                /* Clear stale pointers from any previous race. */
+                memset(g_NetplayRemoteModels, 0, sizeof(g_NetplayRemoteModels));
 
                 /* Player 0 (local) gets the full pack — needed for ptrMPK,
                  * icons, DecalGlobal, and the local character's model. */
                 lastFileIndexMPK = BI_1PARCADEPACK + data.characterIDs[0];
 
                 /* Remote players (1..N-1): load individual HI model files.
-                 * Each is much smaller than a full pack (~30KB vs ~295KB)
-                 * and stores its Model at offset 0 of the file data
-                 * (after the 4-byte ptrMapOffset header). */
+                 * Each is much smaller than a full pack (~30KB vs ~295KB).
+                 * The -2 sentinel callback writes the loaded address
+                 * directly into g_NetplayRemoteModels[i]. */
+                for (i = 1; i < n && i < NETPLAY_MAX_PLAYERS; i++)
                 {
-                        int seenChar[16];
-                        memset(seenChar, 0, sizeof(seenChar));
-                        seenChar[data.characterIDs[0]] = 1;
+                        int charId = data.characterIDs[i];
+                        if (charId < 0 || charId >= 16)
+                                continue;
 
-                        for (i = 1; i < n && i < 8; i++)
-                        {
-                                int charId = data.characterIDs[i];
-                                if (charId < 0 || charId >= 16)
-                                        continue;
-                                if (seenChar[charId])
-                                        continue;
-                                seenChar[charId] = 1;
-
-                                LOAD_AppendQueue(bigfile, LT_GETADDR,
-                                                 BI_RACERMODELHI + charId,
-                                                 NULL, LOAD_Callback_RemoteModel);
-                        }
+                        LOAD_AppendQueue(bigfile, LT_GETADDR,
+                                         BI_RACERMODELHI + charId,
+                                         &g_NetplayRemoteModels[i],
+                                         LOAD_DriverMPK_SetPointer);
                 }
 
                 goto QueueLastPack;

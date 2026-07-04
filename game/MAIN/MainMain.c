@@ -360,7 +360,7 @@ u32 main(void)
 #ifdef CTR_NATIVE
                         NativeMods_CallHook(NATIVE_MOD_HOOK_ON_INPUT);
 
-                        // Netplay: sync gamepad state across all players during a race (N-player general)
+                         // Netplay: sync gamepad state + kart state across all players during a race
                         {
                                 if (g_NetplayRacing && sdata->Loading.stage == -1)
                                 {
@@ -392,8 +392,6 @@ u32 main(void)
                                         // Local physical controller (always gamepad[0])
                                         struct GamepadBuffer *physPad = &gGS->gamepad[0];
 
-                                        // True local tap/release computed from physical held state
-                                        // (GAMEPAD_ProcessTapRelease would use a contaminated prev frame on clients).
                                         static u32 s_physicalPrevHeld = 0;
                                         u32 physicalCurr = physPad->buttonsHeldCurrFrame;
                                         u32 trueTapped = ~s_physicalPrevHeld & physicalCurr;
@@ -402,7 +400,7 @@ u32 main(void)
 
                                         u32 frameNum = sdata->frameCounter;
 
-                                        // 1) Local player: capture + send
+                                        // 1) Local player: capture input + send EverythingKart
                                         if (localId < NETPLAY_MAX_PLAYERS)
                                         {
                                                 pHeld[localId] = physicalCurr;
@@ -413,61 +411,61 @@ u32 main(void)
                                                 pRX[localId] = physPad->stickRX;
                                                 pRY[localId] = physPad->stickRY;
 
-                                                Netplay_SendGamepadState(frameNum,
-                                                                         pHeld[localId], pTapped[localId],
-                                                                         pReleased[localId],
-                                                                         pLX[localId], pLY[localId],
-                                                                         pRX[localId], pRY[localId]);
+                                                struct Driver *localDriver = gGT->drivers[localId];
+                                                if (localDriver != NULL)
+                                                {
+                                                        /* Compute compact rotation (2 bytes) from 4×12-bit quaternion.
+                                                         * kartRot1 = rotCurr.y >> 7 (high 5 bits of Y rotation)
+                                                         * kartRot2 = rotCurr.y & 0x7F | (rotCurr.x & 0x1F) << 7 */
+                                                        uint8_t rot1 = (uint8_t)(localDriver->rotCurr.y >> 7) & 0x1F;
+                                                        uint8_t rot2 = (uint8_t)(localDriver->rotCurr.y & 0x7F)
+                                                                     | (uint8_t)((localDriver->rotCurr.x & 0x1F) << 7);
+                                                        uint8_t wumpa = (uint8_t)localDriver->numWumpas;
+                                                        uint8_t reserves = (localDriver->reserves > 0) ? 1 : 0;
+
+                                                        Netplay_SendKartState(
+                                                                localDriver->posCurr.x,
+                                                                localDriver->posCurr.y,
+                                                                localDriver->posCurr.z,
+                                                                rot1, rot2,
+                                                                (uint8_t)(physicalCurr & 0xFF),
+                                                                wumpa, reserves);
+                                                }
                                         }
 
-                                        // 2) Receive remote inputs for this frame
+                                        // 2) Receive remote EverythingKart per player → set inputs + apply position
                                         {
-                                                struct NetplayInput inputs[NETPLAY_MAX_PLAYERS];
-                                                int count = Netplay_ReceiveInputsForFrame(inputs, NETPLAY_MAX_PLAYERS, frameNum);
-                                                int got[NETPLAY_MAX_PLAYERS];
-                                                int k;
-                                                for (k = 0; k < NETPLAY_MAX_PLAYERS; k++) got[k] = 0;
-
-                                                for (k = 0; k < count; k++)
+                                                for (p = 0; p < playerCount; p++)
                                                 {
-                                                        u8 rid = inputs[k].playerId;
-                                                        if (rid < NETPLAY_MAX_PLAYERS && rid != localId)
+                                                        if (p == localId) continue;
+                                                        struct EverythingKart ek;
+                                                        if (Netplay_ReceiveKartState((uint8_t)p, &ek))
                                                         {
-                                                                pHeld[rid] = inputs[k].buttonsHeld;
-                                                                pTapped[rid] = inputs[k].buttonsTapped;
-                                                                /* Remote item use comes from ITEM_USE
-                                                                 * packets, NOT from predicted input.
-                                                                 * Zero BTN_CIRCLE to prevent phantom
-                                                                 * weapon fires when the engine processes
-                                                                 * the remote player's circle tap. */
-                                                                pTapped[rid] &= ~BTN_CIRCLE;
-                                                                pReleased[rid] = inputs[k].buttonsReleased;
-                                                                pLX[rid] = inputs[k].stickLX;
-                                                                pLY[rid] = inputs[k].stickLY;
-                                                                pRX[rid] = inputs[k].stickRX;
-                                                                pRY[rid] = inputs[k].stickRY;
-                                                                got[rid] = 1;
-                                                        }
-                                                }
+                                                                pHeld[p] = ek.buttonHold;
+                                                                pTapped[p] = 0;
+                                                                pReleased[p] = 0;
+                                                                pLX[p] = 0x80;
+                                                                pLY[p] = 0x80;
+                                                                pRX[p] = 0x80;
+                                                                pRY[p] = 0x80;
 
-                                                // Fallback: if no fresh input for a remote player this frame,
-                                                // reuse the latest known held state but drop tap/release (turbo fix).
-                                                for (k = 0; k < NETPLAY_MAX_PLAYERS; k++)
-                                                {
-                                                        if (k == localId) continue;
-                                                        if (!got[k])
-                                                        {
-                                                                struct NetplayInput latest;
-                                                                Netplay_GetLatestRemoteInput((u8)k, &latest);
-                                                                if (latest.frameNum != 0)
+                                                                struct Driver *remoteDriver = gGT->drivers[p];
+                                                                if (remoteDriver != NULL)
                                                                 {
-                                                                        pHeld[k] = latest.buttonsHeld;
-                                                                        pTapped[k] = 0;
-                                                                        pReleased[k] = 0;
-                                                                        pLX[k] = latest.stickLX;
-                                                                        pLY[k] = latest.stickLY;
-                                                                        pRX[k] = latest.stickRX;
-                                                                        pRY[k] = latest.stickRY;
+                                                                        /* Decode rotation */
+                                                                        s16 rotY = (s16)((ek.header[1] & 0x1F) << 7) | (s16)(ek.kartRot2 & 0x7F);
+                                                                        s16 rotX = (s16)((ek.kartRot2 >> 7) & 0x1F) << 7;
+
+                                                                        /* Per-frame position snap (EverythingKart is sent every frame) */
+                                                                        remoteDriver->posCurr.x = ek.posX;
+                                                                        remoteDriver->posCurr.y = ek.posY;
+                                                                        remoteDriver->posCurr.z = ek.posZ;
+                                                                        remoteDriver->rotCurr.y = rotY;
+                                                                        remoteDriver->rotCurr.x = rotX;
+
+                                                                        /* Wumpa + reserves for HUD */
+                                                                        uint8_t wumpaCount = (ek.header[0] >> 4) & 7;
+                                                                        remoteDriver->numWumpas = (char)wumpaCount;
                                                                 }
                                                         }
                                                 }
@@ -484,12 +482,10 @@ u32 main(void)
                                                 gGS->gamepad[p].stickRX = pRX[p];
                                                 gGS->gamepad[p].stickRY = pRY[p];
 
-                                                // Update menu input variables
                                                 sdata->buttonTapPerPlayer[p] = pTapped[p];
                                                 sdata->buttonHeldPerPlayer[p] = pHeld[p];
                                         }
 
-                                        // Union of all player taps/holds
                                         {
                                                 u32 anyTap = 0, anyHold = 0;
                                                 for (p = 0; p < playerCount; p++)
@@ -501,215 +497,29 @@ u32 main(void)
                                                 sdata->AnyPlayerHold = anyHold;
                                         }
 
-                                        // 4) Pause sync: if remote player paused/unpaused, mirror it
+                                        // 4) Pause sync
                                         if (Netplay_ConsumeRemotePause())
-                                        {
                                                 gGT->gameMode1 |= PAUSE_ALL;
-                                        }
                                         if (Netplay_ConsumeRemoteUnpause())
-                                        {
                                                 gGT->gameMode1 &= ~PAUSE_ALL;
-                                        }
 
-                                        // 5) State sync (position/velocity correction) for ALL remote drivers
+                                        // 5) Broadcast race finish when local player finishes
+                                        if (localId < NETPLAY_MAX_PLAYERS)
                                         {
-                                                u32 frameNum2 = sdata->frameCounter;
-
-                                                // Send local driver state every 5 frames (or immediately if resync requested)
-                                                static u32 s_lastStateSend = 0;
-                                                if (g_NetplayStateRequested)
+                                                struct Driver *localDriver = gGT->drivers[localId];
+                                                if (localDriver != NULL &&
+                                                    (localDriver->actionsFlagSet & 0x2000000) &&
+                                                    !Netplay_AnyRemoteFinished())
                                                 {
-                                                        g_NetplayStateRequested = 0;
-                                                        s_lastStateSend = 0;
-                                                }
-                                                if (frameNum2 - s_lastStateSend >= 5 || s_lastStateSend == 0)
-                                                {
-                                                        s_lastStateSend = frameNum2;
-                                                        if (localId < NETPLAY_MAX_PLAYERS)
+                                                        Netplay_MarkRemoteFinished((u8)localId);
                                                         {
-                                                                struct Driver *localDriver = gGT->drivers[localId];
-                                                                if (localDriver != NULL)
-                                                                {
-                                                                        struct NetplayStatePayload st;
-                                                                        st.frameNum = frameNum2;
-                                                                        st.posX = localDriver->posCurr.x;
-                                                                        st.posY = localDriver->posCurr.y;
-                                                                        st.posZ = localDriver->posCurr.z;
-                                                                        st.rotX = localDriver->rotCurr.x;
-                                                                        st.rotY = localDriver->rotCurr.y;
-                                                                        st.rotZ = localDriver->rotCurr.z;
-                                                                        st.rotW = localDriver->rotCurr.w;
-                                                                        st.speed = localDriver->speed;
-                                                                        st.kartState = (u8)localDriver->kartState;
-                                                                        st.lapIndex = localDriver->lapIndex;
-                                                                        st.heldItemID = (u8)localDriver->heldItemID;
-                                                                        st.numHeldItems = (u8)localDriver->numHeldItems;
-                                                                        st.actionsFlagSet = localDriver->actionsFlagSet;
-                                                                        st.velX = localDriver->velocity.x;
-                                                                        st.velY = localDriver->velocity.y;
-                                                                        st.velZ = localDriver->velocity.z;
-                                                                        /* Extra rotation fields. Without these the remote
-                                                                         * kart's rotation drifts because the client's local
-                                                                         * angle/turnAngleCurr keep advancing from inputs
-                                                                         * while we only snap rotCurr (which the engine
-                                                                         * overwrites next frame via
-                                                                         *   rotCurr.y = unk3D4[0] + angle + turnAngleCurr). */
-                                                                        st.angle = localDriver->angle;
-                                                                        st.turnAngleCurr = localDriver->turnAngleCurr;
-                                                                        st.unk3D4_0 = localDriver->unk3D4[0];
-                                                                        /* v2.1: numWumpas + noItemTimer.
-                                                                         * numWumpas is needed by the HUD to pick between
-                                                                         * TNT vs Nitro icon (and Potion/Shield powered-up
-                                                                         * variants). noItemTimer drives the weapon-flicker
-                                                                         * animation, which would otherwise desync and look
-                                                                         * weird (icon disappearing at different times). */
-                                                                        st.numWumpas = (u8)localDriver->numWumpas;
-                                                                        st.noItemTimer = (s16)localDriver->noItemTimer;
-                                                                        Netplay_SendStatePacket(&st);
-
-                                                                        // Broadcast race finish when local player finishes
-                                                                        if ((localDriver->actionsFlagSet & 0x2000000) && !Netplay_AnyRemoteFinished())
-                                                                        {
-                                                                                Netplay_MarkRemoteFinished((u8)localId);
-                                                                                {
-                                                                                        u8 payload = (u8)localId;
-                                                                                        Netplay_BroadcastPacket(NETPLAY_PACKET_FINISHED, 1, &payload);
-                                                                                }
-                                                                        }
-                                                                }
-                                                        }
-                                                }
-
-                                                // Apply received remote state corrections for every non-local driver
-                                                for (p = 0; p < playerCount; p++)
-                                                {
-                                                        if (p == localId) continue;
-                                                        {
-                                                                struct NetplayStatePayload remoteState;
-                                                                if (Netplay_DequeueState((u8)p, &remoteState))
-                                                                {
-                                                                        Netplay_ClearState((u8)p);
-                                                                        struct Driver *remoteDriver = gGT->drivers[p];
-                                                                        if (remoteDriver != NULL)
-                                                                        {
-                                                                                s32 dx = remoteState.posX - remoteDriver->posCurr.x;
-                                                                                s32 dy = remoteState.posY - remoteDriver->posCurr.y;
-                                                                                s32 dz = remoteState.posZ - remoteDriver->posCurr.z;
-                                                                                u32 distSq = (u32)(dx*dx + dy*dy + dz*dz);
-
-                                                                                /* Large desync: snap. Small drift: lerp 20%. */
-                                                                                int snap = (distSq > 0x1000000);
-                                                                                if (snap)
-                                                                                {
-                                                                                        remoteDriver->posCurr.x = remoteState.posX;
-                                                                                        remoteDriver->posCurr.y = remoteState.posY;
-                                                                                        remoteDriver->posCurr.z = remoteState.posZ;
-                                                                                        remoteDriver->velocity.x = remoteState.velX;
-                                                                                        remoteDriver->velocity.y = remoteState.velY;
-                                                                                        remoteDriver->velocity.z = remoteState.velZ;
-                                                                                        remoteDriver->speed = remoteState.speed;
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                        remoteDriver->posCurr.x += dx / 5;
-                                                                                        remoteDriver->posCurr.y += dy / 5;
-                                                                                        remoteDriver->posCurr.z += dz / 5;
-                                                                                        /* Also nudge velocity toward target so the
-                                                                                         * lerp doesn't fight against the engine's
-                                                                                         * own integration. */
-                                                                                        remoteDriver->velocity.x += (remoteState.velX - remoteDriver->velocity.x) / 5;
-                                                                                        remoteDriver->velocity.y += (remoteState.velY - remoteDriver->velocity.y) / 5;
-                                                                                        remoteDriver->velocity.z += (remoteState.velZ - remoteDriver->velocity.z) / 5;
-                                                                                        remoteDriver->speed += (remoteState.speed - remoteDriver->speed) / 5;
-                                                                                }
-
-                                                                                /* === Rotation sync ===
-                                                                                 * CTR angles are 12-bit modular (0x1000 = 360°).
-                                                                                 * A direct snap causes the kart to spin when
-                                                                                 * crossing the 0xFFF -> 0x000 boundary. We use
-                                                                                 * the shortest angular difference and lerp by
-                                                                                 * 1/3 (faster than position because rotation
-                                                                                 * mismatches are visually jarring).
-                                                                                 *
-                                                                                 * We also sync the underlying angle,
-                                                                                 * turnAngleCurr and unk3D4[0] — without these,
-                                                                                 * the engine recomputes rotCurr.y next frame
-                                                                                 * from its own (stale) values and undoes our
-                                                                                 * snap. */
-                                                                                {
-                                                                                        s16 target_rotX = remoteState.rotX;
-                                                                                        s16 target_rotY = remoteState.rotY;
-                                                                                        s16 target_rotZ = remoteState.rotZ;
-                                                                                        s16 target_rotW = remoteState.rotW;
-
-                                                                                        if (snap)
-                                                                                        {
-                                                                                                remoteDriver->rotCurr.x = target_rotX;
-                                                                                                remoteDriver->rotCurr.y = target_rotY;
-                                                                                                remoteDriver->rotCurr.z = target_rotZ;
-                                                                                                remoteDriver->rotCurr.w = target_rotW;
-                                                                                        }
-                                                                                        else
-                                                                                        {
-                                                                                                /* Shortest-path angular lerp for each axis.
-                                                                                                 * diff is wrapped to [-0x800, +0x800) so we
-                                                                                                 * always take the shorter way around, then
-                                                                                                 * we apply 1/3 of it. */
-                                                                                                s32 diffX = ((((s32)(target_rotX - remoteDriver->rotCurr.x)) + 0x800) & 0xFFF) - 0x800;
-                                                                                                s32 diffY = ((((s32)(target_rotY - remoteDriver->rotCurr.y)) + 0x800) & 0xFFF) - 0x800;
-                                                                                                s32 diffZ = ((((s32)(target_rotZ - remoteDriver->rotCurr.z)) + 0x800) & 0xFFF) - 0x800;
-                                                                                                remoteDriver->rotCurr.x = (s16)((remoteDriver->rotCurr.x + diffX / 3) & 0xFFF);
-                                                                                                remoteDriver->rotCurr.y = (s16)((remoteDriver->rotCurr.y + diffY / 3) & 0xFFF);
-                                                                                                remoteDriver->rotCurr.z = (s16)((remoteDriver->rotCurr.z + diffZ / 3) & 0xFFF);
-                                                                                                /* rotW is not modular — direct lerp */
-                                                                                                remoteDriver->rotCurr.w = (s16)(remoteDriver->rotCurr.w + (target_rotW - remoteDriver->rotCurr.w) / 3);
-                                                                                        }
-
-                                                                                        /* Sync the underlying physics fields. Snap
-                                                                                         * always (no lerp) because they're inputs to
-                                                                                         * the next frame's rotCurr.y computation,
-                                                                                         * so a partial lerp would just get
-                                                                                         * overwritten. */
-                                                                                        remoteDriver->angle = remoteState.angle;
-                                                                                        remoteDriver->turnAngleCurr = remoteState.turnAngleCurr;
-                                                                                        remoteDriver->unk3D4[0] = remoteState.unk3D4_0;
-
-                                                                                        /* v2.1: numWumpas + noItemTimer.
-                                                                                         * numWumpas is consumed by the HUD to pick
-                                                                                         * between TNT vs Nitro icon (and powered-up
-                                                                                         * Potion/Shield). Without this, the remote
-                                                                                         * kart's weapon icon shows the wrong variant.
-                                                                                         * noItemTimer drives weapon flicker — sync
-                                                                                         * it so the icon doesn't blink out of sync. */
-                                                                                        remoteDriver->numWumpas = (char)remoteState.numWumpas;
-                                                                                        remoteDriver->noItemTimer = (s16)remoteState.noItemTimer;
-                                                                                }
-
-                                                                                remoteDriver->kartState = (char)remoteState.kartState;
-                                                                                remoteDriver->lapIndex = remoteState.lapIndex;
-                                                                                remoteDriver->heldItemID = (char)remoteState.heldItemID;
-                                                                                remoteDriver->numHeldItems = (char)remoteState.numHeldItems;
-                                                                                /* Mask out the fire-flag bit (0x8000) from the
-                                                                                 * synced actionsFlagSet. This flag is a 1-frame
-                                                                                 * "player tapped circle" signal that should ONLY
-                                                                                 * be set via ITEM_USE packets, not via state sync.
-                                                                                 * If we let state sync set it, the engine would
-                                                                                 * re-fire the weapon every time a snapshot arrives
-                                                                                 * that happens to capture the flag — causing the
-                                                                                 * infinite-missile bug. */
-                                                                                remoteDriver->actionsFlagSet =
-                                                                                        (remoteDriver->actionsFlagSet & 0x8000) |
-                                                                                        (remoteState.actionsFlagSet & ~0x8000u);
-
-                                                                                if (remoteState.actionsFlagSet & 0x2000000)
-                                                                                        Netplay_MarkRemoteFinished((u8)p);
-                                                                        }
-                                                                }
+                                                                u8 payload = (u8)localId;
+                                                                Netplay_BroadcastPacket(NETPLAY_PACKET_FINISHED, 1, &payload);
                                                         }
                                                 }
                                         }
 
-                                        // 6) Apply remote crate hits (use crateID for robust match)
+                                        // 6) Apply remote crate hits
                                         {
                                                 struct NetplayCrateHit crateHit;
                                                 while (Netplay_DequeueCrateHit(&crateHit))
@@ -723,8 +533,6 @@ u32 main(void)
                                                                         struct Instance *inst = gGT->level1->ptrInstDefs[i].ptrInstance;
                                                                         if (inst == NULL) continue;
 
-                                                                        /* Prefer crateID match when available; fall back to
-                                                                         * position match for backward compat. */
                                                                         int match = 0;
                                                                         if (crateHit.crateID != 0)
                                                                         {
@@ -758,9 +566,7 @@ u32 main(void)
                                                 }
                                         }
 
-                                        // 6b) Apply remote item pickups (set heldItemID + numHeldItems
-                                        // directly on the remote driver, bypassing the 5-frame state
-                                        // snapshot interval). This fixes the "wrong item icon" desync.
+                                        // 6b) Apply remote item pickups
                                         for (p = 0; p < playerCount; p++)
                                         {
                                                 if (p == localId) continue;
@@ -773,28 +579,13 @@ u32 main(void)
                                                                 {
                                                                         remoteDriver->heldItemID = (char)itemId;
                                                                         remoteDriver->numHeldItems = (char)numItems;
-                                                                        /* Also reset item roll timer so the HUD shows
-                                                                         * the icon immediately. */
                                                                         remoteDriver->itemRollTimer = 0;
                                                                 }
                                                         }
                                                 }
                                         }
 
-                                        // 6c) Apply remote item use. Instead of calling
-                                        // VehPickupItem_ShootNow directly (which caused an
-                                        // infinite-fire bug because the engine's per-frame
-                                        // logic re-triggered the shot), we set the fire flag
-                                        // (0x8000) on the remote driver. The engine's own
-                                        // VehPickupItem_ShootOnCirclePress will pick it up
-                                        // next frame, fire the weapon ONCE, and clear the
-                                        // flag. This is the natural code path and avoids
-                                        // double-firing or infinite loops.
-                                        //
-                                        // Secondary use (isSecondary=1): detonate an already-
-                                        // thrown bomb or launch an active shield. This is done
-                                        // directly here since the fire-flag path would call
-                                        // ShootNow again, creating a duplicate weapon.
+                                        // 6c) Apply remote item use
                                         for (p = 0; p < playerCount; p++)
                                         {
                                                 if (p == localId) continue;
@@ -808,7 +599,6 @@ u32 main(void)
                                                                 {
                                                                         if (isSecondary)
                                                                         {
-                                                                                /* Detonate bomb or launch shield */
                                                                                 if (remoteDriver->instBombThrow != 0)
                                                                                 {
                                                                                         struct TrackerWeapon *tw =
@@ -831,12 +621,6 @@ u32 main(void)
                                                                         else if (remoteDriver->heldItemID != 0xF &&
                                                                                  remoteDriver->heldItemID != 0x10)
                                                                         {
-                                                                                /* Set the fire flag. The engine's
-                                                                                 * VehPickupItem_ShootOnCirclePress
-                                                                                 * (called from VehPhysProc per-frame
-                                                                                 * logic) will see this, fire the
-                                                                                 * weapon, and clear the flag — all
-                                                                                 * in one frame, no loop. */
                                                                                 remoteDriver->actionsFlagSet |= 0x8000;
                                                                         }
                                                                 }
@@ -844,60 +628,16 @@ u32 main(void)
                                                 }
                                         }
 
-                                        // 6d) Consume RNG seed from host (clients only, once)
+                                        // 6d) Consume RNG seed from host
                                         {
                                                 u32 seed, seedFrame;
                                                 if (Netplay_ConsumeRngSeed(&seed, &seedFrame))
                                                 {
                                                         sdata->randomNumber = (int)(seed & 0xFFFF);
-                                                        fprintf(stdout, "[Netplay] Applied RNG seed 0x%08x at frame %u\n",
-                                                                seed, seedFrame);
-                                                        fflush(stdout);
                                                 }
                                         }
 
-                                        // 7) Checksum: compare each machine's simulation of the SAME remote driver.
-                                        // For each non-local driver, compute our local checksum of it, send it
-                                        // (with driverId in payload), and compare against the most recent remote
-                                        // checksum we received for the same driverId.
-                                        {
-                                                static u32 s_lastChecksumSend = 0;
-                                                u32 frameNum3 = sdata->frameCounter;
-                                                if (frameNum3 - s_lastChecksumSend >= 30)
-                                                {
-                                                        s_lastChecksumSend = frameNum3;
-                                                        for (p = 0; p < playerCount; p++)
-                                                        {
-                                                                if (p == localId) continue;
-                                                                {
-                                                                        struct Driver *remoteDriver = gGT->drivers[p];
-                                                                        if (remoteDriver != NULL)
-                                                                        {
-                                                                                struct NetplayChecksumPayload cp;
-                                                                                cp.frameNum = frameNum3;
-                                                                                cp.driverId = (u8)p;
-                                                                                cp.checksum = (u32)(remoteDriver->posCurr.x * 3 +
-                                                                                                    remoteDriver->posCurr.y * 7 +
-                                                                                                    remoteDriver->posCurr.z * 11 +
-                                                                                                    remoteDriver->speed * 13 +
-                                                                                                    remoteDriver->lapIndex * 17 +
-                                                                                                    remoteDriver->actionsFlagSet * 19);
-                                                                                Netplay_BroadcastPacket(NETPLAY_PACKET_CHECKSUM, sizeof(cp), &cp);
-
-                                                                                // Compare with last remote checksum we received for this driver
-                                                                                if (g_NetplayRemoteChecksumFrame != 0 &&
-                                                                                    g_NetplayRemoteChecksumValue != cp.checksum)
-                                                                                {
-                                                                                        Netplay_BroadcastPacket(NETPLAY_PACKET_STATE_REQ, 0, NULL);
-                                                                                        g_NetplayRemoteChecksumFrame = 0;
-                                                                                }
-                                                                        }
-                                                                }
-                                                        }
-                                                }
-                                        }
-
-                                        // 8) Handle remote disconnect during race
+                                        // 7) Handle remote disconnect during race
                                         if (g_NetplayDisconnected)
                                         {
                                                 g_NetplayDisconnected = 0;
@@ -905,7 +645,7 @@ u32 main(void)
                                                 MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
                                         }
 
-                                        // 9) Handle return-to-lobby signal from host
+                                        // 8) Handle return-to-lobby signal from host
                                         if (Netplay_ConsumeReturnToLobby())
                                         {
                                                 g_NetplayRacing = 0;

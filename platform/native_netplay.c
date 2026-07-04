@@ -50,11 +50,35 @@ typedef int socklen_t;
 #define NETPLAY_CLOSE_SOCKET(s)    close(s)
 #endif
 
-#define NATIVE_NETPLAY_MAGIC      0x5054454eu /* 'NETP' little-endian */
+#include <enet/enet.h>
 
-#define NETPLAY_MAX_PACKET_SIZE   1400
-#define NETPLAY_PLAYER_NAME_MAX   32
-#define NETPLAY_VERSION_STRING_MAX 16
+struct NetplayPeer
+{
+        struct sockaddr_in addr;    /* legacy, may be zeroed */
+        ENetPeer *enetPeer;         /* ENet peer (when using ENet transport) */
+        u8  id;
+        u8  active;
+        u8  ready;
+        u8  loaded;
+        u32 lastFrameReceived;
+        u32 lastSeenMs;
+        u32 pingTimestamp;
+        u16 pingMs;
+        char name[NETPLAY_PLAYER_NAME_MAX];
+};
+
+/* Bridge globals accessible from netplay_client.c (non-static) */
+u8  s_localPlayerId;
+u8  s_playerCount;
+
+/* Host state (needed by netplay_client.c) */
+global_variable struct NetplayPeer s_peers[NETPLAY_MAX_PLAYERS];
+global_variable int s_peerCount;
+
+/* ENet-based transport + protocol layer (replaces raw sockets) */
+#include "netplay_client.c"
+
+#define NATIVE_NETPLAY_MAGIC      0x5054454eu /* 'NETP' little-endian */
 
 /* Timers (ms) */
 #define NETPLAY_HELLO_RESEND_MS     500
@@ -108,20 +132,6 @@ struct NetplayPingPongPayload
         u32 timestamp;
 };
 
-struct NetplayPeer
-{
-        struct sockaddr_in addr;
-        u8  id;
-        u8  active;
-        u8  ready;
-        u8  loaded;
-        u32 lastFrameReceived;
-        u32 lastSeenMs;
-        u32 pingTimestamp;
-        u16 pingMs;
-        char name[NETPLAY_PLAYER_NAME_MAX];
-};
-
 struct NetplayFrameInput
 {
         u32 frameNum;
@@ -136,17 +146,9 @@ struct NetplayFrameInput
 };
 
 /* === Globals === */
-global_variable NETPLAY_SOCKET s_netplaySocket = NETPLAY_SOCKET_INVALID;
-global_variable struct sockaddr_in s_hostAddr;
 global_variable int s_netplayState;
-global_variable u8  s_localPlayerId;
-global_variable u8  s_playerCount;
 global_variable u8  s_expectedPlayerCount;       /* from --players N, 0 = unlimited */
 global_variable u32 s_nextFrameToSend;
-
-/* Host state */
-global_variable struct NetplayPeer s_peers[NETPLAY_MAX_PLAYERS];
-global_variable int s_peerCount;
 
 /* Input history ring buffer (kept for future rollback use) */
 global_variable struct NetplayFrameInput s_inputHistory[NETPLAY_FRAME_HISTORY];
@@ -254,11 +256,17 @@ int g_NetplayNumLaps;
 int g_NetplayLocalLoaded;
 int g_NetplayRemoteLoaded;
 int g_NetplayDisconnected;
+int g_NetplayStartRaceRequested;
 int g_NetplayStateRequested;
 u32 g_NetplayRemoteChecksumFrame;
 u32 g_NetplayRemoteChecksumValue;
 u32 g_NetplayReadyMask;
 int  g_NetplayReturnToLobby;
+
+/* Remote-player model pointers, populated by LOAD_DriverMPK during
+ * netplay race loading. Read by VehBirth_GetModelByName to find
+ * models for remote driver instances. */
+struct Model *g_NetplayRemoteModels[NETPLAY_MAX_PLAYERS] = {NULL};
 
 /* Local ready state */
 global_variable int s_localReady;
@@ -298,12 +306,12 @@ internal int Netplay_SetNonBlocking(NETPLAY_SOCKET sock)
 
 internal int Netplay_IsRunning(void)
 {
-        return s_netplaySocket != NETPLAY_SOCKET_INVALID;
+        return _np_get_state() != NETPLAY_STATE_DISCONNECTED;
 }
 
 internal int Netplay_IsHost(void)
 {
-        return s_netplayState == NETPLAY_STATE_HOSTING;
+        return s_netplayState == NETPLAY_LEGACY_HOSTING;
 }
 
 internal void Netplay_ReportJoin(u8 playerId)
@@ -483,15 +491,35 @@ const char *Netplay_GetAddressString(void)
 
 internal int Netplay_SendTo(const void *data, int dataSize, const struct sockaddr_in *addr)
 {
-        int sent;
+        (void)addr;
 
         if (!Netplay_IsRunning())
                 return 0;
 
-        sent = (int)sendto(s_netplaySocket, (const char *)data, dataSize, 0,
-                           (const struct sockaddr *)addr, sizeof(*addr));
+        /* In host mode: we need to send to a specific peer. If we have the
+         * sockaddr_in, look up the ENetPeer from our peer list by the address
+         * and send to it. If not found, broadcast instead. */
+        if (Netplay_IsHost())
+        {
+                /* Try to find the peer by address (ENet host IP) */
+                ENetPeer *target = NULL;
+                int i;
+                for (i = 0; i < _np_host_get_peer_count(); i++) {
+                        ENetPeer *p = _np_host_get_peer(i);
+                        if (p && p->address.host == addr->sin_addr.s_addr &&
+                            p->address.port == addr->sin_port) {
+                                target = p;
+                                break;
+                        }
+                }
+                if (target)
+                        return _np_send_to_peer(target, (const uint8_t *)data, (size_t)dataSize, 1) == 0 ? 1 : 0;
+                /* Fallback: broadcast to all peers */
+                return _np_host_broadcast_raw((const uint8_t *)data, (size_t)dataSize, 1) == 0 ? 1 : 0;
+        }
 
-        return sent == dataSize;
+        /* Client mode: send to connected server peer */
+        return _np_send_raw((const uint8_t *)data, (size_t)dataSize, 1) == 0 ? 1 : 0;
 }
 
 internal void Netplay_SendPacketWithPlayerId(u16 type, u16 payloadSize, const void *payload,
@@ -524,6 +552,23 @@ internal void Netplay_SendPacket(u16 type, u16 payloadSize, const void *payload,
 
 void Netplay_BroadcastPacket(u16 type, u16 payloadSize, const void *payload)
 {
+        if (Netplay_IsHost() && _np_host_get_peer_count() > 0)
+        {
+                /* Build the legacy packet once, broadcast via ENet */
+                u8 buffer[NETPLAY_MAX_PACKET_SIZE];
+                struct NetplayPacketHeader *hdr = (struct NetplayPacketHeader *)buffer;
+                hdr->magic = NATIVE_NETPLAY_MAGIC;
+                hdr->type = type;
+                hdr->flags = 0;
+                hdr->playerId = s_localPlayerId;
+                hdr->playerCount = s_playerCount;
+                hdr->payloadSize = payloadSize;
+                if (payloadSize > 0 && payload != NULL)
+                        memcpy(buffer + sizeof(*hdr), payload, payloadSize);
+                _np_host_broadcast_raw(buffer, sizeof(*hdr) + payloadSize, 1);
+                return;
+        }
+
         int i;
         for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
         {
@@ -869,7 +914,7 @@ internal void Netplay_HandleInput(const struct NetplayPacketHeader *header,
                 }
                 else
                 {
-                        Netplay_SendPacket(NETPLAY_PACKET_RESEND_INPUT, sizeof(req), &req, &s_hostAddr);
+                        Netplay_SendPacket(NETPLAY_PACKET_RESEND_INPUT, sizeof(req), &req, NULL);
                 }
         }
 
@@ -1298,21 +1343,20 @@ internal void Netplay_HandleResendInput(const struct NetplayPacketHeader *header
 internal int Netplay_ReceivePacket(void)
 {
         u8 buffer[NETPLAY_MAX_PACKET_SIZE];
-        struct sockaddr_in fromAddr;
-        socklen_t fromLen;
-        int received;
+        size_t received = 0;
         struct NetplayPacketHeader *header;
         u8 *payload;
         int payloadSize;
+        ENetPeer *fromPeer = NULL;
 
-        fromLen = sizeof(fromAddr);
-        received = (int)recvfrom(s_netplaySocket, (char *)buffer, sizeof(buffer), 0,
-                                 (struct sockaddr *)&fromAddr, &fromLen);
+        /* Process ENet events (fills the raw packet queue) */
+        _np_poll();
 
-        if (received <= 0)
+        /* Read one packet from the raw queue */
+        if (!_np_recv_raw(buffer, sizeof(buffer), &received, &fromPeer))
                 return 0;
 
-        if (received < (int)sizeof(struct NetplayPacketHeader))
+        if (received < sizeof(struct NetplayPacketHeader))
                 return 0;
 
         header = (struct NetplayPacketHeader *)buffer;
@@ -1325,6 +1369,15 @@ internal int Netplay_ReceivePacket(void)
 
         payload = (header->payloadSize > 0) ? (buffer + sizeof(*header)) : NULL;
         payloadSize = header->payloadSize;
+
+        /* ENet transport: use peer address for legacy sockaddr_in lookup */
+        struct sockaddr_in fromAddr;
+        memset(&fromAddr, 0, sizeof(fromAddr));
+        if (fromPeer) {
+                fromAddr.sin_family = AF_INET;
+                fromAddr.sin_addr.s_addr = fromPeer->address.host;
+                fromAddr.sin_port = fromPeer->address.port;
+        }
 
         switch (header->type)
         {
@@ -1407,7 +1460,6 @@ internal int Netplay_ReceivePacket(void)
                 Netplay_HandleResendInput(header, payload, payloadSize);
                 break;
         default:
-                /* Unknown packet type: ignore (forward-compat) */
                 break;
         }
 
@@ -1465,7 +1517,7 @@ internal void Netplay_HandleResendInput(const struct NetplayPacketHeader *header
                 }
                 else
                 {
-                        Netplay_SendPacket(NETPLAY_PACKET_INPUT, (u16)sizeof(input), &input, &s_hostAddr);
+                        Netplay_SendPacket(NETPLAY_PACKET_INPUT, (u16)sizeof(input), &input, NULL);
                 }
         }
 }
@@ -1474,8 +1526,14 @@ internal void Netplay_HandleResendInput(const struct NetplayPacketHeader *header
 
 int Netplay_Init(void)
 {
-        if (Netplay_IsRunning())
-                return 1;
+        /* Always reset the new-protocol state first, so that even if
+         * s_np was never initialized (zeroed globals → state ==
+         * NETPLAY_STATE_LAUNCH_PICK_SERVER which is != DISCONNECTED),
+         * we don't early-return. */
+        _np_disconnect();
+
+        if (_np_init() != 0)
+                return 0;
 
         memset(s_peers, 0, sizeof(s_peers));
         memset(s_inputHistory, 0, sizeof(s_inputHistory));
@@ -1499,7 +1557,7 @@ int Netplay_Init(void)
         s_inputQueueTail = 0;
         s_inputHistoryWrite = 0;
         s_delayWriteIndex = 0;
-        s_netplayState = NETPLAY_STATE_DISCONNECTED;
+        s_netplayState = NETPLAY_LEGACY_DISCONNECTED;
         s_localPlayerId = 0;
         s_playerCount = 0;
         s_expectedPlayerCount = 0;
@@ -1527,24 +1585,12 @@ int Netplay_Init(void)
         g_NetplayLocalLoaded = 0;
         g_NetplayRemoteLoaded = 0;
         g_NetplayDisconnected = 0;
+        g_NetplayStartRaceRequested = 0;
         g_NetplayStateRequested = 0;
         g_NetplayRemoteChecksumFrame = 0;
         g_NetplayRemoteChecksumValue = 0;
         g_NetplayReadyMask = 0;
         g_NetplayReturnToLobby = 0;
-
-#if defined(_WIN32)
-        if (!s_wsaInitialized)
-        {
-                WSADATA wsaData;
-                if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-                {
-                        fprintf(stderr, "[Netplay] WSAStartup failed\n");
-                        return 0;
-                }
-                s_wsaInitialized = 1;
-        }
-#endif
 
         fprintf(stdout, "[Netplay] Initialized (protocol v%d, input delay=%d frames)\n",
                 NETPLAY_PROTOCOL_VERSION, NETPLAY_INPUT_DELAY_FRAMES);
@@ -1556,22 +1602,12 @@ void Netplay_Shutdown(void)
 {
         if (Netplay_IsRunning())
         {
-                if (s_netplayState != NETPLAY_STATE_DISCONNECTED)
+                if (s_netplayState != NETPLAY_LEGACY_DISCONNECTED)
                         Netplay_Disconnect();
-
-                NETPLAY_CLOSE_SOCKET(s_netplaySocket);
-                s_netplaySocket = NETPLAY_SOCKET_INVALID;
         }
 
-#if defined(_WIN32)
-        if (s_wsaInitialized)
-        {
-                WSACleanup();
-                s_wsaInitialized = 0;
-        }
-#endif
-
-        s_netplayState = NETPLAY_STATE_DISCONNECTED;
+        _np_shutdown();
+        s_netplayState = NETPLAY_LEGACY_DISCONNECTED;
         fprintf(stdout, "[Netplay] Shutdown\n");
         fflush(stdout);
 }
@@ -1672,37 +1708,19 @@ internal void Netplay_ResolveLocalAddress(u16 port)
 
 int Netplay_Host(u16 port)
 {
-        struct sockaddr_in bindAddr;
-
         if (Netplay_IsRunning())
         {
                 fprintf(stderr, "[Netplay] Already running\n");
                 return 0;
         }
 
-        s_netplaySocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if (s_netplaySocket == NETPLAY_SOCKET_INVALID)
+        if (_np_host(port) != 0)
         {
-                fprintf(stderr, "[Netplay] Failed to create socket\n");
+                fprintf(stderr, "[Netplay] Failed to host on port %u\n", port);
                 return 0;
         }
 
-        memset(&bindAddr, 0, sizeof(bindAddr));
-        bindAddr.sin_family = AF_INET;
-        bindAddr.sin_addr.s_addr = INADDR_ANY;
-        bindAddr.sin_port = htons(port);
-
-        if (bind(s_netplaySocket, (struct sockaddr *)&bindAddr, sizeof(bindAddr)) == NETPLAY_SOCKET_ERROR)
-        {
-                fprintf(stderr, "[Netplay] Failed to bind to port %u\n", port);
-                NETPLAY_CLOSE_SOCKET(s_netplaySocket);
-                s_netplaySocket = NETPLAY_SOCKET_INVALID;
-                return 0;
-        }
-
-        Netplay_SetNonBlocking(s_netplaySocket);
-
-        s_netplayState = NETPLAY_STATE_HOSTING;
+        s_netplayState = NETPLAY_LEGACY_HOSTING;
         s_localPlayerId = 0;
         s_playerCount = 1;
         s_expectedPlayerCount = 0;
@@ -1710,11 +1728,6 @@ int Netplay_Host(u16 port)
         /* Host is always player 0 */
         memset(s_playerNames[0], 0, NETPLAY_PLAYER_NAME_MAX);
         strncpy(s_playerNames[0], s_localPlayerName, NETPLAY_PLAYER_NAME_MAX - 1);
-
-        memset(&s_hostAddr, 0, sizeof(s_hostAddr));
-        s_hostAddr.sin_family = AF_INET;
-        s_hostAddr.sin_addr.s_addr = INADDR_ANY;
-        s_hostAddr.sin_port = htons(port);
 
         Netplay_ResolveLocalAddress(port);
 
@@ -1725,37 +1738,19 @@ int Netplay_Host(u16 port)
 
 int Netplay_Connect(const char *address, u16 port)
 {
-        struct sockaddr_in addr;
-
         if (Netplay_IsRunning())
         {
                 fprintf(stderr, "[Netplay] Already running\n");
                 return 0;
         }
 
-        s_netplaySocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if (s_netplaySocket == NETPLAY_SOCKET_INVALID)
+        if (_np_connect(address, port) != 0)
         {
-                fprintf(stderr, "[Netplay] Failed to create socket\n");
+                fprintf(stderr, "[Netplay] Failed to connect to %s:%u\n", address, port);
                 return 0;
         }
 
-        memset(&addr, 0, sizeof(addr));
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(port);
-
-        if (inet_pton(AF_INET, address, &addr.sin_addr) <= 0)
-        {
-                fprintf(stderr, "[Netplay] Invalid address: %s\n", address);
-                NETPLAY_CLOSE_SOCKET(s_netplaySocket);
-                s_netplaySocket = NETPLAY_SOCKET_INVALID;
-                return 0;
-        }
-
-        Netplay_SetNonBlocking(s_netplaySocket);
-
-        s_hostAddr = addr;
-        s_netplayState = NETPLAY_STATE_CONNECTING;
+        s_netplayState = NETPLAY_LEGACY_CONNECTING;
         s_localPlayerId = 0; /* will be assigned by host */
         s_playerCount = 1;
         s_expectedPlayerCount = 0;
@@ -1769,7 +1764,7 @@ int Netplay_Connect(const char *address, u16 port)
                 strncpy((char *)hello.gameVersion, "CTR-Native", NETPLAY_VERSION_STRING_MAX - 1);
                 hello.protocolVersion = NETPLAY_PROTOCOL_VERSION;
 
-                Netplay_SendPacket(NETPLAY_PACKET_HELLO, sizeof(hello), &hello, &addr);
+                Netplay_SendPacket(NETPLAY_PACKET_HELLO, sizeof(hello), &hello, NULL);
         }
 
         s_lastHelloSendMs = Netplay_GetTimestampMs();
@@ -1782,7 +1777,7 @@ int Netplay_Connect(const char *address, u16 port)
 
 void Netplay_Disconnect(void)
 {
-        if (s_netplayState != NETPLAY_STATE_DISCONNECTED)
+        if (s_netplayState != NETPLAY_LEGACY_DISCONNECTED)
         {
                 /* Send DISCONNECT to peers */
                 if (Netplay_IsRunning())
@@ -1793,11 +1788,11 @@ void Netplay_Disconnect(void)
                         }
                         else
                         {
-                                Netplay_SendPacket(NETPLAY_PACKET_DISCONNECT, 0, NULL, &s_hostAddr);
+                                Netplay_SendPacket(NETPLAY_PACKET_DISCONNECT, 0, NULL, NULL);
                         }
                 }
 
-                s_netplayState = NETPLAY_STATE_DISCONNECTED;
+                s_netplayState = NETPLAY_LEGACY_DISCONNECTED;
                 s_localPlayerId = 0;
                 s_playerCount = 0;
                 g_NetplayRacing = 0;
@@ -1824,11 +1819,7 @@ void Netplay_Disconnect(void)
                 s_inputQueueTail = 0;
         }
 
-        if (Netplay_IsRunning())
-        {
-                NETPLAY_CLOSE_SOCKET(s_netplaySocket);
-                s_netplaySocket = NETPLAY_SOCKET_INVALID;
-        }
+        _np_disconnect();
 
         fprintf(stdout, "[Netplay] Disconnected\n");
         fflush(stdout);
@@ -1916,7 +1907,7 @@ void Netplay_SendGamepadState(u32 frameNum, u32 buttonsHeld, u32 buttonsTapped,
 {
         struct NetplayInputPayload input;
 
-        if (s_netplayState != NETPLAY_STATE_HOSTING && s_netplayState != NETPLAY_STATE_CONNECTED)
+        if (s_netplayState != NETPLAY_LEGACY_HOSTING && s_netplayState != NETPLAY_LEGACY_CONNECTED)
                 return;
 
         input.frameNum = frameNum;
@@ -1947,7 +1938,7 @@ void Netplay_SendGamepadState(u32 frameNum, u32 buttonsHeld, u32 buttonsTapped,
         if (Netplay_IsHost())
                 Netplay_BroadcastPacket(NETPLAY_PACKET_INPUT, (u16)sizeof(input), &input);
         else
-                Netplay_SendPacket(NETPLAY_PACKET_INPUT, (u16)sizeof(input), &input, &s_hostAddr);
+                Netplay_SendPacket(NETPLAY_PACKET_INPUT, (u16)sizeof(input), &input, NULL);
 }
 
 int Netplay_ReceiveInputs(struct NetplayInput *inputs, int maxInputs)
@@ -2030,13 +2021,13 @@ void Netplay_GetLatestRemoteInput(u8 playerId, struct NetplayInput *out)
 
 void Netplay_SendStatePacket(const struct NetplayStatePayload *state)
 {
-        if (s_netplayState != NETPLAY_STATE_HOSTING && s_netplayState != NETPLAY_STATE_CONNECTED)
+        if (s_netplayState != NETPLAY_LEGACY_HOSTING && s_netplayState != NETPLAY_LEGACY_CONNECTED)
                 return;
 
         if (Netplay_IsHost())
                 Netplay_BroadcastPacket(NETPLAY_PACKET_STATE, (u16)sizeof(*state), state);
         else
-                Netplay_SendPacket(NETPLAY_PACKET_STATE, (u16)sizeof(*state), state, &s_hostAddr);
+                Netplay_SendPacket(NETPLAY_PACKET_STATE, (u16)sizeof(*state), state, NULL);
 }
 
 int Netplay_DequeueState(u8 playerId, struct NetplayStatePayload *out)
@@ -2070,14 +2061,14 @@ void Netplay_QueueCrateHit(const struct NetplayCrateHit *hit)
         }
 
         /* Broadcast to peers */
-        if (s_netplayState == NETPLAY_STATE_HOSTING || s_netplayState == NETPLAY_STATE_CONNECTED)
+        if (s_netplayState == NETPLAY_LEGACY_HOSTING || s_netplayState == NETPLAY_LEGACY_CONNECTED)
         {
                 if (Netplay_IsHost())
                         Netplay_BroadcastPacket(NETPLAY_PACKET_CRATE_HIT,
                                                 (u16)sizeof(*hit), hit);
                 else
                         Netplay_SendPacket(NETPLAY_PACKET_CRATE_HIT,
-                                           (u16)sizeof(*hit), hit, &s_hostAddr);
+                                           (u16)sizeof(*hit), hit, NULL);
         }
 }
 
@@ -2140,7 +2131,7 @@ void Netplay_SetLocalReady(int ready)
         s_localReady = ready ? 1 : 0;
 
         /* Broadcast to peers */
-        if (s_netplayState == NETPLAY_STATE_HOSTING || s_netplayState == NETPLAY_STATE_CONNECTED)
+        if (s_netplayState == NETPLAY_LEGACY_HOSTING || s_netplayState == NETPLAY_LEGACY_CONNECTED)
         {
                 u8 payload[2];
                 payload[0] = s_localPlayerId;
@@ -2148,7 +2139,7 @@ void Netplay_SetLocalReady(int ready)
                 if (Netplay_IsHost())
                         Netplay_BroadcastPacket(NETPLAY_PACKET_PLAYER_READY, sizeof(payload), payload);
                 else
-                        Netplay_SendPacket(NETPLAY_PACKET_PLAYER_READY, sizeof(payload), payload, &s_hostAddr);
+                        Netplay_SendPacket(NETPLAY_PACKET_PLAYER_READY, sizeof(payload), payload, NULL);
         }
 
         fprintf(stdout, "[Netplay] Local player %s ready\n", s_localReady ? "is" : "is NOT");
@@ -2230,7 +2221,7 @@ void Netplay_SendChat(const char *message)
         strncpy(chat.message, message, NETPLAY_CHAT_MSG_MAX - 1);
         chat.message[NETPLAY_CHAT_MSG_MAX - 1] = '\0';
 
-        if (s_netplayState == NETPLAY_STATE_HOSTING)
+        if (s_netplayState == NETPLAY_LEGACY_HOSTING)
         {
                 /* Host: enqueue locally + broadcast to clients */
                 int tail = s_chatQueueTail;
@@ -2242,9 +2233,9 @@ void Netplay_SendChat(const char *message)
                 }
                 Netplay_BroadcastPacket(NETPLAY_PACKET_CHAT, sizeof(chat), &chat);
         }
-        else if (s_netplayState == NETPLAY_STATE_CONNECTED)
+        else if (s_netplayState == NETPLAY_LEGACY_CONNECTED)
         {
-                Netplay_SendPacket(NETPLAY_PACKET_CHAT, sizeof(chat), &chat, &s_hostAddr);
+                Netplay_SendPacket(NETPLAY_PACKET_CHAT, sizeof(chat), &chat, NULL);
         }
 }
 
@@ -2266,13 +2257,20 @@ void Netplay_MarkLocalLoaded(void)
         g_NetplayLocalLoaded = 1;
         s_lastLoadedResendMs = Netplay_GetTimestampMs();
 
-        /* Send LOADED to peers */
-        if (s_netplayState == NETPLAY_STATE_HOSTING || s_netplayState == NETPLAY_STATE_CONNECTED)
+        /* Send LOADED to peers (old protocol) */
+        if (s_netplayState == NETPLAY_LEGACY_HOSTING || s_netplayState == NETPLAY_LEGACY_CONNECTED)
         {
                 if (Netplay_IsHost())
                         Netplay_BroadcastPacket(NETPLAY_PACKET_LOADED, 0, NULL);
                 else
-                        Netplay_SendPacket(NETPLAY_PACKET_LOADED, 0, NULL, &s_hostAddr);
+                        Netplay_SendPacket(NETPLAY_PACKET_LOADED, 0, NULL, NULL);
+        }
+
+        /* Send CG_LOADINGDONE for new protocol */
+        if (_np_get_state() >= NETPLAY_STATE_LOADING && _np_get_state() != NETPLAY_STATE_DISCONNECTED)
+        {
+                uint8_t msg = CG_LOADINGDONE;
+                _np_send_raw(&msg, 1, 1);
         }
 }
 
@@ -2290,12 +2288,12 @@ internal void Netplay_CheckLoadedResend(void)
 
         s_lastLoadedResendMs = now;
 
-        if (s_netplayState == NETPLAY_STATE_HOSTING || s_netplayState == NETPLAY_STATE_CONNECTED)
+        if (s_netplayState == NETPLAY_LEGACY_HOSTING || s_netplayState == NETPLAY_LEGACY_CONNECTED)
         {
                 if (Netplay_IsHost())
                         Netplay_BroadcastPacket(NETPLAY_PACKET_LOADED, 0, NULL);
                 else
-                        Netplay_SendPacket(NETPLAY_PACKET_LOADED, 0, NULL, &s_hostAddr);
+                        Netplay_SendPacket(NETPLAY_PACKET_LOADED, 0, NULL, NULL);
         }
 }
 
@@ -2332,18 +2330,18 @@ int Netplay_IsEveryoneLoaded(void)
 
 void Netplay_BroadcastPause(void)
 {
-        if (s_netplayState == NETPLAY_STATE_HOSTING)
+        if (s_netplayState == NETPLAY_LEGACY_HOSTING)
                 Netplay_BroadcastPacket(NETPLAY_PACKET_PAUSE, 0, NULL);
-        else if (s_netplayState == NETPLAY_STATE_CONNECTED)
-                Netplay_SendPacket(NETPLAY_PACKET_PAUSE, 0, NULL, &s_hostAddr);
+        else if (s_netplayState == NETPLAY_LEGACY_CONNECTED)
+                Netplay_SendPacket(NETPLAY_PACKET_PAUSE, 0, NULL, NULL);
 }
 
 void Netplay_BroadcastUnpause(void)
 {
-        if (s_netplayState == NETPLAY_STATE_HOSTING)
+        if (s_netplayState == NETPLAY_LEGACY_HOSTING)
                 Netplay_BroadcastPacket(NETPLAY_PACKET_UNPAUSE, 0, NULL);
-        else if (s_netplayState == NETPLAY_STATE_CONNECTED)
-                Netplay_SendPacket(NETPLAY_PACKET_UNPAUSE, 0, NULL, &s_hostAddr);
+        else if (s_netplayState == NETPLAY_LEGACY_CONNECTED)
+                Netplay_SendPacket(NETPLAY_PACKET_UNPAUSE, 0, NULL, NULL);
 }
 
 int Netplay_ConsumeRemotePause(void)
@@ -2397,6 +2395,7 @@ void Netplay_ResetRaceState(void)
         g_NetplayRemoteChecksumFrame = 0;
         g_NetplayRemoteChecksumValue = 0;
         g_NetplayDisconnected = 0;
+        g_NetplayStartRaceRequested = 0;
         g_NetplayReturnToLobby = 0;
         memset(g_NetplayCharacters, -1, sizeof(g_NetplayCharacters));
         memset(g_NetplayEngines, -1, sizeof(g_NetplayEngines));
@@ -2550,7 +2549,7 @@ internal void Netplay_HandleRngSeed(const struct NetplayPacketHeader *header,
 void Netplay_BroadcastItemPickup(u8 playerId, u8 itemId, u8 numHeldItems, u32 frameNum)
 {
         struct NetplayItemPayload ip;
-        if (s_netplayState != NETPLAY_STATE_HOSTING && s_netplayState != NETPLAY_STATE_CONNECTED)
+        if (s_netplayState != NETPLAY_LEGACY_HOSTING && s_netplayState != NETPLAY_LEGACY_CONNECTED)
                 return;
 
         memset(&ip, 0, sizeof(ip));
@@ -2563,13 +2562,13 @@ void Netplay_BroadcastItemPickup(u8 playerId, u8 itemId, u8 numHeldItems, u32 fr
         if (Netplay_IsHost())
                 Netplay_BroadcastPacket(NETPLAY_PACKET_ITEM_PICKUP, sizeof(ip), &ip);
         else
-                Netplay_SendPacket(NETPLAY_PACKET_ITEM_PICKUP, sizeof(ip), &ip, &s_hostAddr);
+                Netplay_SendPacket(NETPLAY_PACKET_ITEM_PICKUP, sizeof(ip), &ip, NULL);
 }
 
 void Netplay_BroadcastItemUse(u8 playerId, u8 itemId, u32 frameNum, u8 isSecondary)
 {
         struct NetplayItemPayload ip;
-        if (s_netplayState != NETPLAY_STATE_HOSTING && s_netplayState != NETPLAY_STATE_CONNECTED)
+        if (s_netplayState != NETPLAY_LEGACY_HOSTING && s_netplayState != NETPLAY_LEGACY_CONNECTED)
                 return;
 
         memset(&ip, 0, sizeof(ip));
@@ -2582,7 +2581,7 @@ void Netplay_BroadcastItemUse(u8 playerId, u8 itemId, u32 frameNum, u8 isSeconda
         if (Netplay_IsHost())
                 Netplay_BroadcastPacket(NETPLAY_PACKET_ITEM_USE, sizeof(ip), &ip);
         else
-                Netplay_SendPacket(NETPLAY_PACKET_ITEM_USE, sizeof(ip), &ip, &s_hostAddr);
+                Netplay_SendPacket(NETPLAY_PACKET_ITEM_USE, sizeof(ip), &ip, NULL);
 }
 
 int Netplay_DequeueItemPickup(u8 playerId, u8 *outItemId, u8 *outNumItems)
@@ -2616,7 +2615,7 @@ int Netplay_DequeueItemUse(u8 playerId, u8 *outItemId, u8 *outIsSecondary)
 void Netplay_BroadcastRngSeed(u32 seed, u32 frameNum)
 {
         struct NetplayRngSeedPayload rs;
-        if (s_netplayState != NETPLAY_STATE_HOSTING)
+        if (s_netplayState != NETPLAY_LEGACY_HOSTING)
                 return;
 
         rs.seed = seed;
@@ -3119,9 +3118,14 @@ internal void Netplay_CheckPeerTimeouts(void)
 
 internal void Netplay_CheckHelloResend(void)
 {
+        /* If new protocol state is past connecting, skip legacy hello */
+        if (_np_get_state() >= NETPLAY_STATE_LOBBY_ASSIGN_ROLE &&
+            _np_get_state() < NETPLAY_STATE_DISCONNECTED)
+                return;
+
         /* Client side: resend HELLO every NETPLAY_HELLO_RESEND_MS until we get
          * an accept or until NETPLAY_HELLO_TIMEOUT_MS elapses. */
-        if (s_netplayState != NETPLAY_STATE_CONNECTING)
+        if (s_netplayState != NETPLAY_LEGACY_CONNECTING)
                 return;
 
         {
@@ -3131,13 +3135,9 @@ internal void Netplay_CheckHelloResend(void)
                 {
                         fprintf(stderr, "[Netplay] Connect timeout, giving up\n");
                         fflush(stderr);
-                        s_netplayState = NETPLAY_STATE_DISCONNECTED;
+                        s_netplayState = NETPLAY_LEGACY_DISCONNECTED;
                         s_rejectReason = NETPLAY_REJECT_BAD_PROTOCOL;
-                        if (Netplay_IsRunning())
-                        {
-                                NETPLAY_CLOSE_SOCKET(s_netplaySocket);
-                                s_netplaySocket = NETPLAY_SOCKET_INVALID;
-                        }
+                        _np_disconnect();
                         return;
                 }
 
@@ -3150,37 +3150,29 @@ internal void Netplay_CheckHelloResend(void)
                         strncpy((char *)hello.playerName, s_localPlayerName, NETPLAY_PLAYER_NAME_MAX - 1);
                         strncpy((char *)hello.gameVersion, "CTR-Native", NETPLAY_VERSION_STRING_MAX - 1);
                         hello.protocolVersion = NETPLAY_PROTOCOL_VERSION;
-                        Netplay_SendPacket(NETPLAY_PACKET_HELLO, sizeof(hello), &hello, &s_hostAddr);
+                        Netplay_SendPacket(NETPLAY_PACKET_HELLO, sizeof(hello), &hello, NULL);
                 }
         }
 }
 
 internal void Netplay_CheckConnectedTransition(void)
 {
-        /* If connecting, check if we got a HELLO back and became connected */
-        if (s_netplayState == NETPLAY_STATE_CONNECTING)
+        /* New protocol: state transition is handled by the bridge in Netplay_Poll.
+         * Legacy: check if we got a HELLO back and became connected. */
+        if (s_netplayState == NETPLAY_LEGACY_CONNECTING)
         {
-                int i;
                 int hasHost = 0;
-
-                for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
+                for (int i = 0; i < NETPLAY_MAX_PLAYERS; i++)
                 {
                         if (s_peers[i].active)
                         {
                                 hasHost = 1;
-                                if (s_localPlayerId == 0 && s_peers[i].id != 0)
-                                {
-                                        /* We got our player ID from the host */
-                                        s_localPlayerId = s_peers[i].id;
-                                }
+                                break;
                         }
                 }
-
-                /* If we have at least one peer and a non-zero ID, consider
-                 * ourselves connected. */
                 if (hasHost && s_localPlayerId != 0)
                 {
-                        s_netplayState = NETPLAY_STATE_CONNECTED;
+                        s_netplayState = NETPLAY_LEGACY_CONNECTED;
                         fprintf(stdout, "[Netplay] Connected as player %d\n", s_localPlayerId);
                         fflush(stdout);
                 }
@@ -3196,7 +3188,7 @@ internal void Netplay_SendPeriodicPings(void)
 
         s_lastPingTime = now;
 
-        if (s_netplayState == NETPLAY_STATE_HOSTING || s_netplayState == NETPLAY_STATE_CONNECTED)
+        if (s_netplayState == NETPLAY_LEGACY_HOSTING || s_netplayState == NETPLAY_LEGACY_CONNECTED)
         {
                 int i;
 
@@ -3216,9 +3208,39 @@ internal void Netplay_SendPeriodicPings(void)
 
 void Netplay_Poll(void)
 {
-        /* Process all pending packets */
+        /* Process all pending packets (both old and new protocol) */
         while (Netplay_ReceivePacket())
         {
+        }
+
+        /* Sync new protocol state → legacy globals */
+        {
+                int newState = _np_get_state();
+                if (newState != NETPLAY_STATE_DISCONNECTED)
+                {
+                        switch (newState)
+                        {
+                        case NETPLAY_STATE_LOBBY_ASSIGN_ROLE:
+                        case NETPLAY_STATE_LOBBY_HOST_SETUP:
+                        case NETPLAY_STATE_LOBBY_GUEST_WAIT:
+                        case NETPLAY_STATE_LOBBY_CHARACTER:
+                        case NETPLAY_STATE_LOBBY_WAIT_LOADING:
+                                /* Player 0 is the host; use new protocol's localPlayerId.
+                                 * Fall back to old Netplay_IsHost() for edge cases. */
+                                if (_np_get_local_player_id() == 0 || Netplay_IsHost())
+                                        s_netplayState = NETPLAY_LEGACY_HOSTING;
+                                else
+                                        s_netplayState = NETPLAY_LEGACY_CONNECTED;
+                                break;
+                        case NETPLAY_STATE_LOADING:
+                        case NETPLAY_STATE_GAME_WAIT_RACE:
+                        case NETPLAY_STATE_GAME_RACE:
+                                s_netplayState = NETPLAY_LEGACY_CONNECTED;
+                                break;
+                        default:
+                                break;
+                        }
+                }
         }
 
         /* Poll the chat window for input (non-blocking) */
@@ -3261,5 +3283,116 @@ void Netplay_Poll(void)
                 }
                 g_NetplayRemoteLoaded = anyActive ? allLoaded : 0;
         }
+}
+
+/* ============================================================
+ * New SDK-based API implementations
+ * ============================================================ */
+
+void Netplay_SendKartState(int16_t posX, int16_t posY, int16_t posZ,
+                           uint8_t kartRot1, uint8_t kartRot2,
+                           uint8_t buttonHold, uint8_t wumpaCount, uint8_t reserves)
+{
+        if (!Netplay_IsRunning()) return;
+
+        struct EverythingKart ek;
+        ek.header[0] = (uint8_t)(CG_RACEDATA | (EVERYTHINGKART_SET_HDR0(wumpaCount, reserves) << 4));
+        ek.header[1] = EVERYTHINGKART_SET_HDR1(s_localPlayerId, kartRot1);
+        ek.kartRot2 = kartRot2;
+        ek.buttonHold = buttonHold;
+        ek.posX = posX;
+        ek.posY = posY;
+        ek.posZ = posZ;
+
+        /* Send directly via ENet (no old header wrapping) */
+        _np_send_raw((const uint8_t *)&ek, sizeof(ek), 0);
+}
+
+int Netplay_ReceiveKartState(uint8_t playerId, struct EverythingKart *out)
+{
+        /* Read from the _np kart queue (filled by _np_process_packet) */
+        struct _NetplayState *st = _np_state();
+        int head = st->kartQueueHead[playerId];
+        if (head == st->kartQueueTail[playerId])
+                return 0;
+        memcpy(out, &st->kartQueue[playerId][head], sizeof(*out));
+        st->kartQueueHead[playerId] = (head + 1) % NP_KART_QUEUE_MAX;
+        return 1;
+}
+
+void Netplay_SetCharacter(uint8_t charId, int engineId)
+{
+        if (!Netplay_IsRunning()) return;
+
+        struct SG_CharacterSelect msg;
+        msg.type = CG_CHARACTER;
+        msg.clientID = s_localPlayerId;
+        msg.lockedIn = 1;
+        msg.charID = charId;
+        msg.engineID = (uint8_t)engineId;
+        _np_send_raw((const uint8_t *)&msg, sizeof(msg), 1);
+}
+
+void Netplay_SetTrack(uint8_t trackId, uint8_t numLaps)
+{
+        if (!Netplay_IsRunning()) return;
+
+        struct SG_TrackSelect msg;
+        msg.type = CG_TRACK;
+        msg.trackID = trackId;
+        msg.lapCount = numLaps;
+        _np_send_raw((const uint8_t *)&msg, sizeof(msg), 1);
+}
+
+void Netplay_RequestStartLoading(void)
+{
+        if (!Netplay_IsRunning()) return;
+
+        uint8_t msg[1];
+        packet_set_header(msg, CG_STARTRACE);
+        _np_send_raw(msg, 1, 1);
+}
+
+void Netplay_SendWeaponUse(uint8_t weaponId, uint8_t juiced)
+{
+        if (!Netplay_IsRunning()) return;
+
+        struct SG_WeaponUse msg;
+        msg.type = CG_WEAPON;
+        msg.clientID = s_localPlayerId;
+        msg.juiced = juiced;
+        msg.weaponID = weaponId;
+        _np_send_raw((const uint8_t *)&msg, sizeof(msg), 1);
+}
+
+int Netplay_ReceiveWeaponUse(uint8_t *outPlayerId, uint8_t *outWeaponId, uint8_t *outJuiced)
+{
+        struct _NetplayState *st = _np_state();
+        int head = st->weaponQueueHead;
+        if (head == st->weaponQueueTail)
+                return 0;
+
+        if (outPlayerId) *outPlayerId = st->weaponQueue[head].playerId;
+        if (outWeaponId) *outWeaponId = st->weaponQueue[head].weaponId;
+        if (outJuiced)   *outJuiced   = st->weaponQueue[head].juiced;
+        st->weaponQueue[head].valid = 0;
+        st->weaponQueueHead = (head + 1) % 8;
+        return 1;
+}
+
+void Netplay_MarkLocalFinished(uint16_t courseTime, uint16_t bestLapTime,
+                                int16_t posX, int16_t posZ)
+{
+        if (!Netplay_IsRunning()) return;
+
+        struct SG_EndRace msg;
+        msg.type = CG_ENDRACE;
+        msg.clientID = s_localPlayerId;
+        msg.padding = 0;
+        msg.courseTime = courseTime;
+        msg.bestLapTime = bestLapTime;
+        msg.posX = (uint16_t)posX;
+        msg.posZ = (uint16_t)posZ;
+        _np_send_raw((const uint8_t *)&msg, sizeof(msg), 1);
 }
 

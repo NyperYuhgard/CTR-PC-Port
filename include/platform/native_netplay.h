@@ -1,15 +1,10 @@
 #ifndef PLATFORM_NATIVE_NETPLAY_H
 #define PLATFORM_NATIVE_NETPLAY_H
 
+#include <platform/netplay.h>
 #include <macros.h>
 
-#define NETPLAY_MAX_PLAYERS      8
-#define NETPLAY_DEFAULT_PORT     14200
 #define NETPLAY_FRAME_HISTORY    120
-
-/* Wire protocol version. Bump when packet layouts change incompatibly.
- * The host rejects clients whose version does not match. */
-#define NETPLAY_PROTOCOL_VERSION 1
 
 /* Number of frames the input pipeline waits before consuming a remote
  * input. Higher = smoother under packet loss/jitter, but adds latency.
@@ -102,12 +97,12 @@ struct NetplayStatePayload
         s16 noItemTimer;     /* weapon flicker timer — also drives HUD flicker (can be > 255) */
 };
 
-enum NetplayState
+enum NetplayLegacyState
 {
-        NETPLAY_STATE_DISCONNECTED,
-        NETPLAY_STATE_HOSTING,
-        NETPLAY_STATE_CONNECTING,
-        NETPLAY_STATE_CONNECTED,
+        NETPLAY_LEGACY_DISCONNECTED,
+        NETPLAY_LEGACY_HOSTING,
+        NETPLAY_LEGACY_CONNECTING,
+        NETPLAY_LEGACY_CONNECTED,
 };
 
 enum NetplayRejectReason
@@ -362,9 +357,13 @@ const char *Netplay_GetInterfaceIPByIndex(int index);
 void Netplay_SetAddressString(const char *ipString, u16 port);
 
 struct GameTracker; /* forward decl — full type in namespace_Main.h */
-/* Re-register non-last-pack driver models wiped by LibraryOfModels_Clear.
- * Called from LOAD_TenStages state 5 during netplay race loading. */
-void Netplay_RestoreDriverModels(struct GameTracker *gGT);
+
+/* Array of remote-player model pointers, indexed by player ID.
+ * Populated during LOAD_DriverMPK by loading individual BI_RACERMODELHI
+ * files for each remote peer. Survives LibraryOfModels_Clear because
+ * this is static memory, not part of gGT->modelPtr[]. Searched first
+ * by VehBirth_GetModelByName during netplay races. */
+extern struct Model *g_NetplayRemoteModels[NETPLAY_MAX_PLAYERS];
 
 extern int g_NetplayAutoJoin;
 extern int g_NetplayRaceStarting;
@@ -376,10 +375,34 @@ extern int g_NetplayNumLaps;
 extern int g_NetplayLocalLoaded;
 extern int g_NetplayRemoteLoaded; /* legacy: 1 when every peer is loaded */
 extern int g_NetplayDisconnected;
+extern int g_NetplayStartRaceRequested;
 extern int g_NetplayStateRequested;
 extern u32 g_NetplayRemoteChecksumFrame;
 extern u32 g_NetplayRemoteChecksumValue;
 extern u32 g_NetplayReadyMask;       /* bitmask of peers that signalled ready */
 extern int  g_NetplayReturnToLobby;  /* flag set when host says go back to lobby */
+
+/* ============================================================
+ * New SDK-based API (migrate old calls to these)
+ * ============================================================ */
+
+/* ---- Per-frame sync (replaces SendGamepadState/ReceiveInputs) ---- */
+void Netplay_SendKartState(int16_t posX, int16_t posY, int16_t posZ,
+                           uint8_t kartRot1, uint8_t kartRot2,
+                           uint8_t buttonHold, uint8_t wumpaCount, uint8_t reserves);
+int  Netplay_ReceiveKartState(uint8_t playerId, struct EverythingKart *out);
+
+/* ---- Lobby (replaces old HELLO/character/track protocol) ---- */
+void Netplay_SetCharacter(uint8_t charId, int engineId);
+void Netplay_SetTrack(uint8_t trackId, uint8_t numLaps);
+void Netplay_RequestStartLoading(void);
+
+/* ---- Weapons (replaces old ItemPickup/ItemUse) ---- */
+void Netplay_SendWeaponUse(uint8_t weaponId, uint8_t juiced);
+int  Netplay_ReceiveWeaponUse(uint8_t *outPlayerId, uint8_t *outWeaponId, uint8_t *outJuiced);
+
+/* ---- Race lifecycle ---- */
+void Netplay_MarkLocalFinished(uint16_t courseTime, uint16_t bestLapTime,
+                                int16_t posX, int16_t posZ);
 
 #endif
