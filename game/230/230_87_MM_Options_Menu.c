@@ -41,6 +41,7 @@
 
 static int s_optionsSelectedIndex = 0;
 static int s_optionsState = OPTIONS_STATE_MAIN;
+static int s_optionsScrollOffset = 0;
 static int s_optionsBindScrollOffset = 0;
 static int s_optionsBindSelectedIndex = 0;
 static int s_optionsWaitingForKey = 0;
@@ -88,6 +89,7 @@ void MM_Options_Init(void)
 {
 	s_optionsSelectedIndex = 0;
 	s_optionsState = OPTIONS_STATE_MAIN;
+	s_optionsScrollOffset = 0;
 	s_optionsBindScrollOffset = 0;
 	s_optionsBindSelectedIndex = 0;
 	s_optionsWaitingForKey = 0;
@@ -103,13 +105,33 @@ static void MM_Options_HandleMainInput(void)
 {
 	if (BTN_TAP_PLAYER0 & BTN_UP)
 	{
-		s_optionsSelectedIndex = (s_optionsSelectedIndex - 1 + OPTION_ROW_COUNT) % OPTION_ROW_COUNT;
+		if (s_optionsSelectedIndex > 0)
+			s_optionsSelectedIndex--;
 		OtherFX_Play(0, 1);
 		RECTMENU_ClearInput();
 	}
 	else if (BTN_TAP_PLAYER0 & BTN_DOWN)
 	{
-		s_optionsSelectedIndex = (s_optionsSelectedIndex + 1) % OPTION_ROW_COUNT;
+		if (s_optionsSelectedIndex < OPTION_ROW_COUNT - 1)
+			s_optionsSelectedIndex++;
+		OtherFX_Play(0, 1);
+		RECTMENU_ClearInput();
+	}
+	else if (BTN_TAP_PLAYER0 & BTN_R2)
+	{
+		if (s_optionsSelectedIndex + OPTIONS_MENU_VISIBLE_ROWS < OPTION_ROW_COUNT)
+			s_optionsSelectedIndex += OPTIONS_MENU_VISIBLE_ROWS;
+		else
+			s_optionsSelectedIndex = OPTION_ROW_COUNT - 1;
+		OtherFX_Play(0, 1);
+		RECTMENU_ClearInput();
+	}
+	else if (BTN_TAP_PLAYER0 & BTN_L2)
+	{
+		if (s_optionsSelectedIndex >= OPTIONS_MENU_VISIBLE_ROWS)
+			s_optionsSelectedIndex -= OPTIONS_MENU_VISIBLE_ROWS;
+		else
+			s_optionsSelectedIndex = 0;
 		OtherFX_Play(0, 1);
 		RECTMENU_ClearInput();
 	}
@@ -216,98 +238,171 @@ static void MM_Options_HandleMainInput(void)
 	}
 }
 
+static void Options_ClampScroll(void)
+{
+	if (OPTION_ROW_COUNT <= OPTIONS_MENU_VISIBLE_ROWS)
+	{
+		s_optionsScrollOffset = 0;
+		return;
+	}
+
+	int maxScroll = OPTION_ROW_COUNT - OPTIONS_MENU_VISIBLE_ROWS;
+
+	if (s_optionsSelectedIndex < s_optionsScrollOffset)
+		s_optionsScrollOffset = s_optionsSelectedIndex;
+	else if (s_optionsSelectedIndex >= s_optionsScrollOffset + OPTIONS_MENU_VISIBLE_ROWS)
+		s_optionsScrollOffset = s_optionsSelectedIndex - OPTIONS_MENU_VISIBLE_ROWS + 1;
+
+	if (s_optionsScrollOffset < 0)
+		s_optionsScrollOffset = 0;
+	if (s_optionsScrollOffset > maxScroll)
+		s_optionsScrollOffset = maxScroll;
+}
+
 static void Options_DrawMain(struct GameTracker *gGT, u_long *ot)
 {
+	int i;
 	int y = OPTIONS_MENU_LIST_TOP_Y;
 	int selected = s_optionsSelectedIndex;
+	int visibleCount;
 	RECT highlight;
 	RECT borders;
 
-	highlight.x = OPTIONS_MENU_LEFT_X + 4;
-	highlight.y = OPTIONS_MENU_LIST_TOP_Y + (selected * OPTIONS_MENU_ROW_HEIGHT) - 1;
-	highlight.w = OPTIONS_MENU_HIGHLIGHT_W;
-	highlight.h = OPTIONS_MENU_ROW_HEIGHT + 1;
-	CTR_Box_DrawClearBox(&highlight, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot);
+	Options_ClampScroll();
 
+	// Highlight bar
+	if (selected >= s_optionsScrollOffset && selected < s_optionsScrollOffset + OPTIONS_MENU_VISIBLE_ROWS)
 	{
-		int vol = howl_VolumeGet(0) & 0xff;
-		DecalFont_DrawLineOT(sdata->lngStrings[LNG_FX], OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		char buf[8];
-		snprintf(buf, sizeof(buf), "%d", vol);
-		DecalFont_DrawLineOT(buf, OPTIONS_MENU_VALUE_X, y, FONT_SMALL, WHITE, ot);
+		int relIndex = selected - s_optionsScrollOffset;
+		highlight.x = OPTIONS_MENU_LEFT_X + 4;
+		highlight.y = OPTIONS_MENU_LIST_TOP_Y + (relIndex * OPTIONS_MENU_ROW_HEIGHT) - 1;
+		highlight.w = OPTIONS_MENU_HIGHLIGHT_W;
+		highlight.h = OPTIONS_MENU_ROW_HEIGHT + 1;
+		CTR_Box_DrawClearBox(&highlight, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot);
+	}
+
+	// Draw visible rows
+	visibleCount = OPTION_ROW_COUNT - s_optionsScrollOffset;
+	if (visibleCount > OPTIONS_MENU_VISIBLE_ROWS)
+		visibleCount = OPTIONS_MENU_VISIBLE_ROWS;
+
+	for (i = 0; i < visibleCount; i++)
+	{
+		int absIdx = s_optionsScrollOffset + i;
+
+		switch (absIdx)
+		{
+			case OPTION_ROW_FX:
+			{
+				int vol = howl_VolumeGet(0) & 0xff;
+				DecalFont_DrawLineOT(sdata->lngStrings[LNG_FX], OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				char buf[8];
+				snprintf(buf, sizeof(buf), "%d", vol);
+				DecalFont_DrawLineOT(buf, OPTIONS_MENU_VALUE_X, y, FONT_SMALL, WHITE, ot);
+				break;
+			}
+
+			case OPTION_ROW_MUSIC:
+			{
+				int vol = howl_VolumeGet(1) & 0xff;
+				DecalFont_DrawLineOT(sdata->lngStrings[LNG_MUSIC], OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				char buf[8];
+				snprintf(buf, sizeof(buf), "%d", vol);
+				DecalFont_DrawLineOT(buf, OPTIONS_MENU_VALUE_X, y, FONT_SMALL, WHITE, ot);
+				break;
+			}
+
+			case OPTION_ROW_VOICE:
+			{
+				int vol = howl_VolumeGet(2) & 0xff;
+				DecalFont_DrawLineOT(sdata->lngStrings[LNG_VOICE], OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				char buf[8];
+				snprintf(buf, sizeof(buf), "%d", vol);
+				DecalFont_DrawLineOT(buf, OPTIONS_MENU_VALUE_X, y, FONT_SMALL, WHITE, ot);
+				break;
+			}
+
+			case OPTION_ROW_MODE:
+			{
+				int mode = howl_ModeGet();
+				DecalFont_DrawLineOT("Sound Type", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(sdata->lngStrings[mode ? LNG_STEREO : LNG_MONO], OPTIONS_MENU_VALUE_X, y, FONT_SMALL, WHITE, ot);
+				break;
+			}
+
+			case OPTION_ROW_ASPECT:
+			{
+				char *label = g_cfg_aspectMode == ASPECT_STRETCH ? "STRETCH" :
+					g_cfg_aspectMode == ASPECT_16_9_WS ? "16:9 WS" :
+					g_cfg_aspectMode == ASPECT_16_9 ? "16:9" : "4:3";
+				int color = g_cfg_aspectMode == ASPECT_4_3 ? WHITE : TINY_GREEN;
+				DecalFont_DrawLineOT("ASPECT", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(label, OPTIONS_MENU_VALUE_X, y, FONT_SMALL, color, ot);
+				break;
+			}
+
+			case OPTION_ROW_FPS:
+			{
+				char *fpsLabels[] = {"30", "60"};
+				int fpsColor = g_cfg_60fpsMode == 1 ? TINY_GREEN : WHITE;
+				DecalFont_DrawLineOT("FPS", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(fpsLabels[g_cfg_60fpsMode], OPTIONS_MENU_VALUE_X, y, FONT_SMALL, fpsColor, ot);
+				break;
+			}
+
+			case OPTION_ROW_FILTER:
+			{
+				DecalFont_DrawLineOT("FILTER", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(g_cfg_bilinearFiltering ? "SMOOTH" : "PIXEL", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, g_cfg_bilinearFiltering ? TINY_GREEN : WHITE, ot);
+				break;
+			}
+
+			case OPTION_ROW_SCALE:
+			{
+				char *scaleLabels[] = {"1x", "2x", "3x", "4x"};
+				int scaleColor = g_cfg_resolutionScale > 1 ? TINY_GREEN : WHITE;
+				DecalFont_DrawLineOT("SCALE", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(scaleLabels[g_cfg_resolutionScale - 1], OPTIONS_MENU_VALUE_X, y, FONT_SMALL, scaleColor, ot);
+				break;
+			}
+
+			case OPTION_ROW_FULLSCREEN:
+			{
+				DecalFont_DrawLineOT("FULLSCREEN", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(g_cfg_fullscreen ? "ON" : "OFF", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, g_cfg_fullscreen ? TINY_GREEN : WHITE, ot);
+				break;
+			}
+
+			case OPTION_ROW_CONTROLS:
+			{
+				DecalFont_DrawLineOT("CONTROLS", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT("EDIT", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, TINY_GREEN, ot);
+				break;
+			}
+		}
+
 		y += OPTIONS_MENU_ROW_HEIGHT;
 	}
 
+	// Scroll indicators
+	if (s_optionsScrollOffset > 0)
 	{
-		int vol = howl_VolumeGet(1) & 0xff;
-		DecalFont_DrawLineOT(sdata->lngStrings[LNG_MUSIC], OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		char buf[8];
-		snprintf(buf, sizeof(buf), "%d", vol);
-		DecalFont_DrawLineOT(buf, OPTIONS_MENU_VALUE_X, y, FONT_SMALL, WHITE, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
+		DecalFont_DrawLineOT("^", OPTIONS_MENU_CENTER_X, OPTIONS_MENU_LIST_TOP_Y - 0x0C, FONT_SMALL, JUSTIFY_CENTER | WHITE, ot);
+	}
+	if (OPTION_ROW_COUNT > s_optionsScrollOffset + OPTIONS_MENU_VISIBLE_ROWS)
+	{
+		DecalFont_DrawLineOT("v", OPTIONS_MENU_CENTER_X, y + 2, FONT_SMALL, JUSTIFY_CENTER | WHITE, ot);
 	}
 
+	// Page indicator
+	if (OPTION_ROW_COUNT > OPTIONS_MENU_VISIBLE_ROWS)
 	{
-		int vol = howl_VolumeGet(2) & 0xff;
-		DecalFont_DrawLineOT(sdata->lngStrings[LNG_VOICE], OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		char buf[8];
-		snprintf(buf, sizeof(buf), "%d", vol);
-		DecalFont_DrawLineOT(buf, OPTIONS_MENU_VALUE_X, y, FONT_SMALL, WHITE, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
+		char pageBuf[32];
+		snprintf(pageBuf, sizeof(pageBuf), "%d / %d", s_optionsSelectedIndex + 1, OPTION_ROW_COUNT);
+		DecalFont_DrawLineOT(pageBuf, OPTIONS_MENU_CENTER_X, y + 0x10, FONT_SMALL, JUSTIFY_CENTER | GRAY, ot);
 	}
 
-	{
-		int mode = howl_ModeGet();
-		DecalFont_DrawLineOT("Sound Type", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT(sdata->lngStrings[mode ? LNG_STEREO : LNG_MONO], OPTIONS_MENU_VALUE_X, y, FONT_SMALL, WHITE, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
-	}
-
-	{
-		char *label = g_cfg_aspectMode == ASPECT_STRETCH ? "STRETCH" :
-			      g_cfg_aspectMode == ASPECT_16_9_WS ? "16:9 WS" :
-			      g_cfg_aspectMode == ASPECT_16_9 ? "16:9" : "4:3";
-		int color = g_cfg_aspectMode == ASPECT_4_3 ? WHITE : TINY_GREEN;
-		DecalFont_DrawLineOT("ASPECT", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT(label, OPTIONS_MENU_VALUE_X, y, FONT_SMALL, color, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
-	}
-
-	{
-		char *fpsLabels[] = {"30", "60"};
-		int fpsColor = g_cfg_60fpsMode == 1 ? TINY_GREEN : WHITE;
-		DecalFont_DrawLineOT("FPS", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT(fpsLabels[g_cfg_60fpsMode], OPTIONS_MENU_VALUE_X, y, FONT_SMALL, fpsColor, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
-	}
-
-	{
-		DecalFont_DrawLineOT("FILTER", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT(g_cfg_bilinearFiltering ? "SMOOTH" : "PIXEL", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, g_cfg_bilinearFiltering ? TINY_GREEN : WHITE, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
-	}
-
-	{
-		char *scaleLabels[] = {"1x", "2x", "3x", "4x"};
-		int scaleColor = g_cfg_resolutionScale > 1 ? TINY_GREEN : WHITE;
-		DecalFont_DrawLineOT("SCALE", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT(scaleLabels[g_cfg_resolutionScale - 1], OPTIONS_MENU_VALUE_X, y, FONT_SMALL, scaleColor, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
-	}
-
-	{
-		DecalFont_DrawLineOT("FULLSCREEN", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT(g_cfg_fullscreen ? "ON" : "OFF", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, g_cfg_fullscreen ? TINY_GREEN : WHITE, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
-	}
-
-	{
-		DecalFont_DrawLineOT("CONTROLS", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT("EDIT", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, TINY_GREEN, ot);
-		y += OPTIONS_MENU_ROW_HEIGHT;
-	}
-
-	int listHeight = OPTIONS_MENU_ROW_HEIGHT * OPTIONS_MENU_VISIBLE_ROWS;
+	int listHeight = OPTIONS_MENU_VISIBLE_ROWS * OPTIONS_MENU_ROW_HEIGHT;
 	borders.x = OPTIONS_MENU_CENTER_X - OPTIONS_MENU_PANEL_W / 2 - 6;
 	borders.y = OPTIONS_MENU_TITLE_Y - 8;
 	borders.w = OPTIONS_MENU_PANEL_W + 12;
