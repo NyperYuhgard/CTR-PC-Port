@@ -71,6 +71,10 @@ void MM_Title_ThTick(struct Thread *title)
 		timer = 230;
 
 	// play 8 sounds, one on each frame
+#ifdef CTR_NATIVE
+	{ static int s_60fpsTitleSoundLast = -1; if (timer != s_60fpsTitleSoundLast)
+	{
+#endif
 	for (i = 0; i < 8; i++)
 	{
 		if (D230.titleSounds[i].frameToPlay == timer)
@@ -79,6 +83,9 @@ void MM_Title_ThTick(struct Thread *title)
 			OtherFX_Play(D230.titleSounds[i].soundID, 1);
 		}
 	}
+#ifdef CTR_NATIVE
+		s_60fpsTitleSoundLast = timer; } }
+#endif
 
 	// copy pointer to title object
 	ptrTitle = (struct Title *)title->object;
@@ -141,8 +148,12 @@ void MM_Title_ThTick(struct Thread *title)
 
 	MM_Title_CameraMove(ptrTitle, timer);
 
-	// increment frame counter
+	// increment frame counter (halved at 60fps to match original speed)
+#ifdef CTR_NATIVE
+	{ static int s_60fpsTitleTickToggle = 0; if (!IS_NATIVE_60FPS || (s_60fpsTitleTickToggle ^= 1)) timer = D230.timerInTitle + 1; else timer = D230.timerInTitle; }
+#else
 	timer = D230.timerInTitle + 1;
+#endif
 
 	if (245 < D230.timerInTitle)
 	{

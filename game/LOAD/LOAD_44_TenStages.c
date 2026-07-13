@@ -197,6 +197,14 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
                 }
 
 #ifdef CTR_NATIVE
+                /* Safety: reset stale g_NetplayRacing if no netplay session.
+                 * Prevents the netplay model-loading path from breaking
+                 * single-player Arcade/Cup after ending a netplay race. */
+                if (g_NetplayRacing && Netplay_GetState() == NETPLAY_LEGACY_DISCONNECTED)
+                {
+                        g_NetplayRacing = 0;
+                }
+
                 /* Netplay: each instance is single-player locally even though
                  * numPlyrCurrGame is 2-8 to represent connected peers. We must
                  * load the 1P MPK (high-poly kart models) — NOT the 2P/3P/4P
@@ -326,15 +334,6 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
                 {
                         ptrArray[i] = 0;
                 }
-
-                // NOTE(aalhendi): Clear stale model pointers BEFORE loading new driver models.
-                // MEMPACK_PopToState in stage 0 frees all previous level data, and new
-                // MEMPACK allocations may reuse the same addresses. Stale gGT->modelPtr[]
-                // entries pointing to those addresses caused the newly loaded HI model data
-                // to be corrupted between the load callback (stage 4 queue processing) and
-                // LibraryOfModels_Clear (stage 5). Clearing here prevents any stale code
-                // path from reading/writing through those dangling pointers.
-                LibraryOfModels_Clear(gGT);
 
                 // NOTE(aalhendi): Retail gates stage advancement until the driver MPK callback sets ptrMPK.
                 sdata->load_inProgress = 1;

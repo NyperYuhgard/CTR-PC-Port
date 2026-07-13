@@ -426,7 +426,7 @@ static void process_receive_event(ENetEvent *ev)
                 memcpy(&relay, ek, sizeof(relay));
 
                 /* Set the client ID in the relayed packet */
-                relay.header[1] = (relay.header[1] & 0x07) | ((index & 7) << 3);
+                relay.header[1] = (relay.header[1] & 0xF8) | (index & 7);
 
                 for (int i = 0; i < ri->clientCount; i++)
                 {

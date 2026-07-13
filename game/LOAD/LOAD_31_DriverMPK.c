@@ -5,6 +5,28 @@
 
 static void (*const LOAD_DriverMPK_SetPointer)(struct LoadQueueSlot *) = (void (*)(struct LoadQueueSlot *))-2;
 
+#ifdef CTR_NATIVE
+/* Netplay: callback for non-last 1P arcade packs. Registers the pack's
+ * models immediately in gGT->modelPtr[] via LibraryOfModels_Store, so
+ * that characters from earlier packs are visible even though ptrMPK
+ * ends up pointing to the last pack. */
+static void LOAD_Callback_DriverModels_Netplay(struct LoadQueueSlot *lqs)
+{
+        struct GameTracker *gGT = sdata->gGT;
+        int ptrMPK = (int)lqs->ptrDestination;
+        if (ptrMPK != 0)
+        {
+                int **plyrObjList = (int **)((u32)ptrMPK + 4);
+                if (plyrObjList != NULL && *plyrObjList != NULL)
+                {
+                        /* Register up to 8 models (a 1P pack has 8 karts) */
+                        LibraryOfModels_Store(gGT, 8, (struct Model **)plyrObjList);
+                }
+        }
+        BFDBG_PRINTF("Callback_DriverModels_Netplay: registered models from pack at %p", lqs->ptrDestination);
+}
+#endif
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003282c-0x80032b50.
 int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(struct LoadQueueSlot *))
 {
@@ -17,42 +39,118 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
         int lastFileIndexMPK;
 
 #ifdef CTR_NATIVE
-        /* Netplay: load player 0's 1P arcade pack for icons/DecalGlobal,
-         * then load individual BI_RACERMODELHI files for each remote
-         * player into g_NetplayRemoteModels[]. Models in this persistent
-         * array survive LibraryOfModels_Clear (which only wipes
-         * gGT->modelPtr[] and is called between the driver-MPK load
-         * and stage 5). VehBirth_GetModelByName searches this array
-         * first during netplay races. levelLOD is forced to 1 in
-         * LOAD_44_TenStages. */
+        /* Netplay: load the 1P arcade pack for EVERY connected peer's
+         * character, not just player 0. Each 1P pack contains 8 kart
+         * models (the picked character + 7 AIs), but the AIs differ per
+         * pack — so to guarantee that peer N's character has a model
+         * loaded, we must load peer N's pack too.
+         *
+         * With 2 peers that's 2 × ~295KB = ~590KB, which fits in the
+         * expanded MEMPACK (~4.6MB usables after 24-bit clamping).
+         *
+         * The LAST pack in the queue uses the real callback so ptrMPK
+         * gets set for LOAD_GlobalModelPtrs_MPK / icons / DecalGlobal.
+         * The earlier packs use LOAD_DriverMPK_SetPointer (sentinel -2)
+         * which just stores the pointer without invoking a callback —
+         * their models get registered later via PLYROBJECTLIST only
+         * for the last pack. To register ALL packs' models, we also
+         * store each pack's address in driverModelExtras so
+         * LOAD_GlobalModelPtrs_MPK picks them up.
+         *
+         * levelLOD is forced to 1 in LOAD_44_TenStages. */
         if (g_NetplayRacing)
         {
                 int n = gGT->numPlyrCurrGame;
+                int lastPeer = -1;
+                int seenChar[16];
+                int j;
 
-                /* Clear stale pointers from any previous race. */
-                memset(g_NetplayRemoteModels, 0, sizeof(g_NetplayRemoteModels));
+                /* Track which characters we've already loaded to avoid
+                 * loading the same pack twice (e.g. two peers picked
+                 * the same character). */
+                memset(seenChar, 0, sizeof(seenChar));
 
-                /* Player 0 (local) gets the full pack — needed for ptrMPK,
-                 * icons, DecalGlobal, and the local character's model. */
-                lastFileIndexMPK = BI_1PARCADEPACK + data.characterIDs[0];
-
-                /* Remote players (1..N-1): load individual HI model files.
-                 * Each is much smaller than a full pack (~30KB vs ~295KB).
-                 * The -2 sentinel callback writes the loaded address
-                 * directly into g_NetplayRemoteModels[i]. */
-                for (i = 1; i < n && i < NETPLAY_MAX_PLAYERS; i++)
+                for (i = 0; i < n && i < 8; i++)
                 {
                         int charId = data.characterIDs[i];
                         if (charId < 0 || charId >= 16)
                                 continue;
-
-                        LOAD_AppendQueue(bigfile, LT_GETADDR,
-                                         BI_RACERMODELHI + charId,
-                                         &g_NetplayRemoteModels[i],
-                                         LOAD_DriverMPK_SetPointer);
+                        if (seenChar[charId])
+                                continue;
+                        seenChar[charId] = 1;
+                        lastPeer = i;
                 }
 
-                goto QueueLastPack;
+                /* Re-iterate and queue each unique pack. All except the
+                 * last use the sentinel pointer setter; the last uses
+                 * the real callback so ptrMPK gets set. */
+                {
+                        int queued = 0;
+                        int totalUnique = 0;
+                        for (i = 0; i < n && i < 8; i++)
+                        {
+                                int charId = data.characterIDs[i];
+                                if (charId < 0 || charId >= 16)
+                                        continue;
+                                /* Count uniques (cheap re-scan) */
+                                {
+                                        int isUnique = 1;
+                                        int k;
+                                        for (k = 0; k < i; k++)
+                                        {
+                                                if (data.characterIDs[k] == charId)
+                                                {
+                                                        isUnique = 0;
+                                                        break;
+                                                }
+                                        }
+                                        if (!isUnique) continue;
+                                }
+                                totalUnique++;
+                        }
+
+                        for (i = 0; i < n && i < 8; i++)
+                        {
+                                int charId = data.characterIDs[i];
+                                if (charId < 0 || charId >= 16)
+                                        continue;
+                                /* Skip duplicates */
+                                {
+                                        int isUnique = 1;
+                                        int k;
+                                        for (k = 0; k < i; k++)
+                                        {
+                                                if (data.characterIDs[k] == charId)
+                                                {
+                                                        isUnique = 0;
+                                                        break;
+                                                }
+                                        }
+                                        if (!isUnique) continue;
+                                }
+
+                                queued++;
+                                if (queued < totalUnique)
+                                {
+                                        /* Not the last — use our custom callback that
+                                         * registers this pack's models immediately. */
+                                        LOAD_AppendQueue(bigfile, LT_GETADDR,
+                                                         BI_1PARCADEPACK + charId,
+                                                         NULL, LOAD_Callback_DriverModels_Netplay);
+                                }
+                                else
+                                {
+                                        /* Last unique pack — use real callback so
+                                         * ptrMPK gets set for icons/DecalGlobal. */
+                                        lastFileIndexMPK = BI_1PARCADEPACK + charId;
+                                        goto QueueLastPack;
+                                }
+                        }
+
+                        /* If no peers had valid characters, fall back to player 0 */
+                        lastFileIndexMPK = BI_1PARCADEPACK + data.characterIDs[0];
+                        goto QueueLastPack;
+                }
         }
 #endif
 

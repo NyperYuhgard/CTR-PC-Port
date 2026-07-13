@@ -1,7 +1,4 @@
 #include <common.h>
-#ifdef CTR_NATIVE
-#include <platform/native_netplay.h>
-#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80058948-0x80058a60.
 struct Model *VehBirth_GetModelByName(char *searchName)
@@ -9,29 +6,6 @@ struct Model *VehBirth_GetModelByName(char *searchName)
 	struct Model *m;
 	struct Model **models;
 	int i;
-
-#ifdef CTR_NATIVE
-	/* Netplay: search remote driver models first. These were loaded
-	 * into g_NetplayRemoteModels[] during LOAD_DriverMPK from
-	 * individual BI_RACERMODELHI files for each peer. The array
-	 * persists across LibraryOfModels_Clear. */
-	if (g_NetplayRacing)
-	{
-		for (i = 0; i < NETPLAY_MAX_PLAYERS; i++)
-		{
-			m = g_NetplayRemoteModels[i];
-			if (m == NULL)
-				continue;
-			if (*(u32 *)&m->name[0] == *(u32 *)&searchName[0] &&
-			    *(u32 *)&m->name[4] == *(u32 *)&searchName[4] &&
-			    *(u32 *)&m->name[8] == *(u32 *)&searchName[8] &&
-			    *(u32 *)&m->name[12] == *(u32 *)&searchName[12])
-			{
-				return m;
-			}
-		}
-	}
-#endif
 
 	// array to character models loaded,
 	// maximum of 4, used in VS mode
@@ -59,8 +33,7 @@ struct Model *VehBirth_GetModelByName(char *searchName)
 	    (models != NULL) && (models[0] != NULL))
 	{
 		// loop until all strings are checked (until current is not nullptr)
-		// max 32 entries as safety against missing NULL terminator
-		for (i = 0, m = models[i]; m != NULL && i < 32; i++, m = models[i])
+		for (i = 0, m = models[i]; m != NULL; i++, m = models[i])
 		{
 			// 12/16 bytes is enough
 			if ((*(u32 *)&m->name[0] == *(u32 *)&searchName[0]) && (*(u32 *)&m->name[4] == *(u32 *)&searchName[4]) &&

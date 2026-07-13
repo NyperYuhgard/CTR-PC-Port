@@ -9,7 +9,6 @@ void MM_Online_MenuProc(struct RectMenu *menu);
 #endif
 
 void MM_Cheat_UnlockOxideCup(void);
-void MM_Cheat_UnlockOxide(void);
 
 #define CHEAT_N BTN_UP
 #define CHEAT_U BTN_UP
@@ -35,7 +34,11 @@ struct OverlayDATA_230 D230 = {
             {0x50, 3, 5, 4, 4},
             {0x51, 4, 6, 5, 5},
 #ifdef CTR_NATIVE
+#if defined(CTR_ONLINE)
             {0x015, 5, 7, 6, 6},
+#else
+            {0x8015, 5, 7, 6, 6},
+#endif
             {0x014, 6, 8, 7, 7},
             {0x00e, 7, 9, 8, 8},
             {0x003, 8, 9, 9, 9},
@@ -53,7 +56,11 @@ struct OverlayDATA_230 D230 = {
             {0x51, 4, 6, 5, 5},
             {0x234, 5, 7, 6, 6},
 #ifdef CTR_NATIVE
+#if defined(CTR_ONLINE)
             {0x015, 6, 8, 7, 7},
+#else
+            {0x8015, 6, 8, 7, 7},
+#endif
             {0x014, 7, 9, 8, 8},
             {0x00e, 8, 10, 9, 9},
             {0x003, 9, 10, 10, 10},
@@ -330,9 +337,8 @@ struct OverlayDATA_230 D230 = {
     .cheats =
         {
             {5,
-             {CHEAT_O, CHEAT_X, CHEAT_D, CHEAT_U, CHEAT_E},
+             {CHEAT_O, CHEAT_X, CHEAT_U, CHEAT_D, CHEAT_E},
              MM_Cheat_UnlockOxideCup},
-            {5, {CHEAT_O, CHEAT_X, CHEAT_U, CHEAT_S, CHEAT_E}, MM_Cheat_UnlockOxide},
             {5, {CHEAT_S, CHEAT_E, CHEAT_E, CHEAT_D, CHEAT_S}, MM_Cheat_MaxWumpa},
             {7, {CHEAT_R, CHEAT_O, CHEAT_O, CHEAT_D, CHEAT_U, CHEAT_D, CHEAT_E}, MM_Cheat_UnlockRoo},
             {9, {CHEAT_L, CHEAT_A, CHEAT_R, CHEAT_D, CHEAT_R, CHEAT_O, CHEAT_L, CHEAT_L, CHEAT_S}, MM_Cheat_UnlockPapu},
@@ -430,8 +436,8 @@ struct OverlayDATA_230 D230 = {
          {0xC0, 0xA7, {1, 13, 4, 6}, 5, 0xFFFF},
          // Polar
          {0x100, 0xA7, {2, 14, 5, 7}, 6, 0xFFFF},
-         // Pura
-         {0x140, 0xA7, {3, 14, 6, 11}, 7, 0xFFFF},
+         // Pura (Down skips to Oxide for direct path when Fake Crash is locked)
+         {0x140, 0xA7, {3, 15, 6, 11}, 7, 0xFFFF},
          // N. Tropy
          {0x40, 0x80, {8, 10, 8, 0}, 12, 0x5},
          // Pinstripe
@@ -464,8 +470,8 @@ struct OverlayDATA_230 D230 = {
          {0xC0, 0x87, {1, 13, 4, 6}, 5, 0xFFFF},
          // Polar
          {0x100, 0x87, {2, 14, 5, 7}, 6, 0xFFFF},
-         // Pura
-         {0x140, 0x87, {3, 14, 6, 11}, 7, 0xFFFF},
+         // Pura (Down skips to Oxide for direct path when Fake Crash is locked)
+         {0x140, 0x87, {3, 15, 6, 11}, 7, 0xFFFF},
          // N. Tropy
          {0x40, 0x60, {8, 10, 8, 0}, 12, 0x5},
          // Pinstripe
@@ -490,8 +496,8 @@ struct OverlayDATA_230 D230 = {
          {0x60, 0x47, {13, 5, 0, 2}, 1, 0xFFFF},
          // Tiny
          {0xA0, 0x47, {14, 6, 1, 3}, 2, 0xFFFF},
-         // Coco
-         {0xE0, 0x47, {14, 7, 2, 3}, 3, 0xFFFF},
+         // Coco (Up skips to Oxide for direct path when Fake Crash is locked)
+         {0xE0, 0x47, {15, 7, 2, 3}, 3, 0xFFFF},
          // N. Gin
          {0x20, 0x6E, {0, 8, 4, 5}, 4, 0xFFFF},
          // Dingo
@@ -526,8 +532,8 @@ struct OverlayDATA_230 D230 = {
          {0x100, 0x47, {14, 6, 1, 3}, 2, 0xFFFF},
          // Coco
          {0x140, 0x47, {3, 7, 2, 11}, 3, 0xFFFF},
-         // N. Gin
-         {0x80, 0x6E, {0, 4, 12, 5}, 4, 0xFFFF},
+         // N. Gin (Down skips to Oxide for direct path when Tropy is locked)
+         {0x80, 0x6E, {0, 15, 12, 5}, 4, 0xFFFF},
          // Dingo
          {0xC0, 0x6E, {1, 8, 4, 6}, 5, 0xFFFF},
          // Polar

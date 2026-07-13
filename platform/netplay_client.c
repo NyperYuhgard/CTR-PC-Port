@@ -209,9 +209,16 @@ static void _np_process_packet(ENetPacket *packet)
                 /* Bridge to legacy globals */
                 g_NetplayTrackId = ts->trackID;
                 g_NetplayNumLaps = ts->lapCount;
-                printf("[Netplay] Track set: %d, laps=%d\n", ts->trackID, ts->lapCount);
+                /* Non-host clients: signal that character selection can begin.
+                 * The host drives the menu locally and must NOT re-enter
+                 * character selection upon receiving its own broadcast. */
                 if (s_np.localPlayerId != 0)
+                {
+                        g_NetplayRaceStarting = 1;
                         _np_set_state(NETPLAY_STATE_LOBBY_CHARACTER);
+                }
+                printf("[Netplay] Track set: %d, laps=%d (localId=%d)\n",
+                       ts->trackID, ts->lapCount, s_np.localPlayerId);
                 break;
         }
 
@@ -253,7 +260,7 @@ static void _np_process_packet(ENetPacket *packet)
         case SG_RACEDATA: {
                 if (len < sizeof(struct EverythingKart)) break;
                 struct EverythingKart *ek = (struct EverythingKart *)packet->data;
-                uint8_t pid = (ek->header[1] >> 3) & 7;
+                uint8_t pid = ek->header[1] & 7;
                 int tail = s_np.kartQueueTail[pid];
                 int next = (tail + 1) % NP_KART_QUEUE_MAX;
                 if (next != s_np.kartQueueHead[pid]) {

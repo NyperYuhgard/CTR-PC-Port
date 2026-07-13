@@ -102,52 +102,30 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 
 	D230.cupSel_transitionFrames = elapsedFrames;
 
-DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CUP_RACE], (D230.transitionMeta_cupSel[4].currX + 0x100), (D230.transitionMeta_cupSel[4].currY + 0x10), 1,
-                   0xffff8000);
-
-// Loop through all cups (4 standard cups; Oxide Cup at index 4 if unlocked)
+// Number of cups: 4 standard, 5 if Oxide Cup unlocked
 int numCups = 4;
 if ((sdata->gameProgress.unlocks[1] & (1 << 5)) != 0)
     numCups = 5;
 
-// Scroll handling: L1/R1 to scroll pages (4 cups per page)
-int cupsPerPage = 4;
-int maxScroll = numCups > cupsPerPage ? numCups - cupsPerPage : 0;
-if (numCups > cupsPerPage)
-{
-    struct GamepadBuffer *gpad = &sdata->gGamepads->gamepad[0];
-    int tap = gpad->buttonsTapped;
-    
-    // L2 (scroll left/up) / R2 (scroll right/down)
-    if (tap & BTN_L2)
-    {
-        if (D230.cupSel_scrollOffset > 0)
-        {
-            D230.cupSel_scrollOffset--;
-            OtherFX_Play(0x66, 1);
-        }
-    }
-    else if (tap & BTN_R2)
-    {
-        if (D230.cupSel_scrollOffset < maxScroll)
-        {
-            D230.cupSel_scrollOffset++;
-            OtherFX_Play(0x66, 1);
-        }
-    }
-}
-
-// Draw only visible cups (4 per page, starting from scrollOffset)
-int drawStart = D230.cupSel_scrollOffset;
-int drawEnd = drawStart + 4;
-if (drawEnd > numCups)
-    drawEnd = numCups;
-
-for (cupIndex = drawStart; cupIndex < drawEnd; cupIndex++)
+#ifdef CTR_NATIVE
+	// Manual scroll with R2/L2 when stationary
+	if (D230.cupSel_transitionState == 1 && numCups > 4)
 	{
-		// Visible index within the current page (0-3)
-		int visIndex = cupIndex - drawStart;
-		
+		int tap = sdata->gGamepads->gamepad[0].buttonsTapped;
+		if ((tap & BTN_R2) != 0 && D230.cupSel_scrollOffset < 1)
+			D230.cupSel_scrollOffset++;
+		if ((tap & BTN_L2) != 0 && D230.cupSel_scrollOffset > 0)
+			D230.cupSel_scrollOffset--;
+	}
+#endif
+
+	DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CUP_RACE], (D230.transitionMeta_cupSel[4].currX + 0x100), (D230.transitionMeta_cupSel[4].currY + 0x10), 1,
+	                   0xffff8000);
+
+int scrollY = D230.cupSel_scrollOffset * (-0x54);
+
+for (cupIndex = 0; cupIndex < numCups; cupIndex++)
+	{
 		// Use solid color
 		txtColor = 0xffff8000;
 
@@ -159,8 +137,17 @@ for (cupIndex = drawStart; cupIndex < drawEnd; cupIndex++)
 				txtColor |= 4;
 		}
 
-		startX = (s16)D230.transitionMeta_cupSel[visIndex].currX + (visIndex & 1) * 200;
-		startY = (s16)D230.transitionMeta_cupSel[visIndex].currY + (visIndex >> 1) * 0x54;
+		if (cupIndex < 4)
+		{
+			startX = (s16)D230.transitionMeta_cupSel[cupIndex].currX + (cupIndex & 1) * 200;
+			startY = (s16)D230.transitionMeta_cupSel[cupIndex].currY + (cupIndex >> 1) * 0x54 + scrollY;
+		}
+		else
+		{
+			// Cup 4 (Oxide Cup) centered below the 2x2 grid
+			startX = 100;
+			startY = 0xA8 + scrollY;
+		}
 
 		// draw the name of the cup
 		if (cupIndex < 4)
@@ -195,7 +182,7 @@ for (cupIndex = drawStart; cupIndex < drawEnd; cupIndex++)
 
 				struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[5]);
 
-				DecalHUD_DrawPolyGT4(iconPtrArray[0x37], (startX + (visIndex & 1) * 0xCA - 0x16), (startY + ((starIndex * 0x10) + 0x10)),
+				DecalHUD_DrawPolyGT4(iconPtrArray[0x37], (startX + (cupIndex < 4 ? (cupIndex & 1) : 0) * 0xCA - 0x16), (startY + ((starIndex * 0x10) + 0x10)),
 				                     &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, starColor[0], starColor[1], starColor[2], starColor[3], 0, FP(1.0));
 			}
 		}

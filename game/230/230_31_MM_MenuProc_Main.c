@@ -218,7 +218,7 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 		return;
 	}
 
-#ifdef CTR_NATIVE
+#if defined(CTR_NATIVE) && defined(CTR_ONLINE)
 	// Online
 	if (choose == 0x015)
 	{
@@ -226,7 +226,9 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 		D230.desiredMenuIndex = 8;
 		return;
 	}
+#endif
 
+#ifdef CTR_NATIVE
 	// Mods
 	if (choose == 0x014)
 	{

@@ -1,6 +1,6 @@
 #include <common.h>
 
-// NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 230 0x800ada4c-0x800adae4.
+// NOTE(aalhendi): Modified to skip past locked characters by following the indexNext chain.
 int MM_Characters_GetNextDriver(s16 dpad, char characterID)
 {
 	char nextDriver;
@@ -20,8 +20,23 @@ int MM_Characters_GetNextDriver(s16 dpad, char characterID)
 
 	    (((sdata->gameProgress.unlocks[unlocked >> 5] >> (unlocked & 0x1f)) & 1) == 0))
 	{
-		// set new driver to the driver you already have
-		newDriver = characterID;
+		// Walk the indexNext chain to find the next unlocked character
+		char prev = nextDriver;
+		char curr = D230.csm_Active[prev].indexNext[dpad];
+		while (curr != prev)
+		{
+			unlocked = D230.csm_Active[curr].unlockFlags;
+			if (unlocked == -1 || ((sdata->gameProgress.unlocks[unlocked >> 5] >> (unlocked & 0x1f)) & 1) != 0)
+			{
+				newDriver = curr;
+				break;
+			}
+			prev = curr;
+			curr = D230.csm_Active[curr].indexNext[dpad];
+		}
+		// If no unlocked character found in the chain, stay put
+		if (newDriver == nextDriver)
+			newDriver = characterID;
 	}
 
 	// return new driver

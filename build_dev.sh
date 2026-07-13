@@ -17,8 +17,9 @@ cmake -S . -B build \
   "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" \
   -DCMAKE_C_FLAGS="-msse -fno-strict-aliasing -fno-inline-functions" \
   -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
-  -DCTR_NATIVE_DEV_GHOST=ON
-cmake --build build -j$(nproc)
+  -DCTR_NATIVE_DEV_GHOST=ON \
+  -DCTR_ONLINE=ON
+cmake --build build -j2
 
 echo ""
 echo "Build succeeded: build/ctr_native (developer build)"

@@ -453,7 +453,7 @@ u32 main(void)
                                                                 if (remoteDriver != NULL)
                                                                 {
                                                                         /* Decode rotation */
-                                                                        s16 rotY = (s16)((ek.header[1] & 0x1F) << 7) | (s16)(ek.kartRot2 & 0x7F);
+                                                                        s16 rotY = (s16)(((ek.header[1] >> 3) & 0x1F) << 7) | (s16)(ek.kartRot2 & 0x7F);
                                                                         s16 rotX = (s16)((ek.kartRot2 >> 7) & 0x1F) << 7;
 
                                                                         /* Per-frame position snap (EverythingKart is sent every frame) */
