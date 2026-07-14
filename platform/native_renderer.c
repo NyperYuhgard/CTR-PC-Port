@@ -84,6 +84,13 @@ int g_cfg_aspectMode = 0;
 int g_cfg_fullscreen = 0;
 int g_cfg_resolutionScale = 1;
 
+// Gameplay Tweaks (Options > Gameplay Tweaks submenu)
+int g_cfg_specialItems = 0;
+int g_cfg_cpuAllItems = 0;
+int g_cfg_itemChaos = 0;
+int g_cfg_cpuItemChaos = 0;
+int g_cfg_chaosRng = 0;
+
 global_variable int s_vramNeedsUpdate = 1;
 global_variable int s_framebufferNeedsUpdate = 0;
 

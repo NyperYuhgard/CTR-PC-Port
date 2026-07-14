@@ -148,6 +148,15 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
                         itemSet = ITEMSET_Race3;
         }
 
+#ifdef CTR_NATIVE
+        // Chaos RNG: ignore driver rank, give any item regardless of position
+        if (g_cfg_chaosRng && ((gGT->gameMode1 & (BATTLE_MODE | CRYSTAL_CHALLENGE)) == 0))
+        {
+                itemSet = MixRNG_Scramble() % 4;
+        }
+#endif
+
+
         // Decide item for Driver
         rng = (MixRNG_Scramble() >> 0x3) % 0xc8;
 
@@ -216,8 +225,39 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
         }
 
         // Replace unused Spring item with Turbo
+#ifdef CTR_NATIVE
+        if (driver->heldItemID == 0x5)
+        {
+                // Special Items: keep Spring in races so it becomes usable
+                if (!g_cfg_specialItems)
+                        driver->heldItemID = 0x0;
+        }
+        // Special Items: allow battle items (Super Engine, Invisibility, Spring) in races
+        else if (g_cfg_specialItems &&
+                 ((gGT->gameMode1 & (BATTLE_MODE | CRYSTAL_CHALLENGE)) == 0))
+        {
+                u32 sp = MixRNG_Scramble();
+                if (sp % 5 == 0)
+                        driver->heldItemID = 0x5; // Spring
+                else if (sp % 5 == 1)
+                        driver->heldItemID = 0xC; // Super Engine
+                else if (sp % 5 == 2)
+                        driver->heldItemID = 0xD; // Invisibility
+        }
+
+        // CPU All Items: let the CPU roll Warp Orb / Clock like any other item
+        if (g_cfg_cpuAllItems && (driver->driverID >= gGT->numPlyrCurrGame))
+        {
+                u32 r = MixRNG_Scramble();
+                if (r % 7 == 0)
+                        driver->heldItemID = 0x9; // Warp Orb
+                else if (r % 7 == 1)
+                        driver->heldItemID = 0x8; // Clock
+        }
+#else
         if (driver->heldItemID == 0x5)
                 driver->heldItemID = 0x0;
+#endif
 
         // Make sure only 1 Warpball is instanced at once
         if (driver->heldItemID == 0x9)
@@ -253,6 +293,12 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
         // Set number of held items
         if ((u32)driver->heldItemID - 0xA < 0x2)
                 driver->numHeldItems = 0x3;
+
+#ifdef CTR_NATIVE
+        // Item Chaos: give a random 1-9 of the item instead of a single unit
+        if (g_cfg_itemChaos)
+                driver->numHeldItems = (char)(1 + (MixRNG_Scramble() % 9));
+#endif
 
 #ifdef CTR_NATIVE
         // Netplay: broadcast the item we just picked up so remote machines

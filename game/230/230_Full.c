@@ -68,6 +68,7 @@ void MM_Online_MenuProc(struct RectMenu *menu);
 #include "230_86_MM_Mods_Menu.c"
 #include "230_87_MM_Options_Menu.c"
 #include "230_88_MM_TimeTrialMode_MenuProc.c"
+#include "230_89_MM_GameplayTweaks_Menu.c"
 #endif
 
 // NOTE(aalhendi): Native track previews use platform/native_str.c; the retail

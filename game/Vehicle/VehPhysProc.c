@@ -461,13 +461,33 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 
 	// === Check Weapons ===
 
+	int canUseItemByButton =
+	    ((buttonsTapped & BTN_CIRCLE) != 0) &&
+	    ((kartState == KS_NORMAL) || (kartState == KS_DRIFTING) || (kartState == KS_ANTIVSHIFT)) &&
+	    (driver->instTntRecv == 0);
 
-	if ((((buttonsTapped & BTN_CIRCLE) != 0) &&
-
-	     ((kartState == KS_NORMAL) || (kartState == KS_DRIFTING) || (kartState == KS_ANTIVSHIFT))) &&
-
-	    // if there is no tnt on your head
+	int botForceItem = 0;
+#ifdef CTR_NATIVE
+	// CPU Item Chaos: bots spam items literally every frame
+	if (g_cfg_cpuItemChaos &&
+	    (driver->driverID >= gGT->numPlyrCurrGame) &&
+	    (driver->clockReceive == 0) &&
+	    ((kartState == KS_NORMAL) || (kartState == KS_DRIFTING) || (kartState == KS_ANTIVSHIFT)) &&
 	    (driver->instTntRecv == 0))
+	{
+		// keep the bot perpetually armed so it never stops firing
+		if ((driver->numHeldItems == 0) ||
+		    (driver->heldItemID == 0xF) || (driver->heldItemID == 0x10))
+		{
+			driver->heldItemID = (u_char)(1 + (MixRNG_Scramble() % 9));
+			driver->numHeldItems = 1;
+			driver->itemRollTimer = 0;
+		}
+		botForceItem = 1;
+	}
+#endif
+
+	if (canUseItemByButton || botForceItem)
 	{
 		// If there is a Bomb Pointer
 		if (driver->instBombThrow != 0)
@@ -520,13 +540,26 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 		// and if (unknown driverRankItemValue related to 0x4a0),
 		// and if you are not being effected by Clock Weapon
 		heldItemID = driver->heldItemID;
-		if ((heldItemID != 0xF) && (heldItemID != 0x10) && (driver->noItemTimer == 0) && (driverRankItemValue != 1) && (driver->clockReceive == 0))
+#ifdef CTR_NATIVE
+		// CPU Item Chaos: bypass the noItemTimer gate so bots fire every frame
+		if (g_cfg_cpuItemChaos && (driver->driverID >= gGT->numPlyrCurrGame))
+			driver->noItemTimer = 0;
+#endif
+		if ((heldItemID != 0xF) && (heldItemID != 0x10) &&
+		    ((driver->noItemTimer == 0) ||
+		     (g_cfg_cpuItemChaos && (driver->driverID >= gGT->numPlyrCurrGame))) &&
+		    (driverRankItemValue != 1) && (driver->clockReceive == 0))
 		{
 			// This driver wants to fire a weapon
 			actionsFlagSetCopy |= 0x8000;
 
 			// if numHeldItems == 0
 			// wait a full second before next weapon
+#ifdef CTR_NATIVE
+			if (g_cfg_cpuItemChaos && (driver->driverID >= gGT->numPlyrCurrGame))
+				driver->noItemTimer = 0;
+			else
+#endif
 			driver->noItemTimer = 0x1e;
 
 			// If "held item quantity" is zero
@@ -534,6 +567,11 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 			{
 				// if numHeldItems > 0,
 				// wait 5 frames before next weapon use
+#ifdef CTR_NATIVE
+				if (g_cfg_cpuItemChaos && (driver->driverID >= gGT->numPlyrCurrGame))
+					driver->noItemTimer = 0;
+				else
+#endif
 				driver->noItemTimer = 5;
 
 				// If you have the Spring weapon

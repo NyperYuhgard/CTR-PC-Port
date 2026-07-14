@@ -6,6 +6,13 @@
 extern int g_cfg_60fpsMode;
 extern int g_cfg_aspectMode;
 extern int g_cfg_fullscreen;
+
+// Gameplay Tweaks (Options > Gameplay Tweaks submenu)
+extern int g_cfg_specialItems;   // enable battle items (Super Engine, Invisibility, Spring) in races
+extern int g_cfg_cpuAllItems;    // allow CPU to use all items (Warp Orb, Clock, etc.)
+extern int g_cfg_itemChaos;      // boxes give a random 1-9 of an item instead of 1
+extern int g_cfg_cpuItemChaos;   // CPU uses items with minimal cooldown
+extern int g_cfg_chaosRng;       // remove position-based RNG, any item regardless of rank
 #endif
 
 // Not native host

@@ -28,7 +28,8 @@
 #define OPTION_ROW_SCALE     7
 #define OPTION_ROW_FULLSCREEN 8
 #define OPTION_ROW_CONTROLS  9
-#define OPTION_ROW_COUNT     10
+#define OPTION_ROW_GAMETWEAKS 10
+#define OPTION_ROW_COUNT     11
 
 #define ASPECT_4_3     0
 #define ASPECT_16_9    1
@@ -228,6 +229,12 @@ static void MM_Options_HandleMainInput(void)
 			s_optionsWaitingForKey = 0;
 			s_optionsState = OPTIONS_STATE_KEYS;
 		}
+		else if (s_optionsSelectedIndex == OPTION_ROW_GAMETWEAKS)
+		{
+			MM_GameplayTweaks_Init();
+			RECTMENU_ClearInput();
+			sdata->ptrDesiredMenu = MM_GameplayTweaks_GetMenuPtr();
+		}
 	}
 
 	if (BTN_TAP_PLAYER0 & (BTN_TRIANGLE | BTN_SQUARE))
@@ -377,6 +384,15 @@ static void Options_DrawMain(struct GameTracker *gGT, u_long *ot)
 			{
 				DecalFont_DrawLineOT("CONTROLS", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
 				DecalFont_DrawLineOT("EDIT", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, TINY_GREEN, ot);
+				break;
+			}
+
+			case OPTION_ROW_GAMETWEAKS:
+			{
+				int anyOn = g_cfg_specialItems || g_cfg_cpuAllItems ||
+						g_cfg_itemChaos || g_cfg_cpuItemChaos || g_cfg_chaosRng;
+				DecalFont_DrawLineOT("GAMEPLAY TWEAKS", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(anyOn ? "ON" : ">", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, anyOn ? TINY_GREEN : WHITE, ot);
 				break;
 			}
 		}

@@ -15,6 +15,13 @@ extern int g_cfg_aspectMode;
 extern int g_cfg_fullscreen;
 extern int g_cfg_resolutionScale;
 
+// Gameplay Tweaks
+extern int g_cfg_specialItems;
+extern int g_cfg_cpuAllItems;
+extern int g_cfg_itemChaos;
+extern int g_cfg_cpuItemChaos;
+extern int g_cfg_chaosRng;
+
 static void NativeConfig_BuildPath(char *buf, size_t size)
 {
 	const char *base = NativeAssets_GetBaseDir();
@@ -101,6 +108,19 @@ void NativeConfig_Load(void)
 			else if (strcmp(key, "resolution_scale") == 0 && intVal >= 1 && intVal <= 4)
 				g_cfg_resolutionScale = intVal;
 		}
+		else if (strcmp(section, "gameplay") == 0)
+		{
+			if (strcmp(key, "special_items") == 0)
+				g_cfg_specialItems = intVal != 0 ? 1 : 0;
+			else if (strcmp(key, "cpu_all_items") == 0)
+				g_cfg_cpuAllItems = intVal != 0 ? 1 : 0;
+			else if (strcmp(key, "item_chaos") == 0)
+				g_cfg_itemChaos = intVal != 0 ? 1 : 0;
+			else if (strcmp(key, "cpu_item_chaos") == 0)
+				g_cfg_cpuItemChaos = intVal != 0 ? 1 : 0;
+			else if (strcmp(key, "chaos_rng") == 0)
+				g_cfg_chaosRng = intVal != 0 ? 1 : 0;
+		}
 		else if (strcmp(section, "keyboard") == 0)
 		{
 			int actionIndex = -1;
@@ -158,6 +178,13 @@ void NativeConfig_Save(void)
 	fprintf(f, "bilinear_filter=%d\n", g_cfg_bilinearFiltering);
 	fprintf(f, "fullscreen=%d\n", g_cfg_fullscreen);
 	fprintf(f, "resolution_scale=%d\n", g_cfg_resolutionScale);
+
+	NativeConfig_WriteLine(f, "gameplay");
+	fprintf(f, "special_items=%d\n", g_cfg_specialItems);
+	fprintf(f, "cpu_all_items=%d\n", g_cfg_cpuAllItems);
+	fprintf(f, "item_chaos=%d\n", g_cfg_itemChaos);
+	fprintf(f, "cpu_item_chaos=%d\n", g_cfg_cpuItemChaos);
+	fprintf(f, "chaos_rng=%d\n", g_cfg_chaosRng);
 
 	NativeConfig_WriteLine(f, "keyboard");
 	for (i = 0; i < 16; i++)
