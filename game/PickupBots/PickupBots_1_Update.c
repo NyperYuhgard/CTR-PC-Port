@@ -29,6 +29,32 @@ static void PickupBots_UpdateArcade(void)
 {
 	struct GameTracker *gGT = sdata->gGT;
 
+#ifdef CTR_NATIVE
+	// CPU Item Chaos: all bots fire random safe items every frame
+	if (g_cfg_cpuItemChaos)
+	{
+		for (int i = 0; i < 8; i++)
+		{
+			struct Driver *bot = gGT->drivers[i];
+			if (bot == NULL) continue;
+			if (bot->driverID < (u8)gGT->numPlyrCurrGame) continue; // skip human
+
+			if (!PickupBots_IsBotWeaponReady(bot)) continue;
+
+			static const u_char chaosItems[6] = {1,2,6,7,8,9};
+			bot->heldItemID = chaosItems[MixRNG_Scramble() % 6];
+			int weaponID = bot->heldItemID;
+			if (weaponID == 1 || weaponID == 10 || weaponID == 11)
+				weaponID = 2;
+
+			VehPickupItem_ShootNow(bot, weaponID, 0);
+			bot->heldItemID = 0xf;
+			bot->botData.weaponCooldown = (MixRNG_Scramble() & 0x7f) * 16 + 1000; // 1-2s random
+		}
+		return;
+	}
+#endif
+
 	for (int i = 0; i < (u8)gGT->numPlyrCurrGame; i++)
 	{
 		struct Driver *player = gGT->drivers[i];
