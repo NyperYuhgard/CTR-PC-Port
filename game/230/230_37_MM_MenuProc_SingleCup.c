@@ -15,6 +15,18 @@ void MM_MenuProc_SingleCup(struct RectMenu *menu)
 		return;
 	}
 
+	if (row == 2)
+	{
+#ifdef CTR_NATIVE
+		gGT->gameMode2 |= TEAM_RACE_MODE;
+		gGT->numPlyrNextGame = 1;
+		D230.characterSelect_transitionState = 1;
+		D230.MM_State = 2;
+		D230.desiredMenuIndex = 2;
+#endif
+		return;
+	}
+
 	if ((row >= 0) && (row < 2))
 	{
 		// disable Cup mode

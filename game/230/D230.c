@@ -135,7 +135,10 @@ struct OverlayDATA_230 D230 = {
     .rowsRaceType =
         {
             {0x15E, 0, 1, 0, 0},
-            {0x15F, 0, 1, 1, 1},
+            {0x15F, 0, 2, 1, 1},
+#ifdef CTR_NATIVE
+            {0x0E4, 1, 2, 2, 2},
+#endif
             {-1},
         },
 

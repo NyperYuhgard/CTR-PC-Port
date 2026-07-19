@@ -50,6 +50,15 @@ struct Instance *RB_Hazard_CollideWithDrivers(struct Instance *weaponInst, char 
 			if ((boolCanSkipParent != 0) && (driverInst == mineDriverInst))
 				continue;
 
+#ifdef CTR_NATIVE
+			if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+			{
+				struct Driver *weaponOwner = mineDriverInst ? (struct Driver *)mineDriverInst->thread->object : NULL;
+				if (weaponOwner != NULL && weaponOwner->BattleHUD.teamID == driver->BattleHUD.teamID)
+					continue;
+			}
+#endif
+
 			// wasted check for 3D sphere,
 			// also upgrades 2D collision to 3D cylinder
 			if ((s32)dist[1] < (s32)((u32)hitRadius << 2))

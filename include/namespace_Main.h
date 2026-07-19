@@ -74,6 +74,7 @@ enum GameModeEnd
 enum GameMode2
 {
 	SPAWN_AT_BOSS = 1,
+	TEAM_RACE_MODE = 2,
 
 	VEH_FREEZE_PODIUM = 4,
 	TOKEN_RACE = 0x8,

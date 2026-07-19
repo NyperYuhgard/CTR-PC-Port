@@ -12,6 +12,11 @@ struct Driver *VehBirth_Player(int index)
 
 	d->funcPtrs[0] = VehPhysProc_Driving_Init;
 
+#ifdef CTR_NATIVE
+	if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+		d->BattleHUD.teamID = index / 2;
+	else
+#endif
 	d->BattleHUD.teamID = sdata->gGT->battleSetup.teamOfEachPlayer[index];
 
 	return d;

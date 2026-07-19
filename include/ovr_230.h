@@ -229,7 +229,7 @@ struct OverlayDATA_230
 	// 800b4634 - UsaRetail
 	// 800b4da8 - EurRetail
 	// 800b80b8 - JpnRetail
-	struct MenuRow rowsRaceType[3];
+	struct MenuRow rowsRaceType[4];
 
 #if (BUILD == EurRetail) || (BUILD == UsaRetail)
 	char padding800b4dba[2];

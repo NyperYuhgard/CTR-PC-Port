@@ -543,6 +543,11 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			if (victim == 0)
 				continue;
 
+#ifdef CTR_NATIVE
+			if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0 && victim->BattleHUD.teamID == d->BattleHUD.teamID)
+				continue;
+#endif
+
 			victim->clockFlash = 4;
 
 			if (victim == d)

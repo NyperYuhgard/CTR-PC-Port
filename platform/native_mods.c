@@ -1635,12 +1635,16 @@ void NativeMods_FlushDrawQueue(void)
 void NativeMods_OnLanguageLoaded(char **lngStrings, int numStrings)
 {
     static const char modsText[] = "MODS";
+    static const char teamRaceText[] = "TEAM RACE";
 
     if (lngStrings == NULL)
         return;
 
     if (numStrings > 0x014)
         lngStrings[0x014] = (char *)modsText;
+
+    if (numStrings > 0x0E4)
+        lngStrings[0x0E4] = (char *)teamRaceText;
 }
 
 FILE *NativeMods_OpenFile(const char *relativePath, const char *mode)

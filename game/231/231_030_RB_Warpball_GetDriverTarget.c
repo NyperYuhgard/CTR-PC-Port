@@ -14,6 +14,10 @@ struct Driver *RB_Warpball_GetDriverTarget(struct TrackerWeapon *tw, struct Inst
 
 			if ((driver != NULL) && (driver != tw->driverParent) && ((driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0))
 			{
+#ifdef CTR_NATIVE
+				if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0 && driver->BattleHUD.teamID == tw->driverParent->BattleHUD.teamID)
+					continue;
+#endif
 				return driver;
 			}
 		}
@@ -51,6 +55,11 @@ struct Driver *RB_Warpball_GetDriverTarget(struct TrackerWeapon *tw, struct Inst
 		if ((driver != NULL) && ((tw->driversHit & (1u << (i & 0x1f))) == 0) && ((driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0) &&
 		    (driver->kartState != KS_MASK_GRABBED))
 		{
+#ifdef CTR_NATIVE
+			if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0 && driver->BattleHUD.teamID == tw->driverParent->BattleHUD.teamID)
+				continue;
+#endif
+
 			int distance = projectedDistance - driver->distanceToFinish_curr;
 
 			if (distance < 0)

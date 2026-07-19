@@ -90,7 +90,7 @@ struct Driver *VehPickupItem_MissileGetTargetDriver(struct Driver *driver)
 		if (candidate->kartState == KS_MASK_GRABBED)
 			continue;
 
-		if (((gGT->gameMode1 & BATTLE_MODE) != 0) && (candidate->BattleHUD.teamID == driver->BattleHUD.teamID))
+		if (((gGT->gameMode1 & (BATTLE_MODE)) != 0 || (gGT->gameMode2 & TEAM_RACE_MODE) != 0) && (candidate->BattleHUD.teamID == driver->BattleHUD.teamID))
 			continue;
 
 		if (candidate->invisibleTimer != 0)

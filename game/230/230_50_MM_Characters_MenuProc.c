@@ -109,6 +109,17 @@ void MM_Characters_MenuProc(struct RectMenu *unused)
 
 			MM_Characters_HideDrivers();
 
+#ifdef CTR_NATIVE
+			if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+			{
+				int playerChar = data.characterIDs[0];
+				int teammateChar = (playerChar + 1) & 0xF;
+				if (teammateChar == playerChar)
+					teammateChar = (teammateChar + 1) & 0xF;
+				data.characterIDs[1] = teammateChar;
+			}
+#endif
+
 			// if you are in a cup
 			if ((gGT->gameMode2 & CUP_ANY_KIND) != 0)
 			{

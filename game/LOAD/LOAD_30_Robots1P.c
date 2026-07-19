@@ -7,11 +7,33 @@ void LOAD_Robots1P(int characterID)
 
 	data.characterIDs[0] = characterID;
 
-	for (int i = 1; i < 8; i++, newCharacterID++)
+#ifdef CTR_NATIVE
+	struct GameTracker *gGT = sdata->gGT;
+	if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
 	{
-		if (newCharacterID == characterID)
-			newCharacterID++;
+		data.characterIDs[1] = (characterID + 1) & 0xF;
+		if (data.characterIDs[1] == characterID)
+			data.characterIDs[1] = (characterID + 2) & 0xF;
 
-		data.characterIDs[i] = newCharacterID;
+		newCharacterID = 0;
+		for (int i = 2; i < 8; i++, newCharacterID++)
+		{
+			if (newCharacterID == characterID)
+				newCharacterID++;
+			if (newCharacterID == data.characterIDs[1])
+				newCharacterID++;
+			data.characterIDs[i] = newCharacterID;
+		}
+	}
+	else
+#endif
+	{
+		for (int i = 1; i < 8; i++, newCharacterID++)
+		{
+			if (newCharacterID == characterID)
+				newCharacterID++;
+
+			data.characterIDs[i] = newCharacterID;
+		}
 	}
 }
