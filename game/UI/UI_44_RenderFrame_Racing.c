@@ -469,6 +469,22 @@ playerStruct->BattleHUD.cooldown--;
                                 if ((playerStruct->actionsFlagSet & 0x2000000) == 0)
                                 {
                                         UI_DrawLapCount(hudStructPtr[1].x, hudStructPtr[1].y, (u32)hudStructPtr[1].scale, playerStruct);
+
+#ifdef CTR_NATIVE
+                                        // Team Race: show teammate icon below lap counter
+                                        if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+                                        {
+                                                int teammateChar = data.characterIDs[1];
+                                                struct Icon *teammateIcon = gGT->ptrIcons[data.MetaDataCharacters[teammateChar].iconID];
+                                                if (teammateIcon != NULL)
+                                                {
+                                                        UI_DrawDriverIcon(teammateIcon, hudStructPtr[1].x - 40, hudStructPtr[1].y + 24,
+                                                                          &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
+                                                                          1, 0x1000, MakeColor(0x80, 0x80, 0x80).self);
+                                                }
+                                                DecalFont_DrawLine("TEAM", hudStructPtr[1].x - 32, hudStructPtr[1].y + 48, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+                                        }
+#endif
                                 }
                         }
 
