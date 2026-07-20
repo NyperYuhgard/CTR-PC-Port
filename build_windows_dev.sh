@@ -8,5 +8,6 @@ cmake -S . -B build-windows \
   "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" \
   -DCMAKE_C_FLAGS="-msse -fno-strict-aliasing -fno-inline-functions" \
   -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
-  -DCTR_NATIVE_DEV_GHOST=ON
+  -DCTR_NATIVE_DEV_GHOST=ON \
+  -DCTR_ONLINE=ON
 cmake --build build-windows -j$(nproc)
