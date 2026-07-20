@@ -266,6 +266,102 @@ psVar9->clockFlash--;
 
 		Particle_UpdateAllParticles();
 
+		// Team Race: team bar logic
+		if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+		{
+			for (int i = 0; i < 8; i++)
+			{
+				struct Driver *driver = gGT->drivers[i];
+				if (driver == NULL)
+					continue;
+				if ((driver->actionsFlagSet & 0x100000) != 0)
+					continue; // skip AI
+				if (driver->BattleHUD.teamID == -1)
+					continue;
+
+				// Find teammate
+				struct Driver *teammate = NULL;
+				for (int j = 0; j < 8; j++)
+				{
+					struct Driver *other = gGT->drivers[j];
+					if (other != NULL && other != driver &&
+					    other->BattleHUD.teamID == driver->BattleHUD.teamID)
+					{
+						teammate = other;
+						break;
+					}
+				}
+
+				if (teammate == NULL)
+					continue;
+
+				// Check distance between driver and teammate
+				s32 dx = driver->posCurr.x - teammate->posCurr.x;
+				s32 dz = driver->posCurr.z - teammate->posCurr.z;
+				s32 distSq = ((dx >> 8) * (dx >> 8)) + ((dz >> 8) * (dz >> 8));
+
+				// Proximity threshold: ~1500 units squared (much larger for easier charging)
+				if (distSq < 1500000)
+				{
+					// Charge team bar (max 1000) - faster charge rate
+					int oldCharge = driver->teamBarCharge;
+					driver->teamBarCharge += 20;
+					if (driver->teamBarCharge > 1000)
+						driver->teamBarCharge = 1000;
+
+					// Sound when reaching charge thresholds (human players only)
+					if ((driver->actionsFlagSet & 0x100000) == 0)
+					{
+						if (oldCharge < 250 && driver->teamBarCharge >= 250)
+							OtherFX_Play(0x65, 1); // Ready sound (transition)
+						else if (oldCharge < 750 && driver->teamBarCharge >= 750)
+							OtherFX_Play(0x66, 1); // Super ready sound (lap complete)
+					}
+				}
+				// Drain bar during active effect
+				if (driver->teamBarEffect != 0)
+				{
+					driver->teamBarCharge--;
+					if (driver->teamBarCharge <= 0)
+					{
+						driver->teamBarCharge = 0;
+						driver->teamBarEffect = 0;
+					}
+				}
+
+				// Check Select press to activate team bar
+				struct GamepadBuffer *gb = &gGamepads->gamepad[driver->driverID];
+				if ((gb->buttonsTapped & BTN_SELECT) != 0 &&
+				    driver->teamBarCharge >= 250 &&
+				    driver->teamBarEffect == 0)
+				{
+					// Determine effect based on teammate's engine class
+					int teammateCharID = data.characterIDs[teammate->driverID];
+					int engineClass = data.MetaDataCharacters[teammateCharID].engineID;
+
+					switch (engineClass)
+					{
+					case 2: // SPEED -> Super Turbo
+						driver->teamBarEffect = 1;
+						break;
+					case 1: // ACCEL -> Mask
+						driver->teamBarEffect = 2;
+						break;
+					case 0: // BALANCED -> Landing Boost (turbo + reserves on high landing)
+						driver->teamBarEffect = 3;
+						break;
+					case 3: // TURN -> Super Jump
+						driver->teamBarEffect = 4;
+						break;
+					}
+
+				if (driver->teamBarEffect != 0)
+				{
+					OtherFX_Play(0x5f, 1); // Activation sound (menu confirm)
+				}
+				}
+			}
+		}
 #endif
 	}
 	else

@@ -1,5 +1,44 @@
 #include <common.h>
 
+#ifdef CTR_NATIVE
+// Team Race: Apply team bar effects
+static void TeamRace_ApplyEffects(struct Driver *d)
+{
+	if ((d->actionsFlagSet & 0x100000) != 0)
+		return; // AI doesn't get effects
+
+	if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) == 0)
+		return;
+
+	if (d->teamBarEffect == 0)
+		return;
+
+	switch (d->teamBarEffect)
+	{
+	case 1: // Super Turbo (SPEED class)
+		// Apply continuous external turbo
+		VehFire_Increment(d, 0x960, 9, 0x100);
+		break;
+
+	case 2: // Mask (ACCEL class)
+		// Give mask effect if not already active
+		if ((d->actionsFlagSet & 0x800000) == 0)
+		{
+			VehPickupItem_MaskUseWeapon(d, 1);
+		}
+		break;
+
+	case 3: // Landing Boost (BALANCED class)
+		// Effect handled in COLL.c when landing
+		break;
+
+	case 4: // Super Jump (TURN class)
+		// Effect handled in VehPhysGeneral_JumpAndFriction
+		break;
+	}
+}
+#endif
+
 static void VehFrameProc_Driving_SpawnBurnSmoke(struct Driver *d)
 {
 #ifdef CTR_NATIVE
@@ -21,6 +60,10 @@ static void VehFrameProc_Driving_SpawnBurnSmoke(struct Driver *d)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005b178-0x8005b510
 void VehFrameProc_Driving(struct Thread *t, struct Driver *d)
 {
+#ifdef CTR_NATIVE
+	TeamRace_ApplyEffects(d);
+#endif
+
 	struct Instance *inst = t->inst;
 	u8 desiredAnim = 0;
 	int numFrames;

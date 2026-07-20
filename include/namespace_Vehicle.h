@@ -1673,6 +1673,13 @@ struct Driver
 	// 0x638
 	// end of ghost struct (as determined by memset)
 
+#ifdef CTR_NATIVE
+	// Team Race fields (0x638-0x644)
+	int teamBarCharge;      // 0x638 - charge level 0-1000
+	int teamBarEffect;      // 0x63c - effect type 0=none, 1=super turbo, 2=mask, 3=landing boost, 4=super jump
+	int teamBarTimer;       // 0x640 - effect duration timer
+#endif
+
 	// 0x30 in between are never used, "0x670" was simply the
 	// largest Naughty Dog would allow themselves to push the driver,
 	// but it is not the "real" size

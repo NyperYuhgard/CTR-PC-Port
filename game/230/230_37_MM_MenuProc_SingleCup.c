@@ -20,9 +20,9 @@ void MM_MenuProc_SingleCup(struct RectMenu *menu)
 #ifdef CTR_NATIVE
 		gGT->gameMode2 |= TEAM_RACE_MODE;
 		gGT->numPlyrNextGame = 1;
+		menu->state |= 0x14;
+		menu->ptrNextBox_InHierarchy = &D230.menuDifficulty;
 		D230.characterSelect_transitionState = 1;
-		D230.MM_State = 2;
-		D230.desiredMenuIndex = 2;
 #endif
 		return;
 	}

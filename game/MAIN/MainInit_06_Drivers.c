@@ -80,6 +80,12 @@ void MainInit_Drivers(struct GameTracker *gGT)
 
 		else if (numPlyrCurrGame == 1)
 		{
+#ifdef CTR_NATIVE
+			// Team Race: always 8 drivers (1 human + 7 AI)
+			if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+				numDrivers = 8;
+			else
+#endif
 			numDrivers = 8;
 		}
 

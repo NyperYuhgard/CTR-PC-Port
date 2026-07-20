@@ -252,6 +252,16 @@ CHECK_FOR_ANY_JUMP:
 		d->numberOfJumps++;
 		d->jump_InitialVelY = d->const_JumpForce;
 
+#ifdef CTR_NATIVE
+		// Team Race: TURN class super jump effect
+		if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0 &&
+		    d->teamBarEffect == 4)
+		{
+			// Double the jump force for super jump
+			d->jump_InitialVelY = (s16)(d->jump_InitialVelY * 2);
+		}
+#endif
+
 		OtherFX_Play_Echo(8, 1, (d->actionsFlagSet >> 16) & 1);
 	}
 	else
@@ -276,6 +286,16 @@ CHECK_FOR_ANY_JUMP:
 
 		d->forcedJump_trampoline = 0;
 	}
+
+#ifdef CTR_NATIVE
+	// Team Race: TURN class super jump effect (for trampolines too)
+	if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0 &&
+	    d->teamBarEffect == 4)
+	{
+		// Double the jump force for super jump
+		d->jump_InitialVelY = (s16)(d->jump_InitialVelY * 2);
+	}
+#endif
 
 PROCESS_JUMP:
 	d->jump_CooldownMS = 0x180;

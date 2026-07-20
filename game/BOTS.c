@@ -3014,7 +3014,7 @@ struct Driver *BOTS_Driver_Init(int driverID)
 	// path data found
 	t = PROC_BirthWithObject(
 	    // creation flags
-	    SIZE_RELATIVE_POOL_BUCKET(0x62c, NONE, LARGE, ROBOT),
+	    SIZE_RELATIVE_POOL_BUCKET(0x670, NONE, LARGE, ROBOT),
 
 	    BOTS_ThTick_Drive, // behavior
 	    0,                 //"robotcar",	// debug name
@@ -3022,7 +3022,7 @@ struct Driver *BOTS_Driver_Init(int driverID)
 	);
 
 	d = t->object;
-	memset(d, 0x0, 0x62c);
+	memset(d, 0x0, 0x670);
 	VehBirth_NonGhost(t, driverID);
 	sdata->gGT->drivers[driverID] = d;
 	t->modelIndex = DYNAMIC_ROBOT_CAR;
@@ -3034,6 +3034,17 @@ struct Driver *BOTS_Driver_Init(int driverID)
 
 	sdata->gGT->numBotsNextGame++;
 	BOTS_GotoStartingLine(d);
+
+#ifdef CTR_NATIVE
+	if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+	{
+		d->BattleHUD.teamID = driverID / 2;
+		d->teamBarCharge = 0;
+		d->teamBarEffect = 0;
+		d->teamBarTimer = 0;
+	}
+#endif
+
 	return d;
 }
 

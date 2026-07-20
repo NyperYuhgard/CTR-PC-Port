@@ -12,6 +12,12 @@ int VehPhysCrash_Attack(struct Driver *driver1, struct Driver *driver2, int canP
 	{
 		if ((driver2->actionsFlagSet & 0x800000) != 0)
 		{
+#ifdef CTR_NATIVE
+			// Team Race: mask doesn't affect teammates
+			if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0 &&
+				driver1->BattleHUD.teamID == driver2->BattleHUD.teamID)
+				return canPlayFeedback;
+#endif
 			driver1->ChangeState_param2 = 2;
 			VehPhysCrash_Attack_SetReason(driver1, 6);
 			driver1->ChangeState_param3 = (int)driver2;

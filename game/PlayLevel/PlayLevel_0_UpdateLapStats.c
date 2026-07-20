@@ -170,30 +170,52 @@ void PlayLevel_UpdateLapStats(void)
                                 // you have no weapon
                                 currDriver->heldItemID = 0xf;
 
-                                // If this is human and not AI
-                                if ((currDriver->actionsFlagSet & 0x100000) == 0)
-                                {
-                                        // If this racer is in first place
-                                        if (currDriver->driverRank == 0)
-                                        {
-                                                // amount of confetti particles
-                                                gGT->confetti.numParticles_max = 250;
-                                                gGT->confetti.unk2 = 250;
+// If this is human and not AI
+				if ((currDriver->actionsFlagSet & 0x100000) == 0)
+				{
+					// If this racer is in first place
+					if (currDriver->driverRank == 0)
+					{
+						// amount of confetti particles
+						gGT->confetti.numParticles_max = 250;
+						gGT->confetti.unk2 = 250;
 
-                                                // one person won,
-                                                // one person gets confetti
-                                                gGT->numWinners = 1;
+						// one person won,
+						// one person gets confetti
+						gGT->numWinners = 1;
 
-                                                u8 driverID = currDriver->driverID;
+						u8 driverID = currDriver->driverID;
 
-                                                // add driver ID to array of confetti winners
-                                                gGT->winnerIndex[0] = driverID;
+						// add driver ID to array of confetti winners
+						gGT->winnerIndex[0] = driverID;
 
-                                                // edit window variables for confetti
-                                                gGT->pushBuffer[driverID].fadeFromBlack_currentValue = 0x1fff;
-                                                gGT->pushBuffer[driverID].fadeFromBlack_desiredResult = 0x1000;
-                                                gGT->pushBuffer[driverID].fade_step = 0xff78;
-                                        }
+						// edit window variables for confetti
+						gGT->pushBuffer[driverID].fadeFromBlack_currentValue = 0x1fff;
+						gGT->pushBuffer[driverID].fadeFromBlack_desiredResult = 0x1000;
+						gGT->pushBuffer[driverID].fade_step = 0xff78;
+
+#ifdef CTR_NATIVE
+						// Team Race: if winner has human teammate, they win too
+						if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+						{
+							for (int i = 0; i < 8; i++)
+							{
+								struct Driver *other = gGT->drivers[i];
+								if (other != NULL && other != currDriver &&
+								    (other->actionsFlagSet & 0x100000) == 0 &&
+								    other->BattleHUD.teamID == currDriver->BattleHUD.teamID)
+								{
+									// Human teammate on same team - they win too
+									gGT->winnerIndex[gGT->numWinners] = other->driverID;
+									gGT->pushBuffer[other->driverID].fadeFromBlack_currentValue = 0x1fff;
+									gGT->pushBuffer[other->driverID].fadeFromBlack_desiredResult = 0x1000;
+									gGT->pushBuffer[other->driverID].fade_step = 0xff78;
+									gGT->numWinners++;
+								}
+							}
+						}
+#endif
+					}
                                         if (currDriver->noItemTimer != 0)
                                         {
                                                 currDriver->noItemTimer = 0;

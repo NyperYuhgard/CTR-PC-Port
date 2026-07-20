@@ -471,19 +471,135 @@ playerStruct->BattleHUD.cooldown--;
                                         UI_DrawLapCount(hudStructPtr[1].x, hudStructPtr[1].y, (u32)hudStructPtr[1].scale, playerStruct);
 
 #ifdef CTR_NATIVE
-                                        // Team Race: show teammate icon below lap counter
-                                        if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
-                                        {
-                                                int teammateChar = data.characterIDs[1];
-                                                struct Icon *teammateIcon = gGT->ptrIcons[data.MetaDataCharacters[teammateChar].iconID];
-                                                if (teammateIcon != NULL)
-                                                {
-                                                        UI_DrawDriverIcon(teammateIcon, hudStructPtr[1].x - 40, hudStructPtr[1].y + 24,
-                                                                          &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
-                                                                          1, 0x1000, MakeColor(0x80, 0x80, 0x80).self);
-                                                }
-                                                DecalFont_DrawLine("TEAM", hudStructPtr[1].x - 32, hudStructPtr[1].y + 48, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
-                                        }
+					// Team Race: show teammate icon below lap counter
+					if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+					{
+						int teammateChar = data.characterIDs[1];
+						struct Icon *teammateIcon = gGT->ptrIcons[data.MetaDataCharacters[teammateChar].iconID];
+						if (teammateIcon != NULL)
+						{
+							UI_DrawDriverIcon(teammateIcon, hudStructPtr[1].x - 40, hudStructPtr[1].y + 24,
+											  &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
+											  1, 0x1000, MakeColor(0x80, 0x80, 0x80).self);
+						}
+						DecalFont_DrawLine("TEAM", hudStructPtr[1].x - 32, hudStructPtr[1].y + 48, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+
+						// Team Bar HUD - vertical bar with charge level
+						if ((playerStruct->actionsFlagSet & 0x100000) == 0)
+						{
+							int charge = playerStruct->teamBarCharge;
+							// Vertical bar positioned below TEAM text
+							int barX = hudStructPtr[1].x - 38;
+							int barY = hudStructPtr[1].y + 54;
+							int barW = 12;
+							int barH = 60;
+
+							// Background (dark with border)
+							POLY_G4 *bg = (POLY_G4 *)gGT->backBuffer->primMem.curr;
+							if ((int)bg < (int)gGT->backBuffer->primMem.endMin100)
+							{
+								gGT->backBuffer->primMem.curr += sizeof(POLY_G4);
+								setPolyG4(bg);
+								setSemiTrans(bg, 1);
+								bg->x0 = barX - 2; bg->y0 = barY - 2;
+								bg->x1 = barX + barW + 2; bg->y1 = barY - 2;
+								bg->x2 = barX - 2; bg->y2 = barY + barH + 2;
+								bg->x3 = barX + barW + 2; bg->y3 = barY + barH + 2;
+								bg->r0 = 0x00; bg->g0 = 0x00; bg->b0 = 0x00;
+								bg->r1 = 0x00; bg->g1 = 0x00; bg->b1 = 0x00;
+								bg->r2 = 0x00; bg->g2 = 0x00; bg->b2 = 0x00;
+								bg->r3 = 0x00; bg->g3 = 0x00; bg->b3 = 0x00;
+								addPrim(gGT->pushBuffer_UI.ptrOT, bg);
+							}
+
+							// Border (team blue)
+							POLY_G4 *border = (POLY_G4 *)gGT->backBuffer->primMem.curr;
+							if ((int)border < (int)gGT->backBuffer->primMem.endMin100)
+							{
+								gGT->backBuffer->primMem.curr += sizeof(POLY_G4);
+								setPolyG4(border);
+								setSemiTrans(border, 1);
+								border->x0 = barX - 1; border->y0 = barY - 1;
+								border->x1 = barX + barW + 1; border->y1 = barY - 1;
+								border->x2 = barX - 1; border->y2 = barY + barH + 1;
+								border->x3 = barX + barW + 1; border->y3 = barY + barH + 1;
+								border->r0 = 0x00; border->g0 = 0x80; border->b0 = 0xff;
+								border->r1 = 0x00; border->g1 = 0x80; border->b1 = 0xff;
+								border->r2 = 0x00; border->g2 = 0x80; border->b2 = 0xff;
+								border->r3 = 0x00; border->g3 = 0x80; border->b3 = 0xff;
+								addPrim(gGT->pushBuffer_UI.ptrOT, border);
+							}
+
+							// Fill based on charge (bottom to top)
+							int fillH = (charge * barH) / 1000;
+							if (fillH > barH) fillH = barH;
+							int fillY = barY + barH - fillH;
+
+							// Color gradient: blue -> green -> yellow -> gold
+							int r = 0x00, g = 0x80, b = 0xff;
+							if (charge >= 750) { r = 0xff; g = 0xff; b = 0x00; }
+							else if (charge >= 500) { r = 0x00; g = 0xff; b = 0x00; }
+							else if (charge >= 250) { r = 0xff; g = 0xa0; b = 0x00; }
+
+							POLY_G4 *fill = (POLY_G4 *)gGT->backBuffer->primMem.curr;
+							if ((int)fill < (int)gGT->backBuffer->primMem.endMin100)
+							{
+								gGT->backBuffer->primMem.curr += sizeof(POLY_G4);
+								setPolyG4(fill);
+								setSemiTrans(fill, 1);
+								fill->x0 = barX; fill->y0 = fillY;
+								fill->x1 = barX + barW; fill->y1 = fillY;
+								fill->x2 = barX; fill->y2 = fillY + fillH;
+								fill->x3 = barX + barW; fill->y3 = fillY + fillH;
+								fill->r0 = r; fill->g0 = g; fill->b0 = b;
+								fill->r1 = r; fill->g1 = g; fill->b1 = b;
+								fill->r2 = r; fill->g2 = g; fill->b2 = b;
+								fill->r3 = r; fill->g3 = g; fill->b3 = b;
+								addPrim(gGT->pushBuffer_UI.ptrOT, fill);
+							}
+
+							// Pulse glow when ready to activate (>=250)
+							if (charge >= 250 && playerStruct->teamBarEffect == 0)
+							{
+								static int pulse = 0;
+								pulse++;
+								if ((pulse & 0x1F) < 0x10) // blink ~0.5s at 30fps
+								{
+									POLY_G4 *glow = (POLY_G4 *)gGT->backBuffer->primMem.curr;
+									if ((int)glow < (int)gGT->backBuffer->primMem.endMin100)
+									{
+										gGT->backBuffer->primMem.curr += sizeof(POLY_G4);
+										setPolyG4(glow);
+										setSemiTrans(glow, 1);
+										glow->x0 = barX - 3; glow->y0 = barY - 3;
+										glow->x1 = barX + barW + 3; glow->y1 = barY - 3;
+										glow->x2 = barX - 3; glow->y2 = barY + barH + 3;
+										glow->x3 = barX + barW + 3; glow->y3 = barY + barH + 3;
+										glow->r0 = 0xff; glow->g0 = 0xff; glow->b0 = 0x00;
+										glow->r1 = 0xff; glow->g1 = 0xff; glow->b1 = 0x00;
+										glow->r2 = 0xff; glow->g2 = 0xff; glow->b2 = 0x00;
+										glow->r3 = 0xff; glow->g3 = 0xff; glow->b3 = 0x00;
+										addPrim(gGT->pushBuffer_UI.ptrOT, glow);
+									}
+								}
+							}
+
+							// Ready text below the bar
+							if (charge >= 250 && playerStruct->teamBarEffect == 0)
+							{
+								DecalFont_DrawLine("READY!", barX + barW/2, barY + barH + 2, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+							}
+
+							// Active effect indicator below the bar
+							if (playerStruct->teamBarEffect > 0 && playerStruct->teamBarEffect < 5)
+							{
+								const char *effectNames[] = {"", "TURBO", "MASK", "BOOST", "JUMP"};
+								char effectStr[16];
+								sprintf(effectStr, "%s!", effectNames[playerStruct->teamBarEffect]);
+								DecalFont_DrawLine(effectStr, barX + barW/2, barY + barH + 14, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+							}
+						}
+					}
 #endif
                                 }
                         }

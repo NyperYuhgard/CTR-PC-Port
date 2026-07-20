@@ -1635,6 +1635,21 @@ void COLL_FIXED_PlayerSearch(struct Thread *t, struct Driver *d)
 		}
 	}
 
+#ifdef CTR_NATIVE
+	// Team Race: BALANCED class landing boost effect
+	if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0 &&
+	    d->teamBarEffect == 3)
+	{
+		// Check if landing from high jump (jump_LandingBoost was accumulated)
+		// The landing boost amount is in jump_LandingBoost before reset
+		if (d->jump_LandingBoost > 1000) // threshold for "high" landing
+		{
+			// Give extra turbo + reserves
+			VehFire_Increment(d, 0x960, POWER_SLIDE_HANG_TIME, 0x100);
+		}
+	}
+#endif
+
 	lerpFrames = 6;
 	goto BlendNormal;
 

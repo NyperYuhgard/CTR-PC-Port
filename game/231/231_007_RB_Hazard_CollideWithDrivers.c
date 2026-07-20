@@ -51,11 +51,19 @@ struct Instance *RB_Hazard_CollideWithDrivers(struct Instance *weaponInst, char 
 				continue;
 
 #ifdef CTR_NATIVE
+			// Team Race: friendly fire prevention only applies to bombs/missiles,
+			// NOT to TNT/Nitro/Beaker (those should hurt everyone)
 			if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0)
 			{
-				struct Driver *weaponOwner = mineDriverInst ? (struct Driver *)mineDriverInst->thread->object : NULL;
-				if (weaponOwner != NULL && weaponOwner->BattleHUD.teamID == driver->BattleHUD.teamID)
-					continue;
+				int isHazard = ((u32)modelID - STATIC_BEAKER_RED < 2) ||
+				               (modelID == PU_EXPLOSIVE_CRATE) ||
+				               (modelID == STATIC_CRATE_TNT);
+				if (!isHazard)
+				{
+					struct Driver *weaponOwner = mineDriverInst ? (struct Driver *)mineDriverInst->thread->object : NULL;
+					if (weaponOwner != NULL && weaponOwner->BattleHUD.teamID == driver->BattleHUD.teamID)
+						continue;
+				}
 			}
 #endif
 

@@ -249,7 +249,11 @@ void Audio_Update1(void)
 					// defeat music
 					uVar1 = 5;
 
-					if ((raceOrderIndex == 0) || ((gGT->gameMode1 & ADVENTURE_CUP) != 0) || ((gGT->gameMode2 & CUP_ANY_KIND) != 0))
+					if ((raceOrderIndex == 0) || ((gGT->gameMode1 & ADVENTURE_CUP) != 0) || ((gGT->gameMode2 & CUP_ANY_KIND) != 0)
+#ifdef CTR_NATIVE
+				    || (((gGT->gameMode2 & TEAM_RACE_MODE) != 0) && (gGT->driversInRaceOrder[0] != NULL) && (gGT->driversInRaceOrder[0]->BattleHUD.teamID == d->BattleHUD.teamID))
+#endif
+				    )
 					{
 						OtherFX_Play(0x5f, 0);
 
