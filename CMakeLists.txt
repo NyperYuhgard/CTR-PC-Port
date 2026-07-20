@@ -111,7 +111,7 @@ add_library(enet STATIC
 target_include_directories(enet PUBLIC externals/enet/include)
 if(WIN32)
     target_sources(enet PRIVATE externals/enet/win32.c)
-    target_link_libraries(enet ws2_32)
+    target_link_libraries(enet ws2_32 winmm)
 endif()
 
 # CTR Native
