@@ -105,7 +105,7 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 	gGT->gameMode1 &= ~(BATTLE_MODE | ADVENTURE_MODE | TIME_TRIAL | ADVENTURE_ARENA | ARCADE_MODE | ADVENTURE_CUP);
 
 	// clear more game mode flags
-	gGT->gameMode2 &= ~(CUP_ANY_KIND | TEAM_RACE_MODE);
+	gGT->gameMode2 &= ~(CUP_ANY_KIND | TEAM_RACE_MODE | COOPERATIVE_ADVENTURE);
 
 	mainMenu->state |= ONLY_DRAW_TITLE;
 

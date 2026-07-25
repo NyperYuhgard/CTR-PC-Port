@@ -1,5 +1,6 @@
 #include <platform/native_input.h>
 
+#include <common.h>
 #include <macros.h>
 #include "psx/libpad.h"
 
@@ -86,8 +87,8 @@ struct NativeInputStateSnapshot
 	struct NativeInputControllerStateSnapshot controllers[NATIVE_INPUT_MAX_CONTROLLERS];
 };
 
-global_variable struct NativeInputControllerMapping s_controllerMapping;
-global_variable struct NativeInputKeyboardMapping s_keyboardMapping;
+global_variable struct NativeInputControllerMapping s_controllerMappings[PLATFORM_INPUT_PLAYER_COUNT];
+global_variable struct NativeInputKeyboardMapping s_keyboardMappings[PLATFORM_INPUT_PLAYER_COUNT];
 global_variable s32 s_controllerToSlotMapping[NATIVE_INPUT_MAX_CONTROLLERS] = {-1, -1, -1, -1};
 
 global_variable struct NativeInputController s_controllers[NATIVE_INPUT_MAX_CONTROLLERS];
@@ -97,6 +98,8 @@ global_variable const bool *s_keyboardState;
 global_variable s32 s_inputInitialized;
 global_variable s32 s_installedSnapshotsActive;
 global_variable s32 s_activeKeyboardControllers = 0x1;
+global_variable s32 s_maxActivePlayers = 2;
+global_variable s32 s_disabledSlots = 0;  // bitmask: 1 = slot explicitly set to NONE
 
 extern s32 g_padCommEnable;
 
@@ -114,6 +117,20 @@ internal void NativeInput_SetSnapshotButtons(struct PlatformInputPadSnapshot *sn
 internal void NativeInput_ResetSnapshot(s32 slot)
 {
 	struct PlatformInputPadSnapshot *snapshot = &s_controllers[slot].snapshot;
+
+	if (slot >= s_maxActivePlayers)
+	{
+		snapshot->connected = 0;
+		snapshot->status = NATIVE_INPUT_PAD_DISCONNECT;
+		snapshot->id = NATIVE_INPUT_PAD_DISCONNECT;
+		NativeInput_SetSnapshotButtons(snapshot, 0xffff);
+		snapshot->analog[0] = 0x80;
+		snapshot->analog[1] = 0x80;
+		snapshot->analog[2] = 0x80;
+		snapshot->analog[3] = 0x80;
+		memset(snapshot->reserved, 0, sizeof(snapshot->reserved));
+		return;
+	}
 
 	snapshot->connected = slot == 0;
 	snapshot->status = snapshot->connected ? 0 : NATIVE_INPUT_PAD_DISCONNECT;
@@ -161,6 +178,9 @@ internal s32 NativeInput_UseMultitapBus(void)
 {
 	s32 slot;
 
+	if (s_maxActivePlayers <= 2)
+		return 0;
+
 	for (slot = NATIVE_INPUT_PHYSICAL_SLOT_COUNT; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
 		if (s_controllers[slot].snapshot.connected != 0)
 			return 1;
@@ -177,6 +197,9 @@ internal void NativeInput_WritePadBus(void)
 
 	if (slot0 != NULL)
 	{
+		// Full clear to eliminate any stale multitap/controller data
+		memset(slot0, 0, NATIVE_INPUT_MULTITAP_HEADER + NATIVE_INPUT_MAX_CONTROLLERS * NATIVE_INPUT_PAD_PACKET_BYTES);
+
 		if (useMultitap != 0)
 		{
 			slot0[0] = 0;
@@ -192,6 +215,8 @@ internal void NativeInput_WritePadBus(void)
 
 	if (slot1 != NULL)
 	{
+		memset(slot1, 0, NATIVE_INPUT_PAD_PACKET_BYTES);
+
 		if (useMultitap != 0)
 		{
 			struct PlatformInputPadSnapshot disconnected;
@@ -218,52 +243,56 @@ internal void NativeInput_WriteInstalledSnapshots(void)
 
 internal void NativeInput_DefaultMappings(void)
 {
-	s_keyboardMapping.kc_square = SDL_SCANCODE_X;
-	s_keyboardMapping.kc_circle = SDL_SCANCODE_V;
-	s_keyboardMapping.kc_triangle = SDL_SCANCODE_Z;
-	s_keyboardMapping.kc_cross = SDL_SCANCODE_C;
+	int p;
+	for (p = 0; p < PLATFORM_INPUT_PLAYER_COUNT; p++)
+	{
+		s_keyboardMappings[p].kc_square = SDL_SCANCODE_X;
+		s_keyboardMappings[p].kc_circle = SDL_SCANCODE_V;
+		s_keyboardMappings[p].kc_triangle = SDL_SCANCODE_Z;
+		s_keyboardMappings[p].kc_cross = SDL_SCANCODE_C;
 
-	s_keyboardMapping.kc_l1 = SDL_SCANCODE_LSHIFT;
-	s_keyboardMapping.kc_l2 = SDL_SCANCODE_LCTRL;
-	s_keyboardMapping.kc_l3 = SDL_SCANCODE_LEFTBRACKET;
+		s_keyboardMappings[p].kc_l1 = SDL_SCANCODE_LSHIFT;
+		s_keyboardMappings[p].kc_l2 = SDL_SCANCODE_LCTRL;
+		s_keyboardMappings[p].kc_l3 = SDL_SCANCODE_LEFTBRACKET;
 
-	s_keyboardMapping.kc_r1 = SDL_SCANCODE_RSHIFT;
-	s_keyboardMapping.kc_r2 = SDL_SCANCODE_RCTRL;
-	s_keyboardMapping.kc_r3 = SDL_SCANCODE_RIGHTBRACKET;
+		s_keyboardMappings[p].kc_r1 = SDL_SCANCODE_RSHIFT;
+		s_keyboardMappings[p].kc_r2 = SDL_SCANCODE_RCTRL;
+		s_keyboardMappings[p].kc_r3 = SDL_SCANCODE_RIGHTBRACKET;
 
-	s_keyboardMapping.kc_dpad_up = SDL_SCANCODE_UP;
-	s_keyboardMapping.kc_dpad_down = SDL_SCANCODE_DOWN;
-	s_keyboardMapping.kc_dpad_left = SDL_SCANCODE_LEFT;
-	s_keyboardMapping.kc_dpad_right = SDL_SCANCODE_RIGHT;
+		s_keyboardMappings[p].kc_dpad_up = SDL_SCANCODE_UP;
+		s_keyboardMappings[p].kc_dpad_down = SDL_SCANCODE_DOWN;
+		s_keyboardMappings[p].kc_dpad_left = SDL_SCANCODE_LEFT;
+		s_keyboardMappings[p].kc_dpad_right = SDL_SCANCODE_RIGHT;
 
-	s_keyboardMapping.kc_select = SDL_SCANCODE_SPACE;
-	s_keyboardMapping.kc_start = SDL_SCANCODE_RETURN;
+		s_keyboardMappings[p].kc_select = SDL_SCANCODE_SPACE;
+		s_keyboardMappings[p].kc_start = SDL_SCANCODE_RETURN;
 
-	s_controllerMapping.gc_square = SDL_GAMEPAD_BUTTON_WEST;
-	s_controllerMapping.gc_circle = SDL_GAMEPAD_BUTTON_EAST;
-	s_controllerMapping.gc_triangle = SDL_GAMEPAD_BUTTON_NORTH;
-	s_controllerMapping.gc_cross = SDL_GAMEPAD_BUTTON_SOUTH;
+		s_controllerMappings[p].gc_square = SDL_GAMEPAD_BUTTON_WEST;
+		s_controllerMappings[p].gc_circle = SDL_GAMEPAD_BUTTON_EAST;
+		s_controllerMappings[p].gc_triangle = SDL_GAMEPAD_BUTTON_NORTH;
+		s_controllerMappings[p].gc_cross = SDL_GAMEPAD_BUTTON_SOUTH;
 
-	s_controllerMapping.gc_l1 = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
-	s_controllerMapping.gc_l2 = SDL_GAMEPAD_AXIS_LEFT_TRIGGER | NATIVE_INPUT_MAP_FLAG_AXIS;
-	s_controllerMapping.gc_l3 = SDL_GAMEPAD_BUTTON_LEFT_STICK;
+		s_controllerMappings[p].gc_l1 = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
+		s_controllerMappings[p].gc_l2 = SDL_GAMEPAD_AXIS_LEFT_TRIGGER | NATIVE_INPUT_MAP_FLAG_AXIS;
+		s_controllerMappings[p].gc_l3 = SDL_GAMEPAD_BUTTON_LEFT_STICK;
 
-	s_controllerMapping.gc_r1 = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
-	s_controllerMapping.gc_r2 = SDL_GAMEPAD_AXIS_RIGHT_TRIGGER | NATIVE_INPUT_MAP_FLAG_AXIS;
-	s_controllerMapping.gc_r3 = SDL_GAMEPAD_BUTTON_RIGHT_STICK;
+		s_controllerMappings[p].gc_r1 = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
+		s_controllerMappings[p].gc_r2 = SDL_GAMEPAD_AXIS_RIGHT_TRIGGER | NATIVE_INPUT_MAP_FLAG_AXIS;
+		s_controllerMappings[p].gc_r3 = SDL_GAMEPAD_BUTTON_RIGHT_STICK;
 
-	s_controllerMapping.gc_dpad_up = SDL_GAMEPAD_BUTTON_DPAD_UP;
-	s_controllerMapping.gc_dpad_down = SDL_GAMEPAD_BUTTON_DPAD_DOWN;
-	s_controllerMapping.gc_dpad_left = SDL_GAMEPAD_BUTTON_DPAD_LEFT;
-	s_controllerMapping.gc_dpad_right = SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
+		s_controllerMappings[p].gc_dpad_up = SDL_GAMEPAD_BUTTON_DPAD_UP;
+		s_controllerMappings[p].gc_dpad_down = SDL_GAMEPAD_BUTTON_DPAD_DOWN;
+		s_controllerMappings[p].gc_dpad_left = SDL_GAMEPAD_BUTTON_DPAD_LEFT;
+		s_controllerMappings[p].gc_dpad_right = SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
 
-	s_controllerMapping.gc_select = SDL_GAMEPAD_BUTTON_BACK;
-	s_controllerMapping.gc_start = SDL_GAMEPAD_BUTTON_START;
+		s_controllerMappings[p].gc_select = SDL_GAMEPAD_BUTTON_BACK;
+		s_controllerMappings[p].gc_start = SDL_GAMEPAD_BUTTON_START;
 
-	s_controllerMapping.gc_axis_left_x = SDL_GAMEPAD_AXIS_LEFTX | NATIVE_INPUT_MAP_FLAG_AXIS;
-	s_controllerMapping.gc_axis_left_y = SDL_GAMEPAD_AXIS_LEFTY | NATIVE_INPUT_MAP_FLAG_AXIS;
-	s_controllerMapping.gc_axis_right_x = SDL_GAMEPAD_AXIS_RIGHTX | NATIVE_INPUT_MAP_FLAG_AXIS;
-	s_controllerMapping.gc_axis_right_y = SDL_GAMEPAD_AXIS_RIGHTY | NATIVE_INPUT_MAP_FLAG_AXIS;
+		s_controllerMappings[p].gc_axis_left_x = SDL_GAMEPAD_AXIS_LEFTX | NATIVE_INPUT_MAP_FLAG_AXIS;
+		s_controllerMappings[p].gc_axis_left_y = SDL_GAMEPAD_AXIS_LEFTY | NATIVE_INPUT_MAP_FLAG_AXIS;
+		s_controllerMappings[p].gc_axis_right_x = SDL_GAMEPAD_AXIS_RIGHTX | NATIVE_INPUT_MAP_FLAG_AXIS;
+		s_controllerMappings[p].gc_axis_right_y = SDL_GAMEPAD_AXIS_RIGHTY | NATIVE_INPUT_MAP_FLAG_AXIS;
+	}
 }
 
 internal s32 NativeInput_ControllerButtonState(SDL_Gamepad *controller, s32 buttonOrAxis)
@@ -305,7 +334,7 @@ internal void NativeInput_ApplyController(s32 slot)
 {
 	struct NativeInputController *nativeController = &s_controllers[slot];
 	struct PlatformInputPadSnapshot *snapshot = &nativeController->snapshot;
-	const struct NativeInputControllerMapping *mapping = &s_controllerMapping;
+	const struct NativeInputControllerMapping *mapping = &s_controllerMappings[slot];
 	SDL_Gamepad *controller = nativeController->controller;
 	u16 buttons = 0xffff;
 
@@ -368,9 +397,8 @@ internal void NativeInput_ApplyController(s32 slot)
 	snapshot->analog[3] = NativeInput_AxisToByte(NativeInput_ControllerButtonState(controller, mapping->gc_axis_left_y));
 }
 
-internal u16 NativeInput_ReadKeyboard(void)
+internal u16 NativeInput_ReadKeyboardMapping(const struct NativeInputKeyboardMapping *mapping)
 {
-	const struct NativeInputKeyboardMapping *mapping = &s_keyboardMapping;
 	u16 buttons = 0xffff;
 
 	if (s_keyboardState == NULL)
@@ -445,9 +473,9 @@ internal s32 NativeInput_FindSlotForDeviceIndex(Sint32 deviceIndex)
 			return slot;
 	}
 
-	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	for (slot = 0; slot < NATIVE_INPUT_PHYSICAL_SLOT_COUNT; slot++)
 	{
-		if ((s_controllerToSlotMapping[slot] < 0) && (s_controllers[slot].controller == NULL))
+		if ((s_controllerToSlotMapping[slot] < 0) && (s_controllers[slot].controller == NULL) && ((s_activeKeyboardControllers & (1 << slot)) == 0) && ((s_disabledSlots & (1 << slot)) == 0))
 			return slot;
 	}
 
@@ -583,13 +611,17 @@ void Platform_InputUpdate(void)
 		return;
 
 	SDL_PumpEvents();
-	keyboardButtons = NativeInput_KeyboardSuppressed() ? 0xffff : NativeInput_ReadKeyboard();
 
 	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
 	{
 		NativeInput_ResetSnapshot(slot);
 		NativeInput_ApplyController(slot);
-		NativeInput_ApplyKeyboard(slot, keyboardButtons);
+
+		if (((s_activeKeyboardControllers & (1 << slot)) != 0) && !NativeInput_KeyboardSuppressed())
+		{
+			keyboardButtons = NativeInput_ReadKeyboardMapping(&s_keyboardMappings[slot]);
+			NativeInput_ApplyKeyboard(slot, keyboardButtons);
+		}
 	}
 	NativeInput_WritePadBus();
 }
@@ -835,65 +867,63 @@ static const int s_keyBindingDefaults[PLATFORM_INPUT_BINDING_COUNT] = {
 	SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT
 };
 
-int Platform_InputGetKeyBinding(int actionIndex, int *scancode)
+static s32 *NativeInput_GetKeyboardField(int playerIndex, int actionIndex)
 {
+	struct NativeInputKeyboardMapping *m;
+	if (playerIndex < 0 || playerIndex >= PLATFORM_INPUT_PLAYER_COUNT)
+		return NULL;
 	if (actionIndex < 0 || actionIndex >= PLATFORM_INPUT_BINDING_COUNT)
-		return 0;
+		return NULL;
+	m = &s_keyboardMappings[playerIndex];
+	switch (actionIndex)
+	{
+	case PLATFORM_INPUT_BINDING_SQUARE:   return &m->kc_square;
+	case PLATFORM_INPUT_BINDING_CIRCLE:   return &m->kc_circle;
+	case PLATFORM_INPUT_BINDING_TRIANGLE: return &m->kc_triangle;
+	case PLATFORM_INPUT_BINDING_CROSS:    return &m->kc_cross;
+	case PLATFORM_INPUT_BINDING_L1:       return &m->kc_l1;
+	case PLATFORM_INPUT_BINDING_L2:       return &m->kc_l2;
+	case PLATFORM_INPUT_BINDING_L3:       return &m->kc_l3;
+	case PLATFORM_INPUT_BINDING_R1:       return &m->kc_r1;
+	case PLATFORM_INPUT_BINDING_R2:       return &m->kc_r2;
+	case PLATFORM_INPUT_BINDING_R3:       return &m->kc_r3;
+	case PLATFORM_INPUT_BINDING_START:    return &m->kc_start;
+	case PLATFORM_INPUT_BINDING_SELECT:   return &m->kc_select;
+	case PLATFORM_INPUT_BINDING_DPAD_UP:    return &m->kc_dpad_up;
+	case PLATFORM_INPUT_BINDING_DPAD_DOWN:  return &m->kc_dpad_down;
+	case PLATFORM_INPUT_BINDING_DPAD_LEFT:  return &m->kc_dpad_left;
+	case PLATFORM_INPUT_BINDING_DPAD_RIGHT: return &m->kc_dpad_right;
+	default: return NULL;
+	}
+}
+
+int Platform_InputGetKeyBinding(int playerIndex, int actionIndex, int *scancode)
+{
+	s32 *field;
 
 	if (scancode == NULL)
 		return 1;
 
-	switch (actionIndex)
-	{
-	case PLATFORM_INPUT_BINDING_SQUARE:   *scancode = s_keyboardMapping.kc_square; break;
-	case PLATFORM_INPUT_BINDING_CIRCLE:   *scancode = s_keyboardMapping.kc_circle; break;
-	case PLATFORM_INPUT_BINDING_TRIANGLE: *scancode = s_keyboardMapping.kc_triangle; break;
-	case PLATFORM_INPUT_BINDING_CROSS:    *scancode = s_keyboardMapping.kc_cross; break;
-	case PLATFORM_INPUT_BINDING_L1:       *scancode = s_keyboardMapping.kc_l1; break;
-	case PLATFORM_INPUT_BINDING_L2:       *scancode = s_keyboardMapping.kc_l2; break;
-	case PLATFORM_INPUT_BINDING_L3:       *scancode = s_keyboardMapping.kc_l3; break;
-	case PLATFORM_INPUT_BINDING_R1:       *scancode = s_keyboardMapping.kc_r1; break;
-	case PLATFORM_INPUT_BINDING_R2:       *scancode = s_keyboardMapping.kc_r2; break;
-	case PLATFORM_INPUT_BINDING_R3:       *scancode = s_keyboardMapping.kc_r3; break;
-	case PLATFORM_INPUT_BINDING_START:    *scancode = s_keyboardMapping.kc_start; break;
-	case PLATFORM_INPUT_BINDING_SELECT:   *scancode = s_keyboardMapping.kc_select; break;
-	case PLATFORM_INPUT_BINDING_DPAD_UP:    *scancode = s_keyboardMapping.kc_dpad_up; break;
-	case PLATFORM_INPUT_BINDING_DPAD_DOWN:  *scancode = s_keyboardMapping.kc_dpad_down; break;
-	case PLATFORM_INPUT_BINDING_DPAD_LEFT:  *scancode = s_keyboardMapping.kc_dpad_left; break;
-	case PLATFORM_INPUT_BINDING_DPAD_RIGHT: *scancode = s_keyboardMapping.kc_dpad_right; break;
-	default: return 0;
-	}
+	field = NativeInput_GetKeyboardField(playerIndex, actionIndex);
+	if (field == NULL)
+		return 0;
+
+	*scancode = *field;
 	return 1;
 }
 
-int Platform_InputSetKeyBinding(int actionIndex, int scancode)
+int Platform_InputSetKeyBinding(int playerIndex, int actionIndex, int scancode)
 {
-	if (actionIndex < 0 || actionIndex >= PLATFORM_INPUT_BINDING_COUNT)
-		return 0;
+	s32 *field;
 
 	if (scancode <= SDL_SCANCODE_UNKNOWN || scancode >= SDL_SCANCODE_COUNT)
 		return 0;
 
-	switch (actionIndex)
-	{
-	case PLATFORM_INPUT_BINDING_SQUARE:   s_keyboardMapping.kc_square = scancode; break;
-	case PLATFORM_INPUT_BINDING_CIRCLE:   s_keyboardMapping.kc_circle = scancode; break;
-	case PLATFORM_INPUT_BINDING_TRIANGLE: s_keyboardMapping.kc_triangle = scancode; break;
-	case PLATFORM_INPUT_BINDING_CROSS:    s_keyboardMapping.kc_cross = scancode; break;
-	case PLATFORM_INPUT_BINDING_L1:       s_keyboardMapping.kc_l1 = scancode; break;
-	case PLATFORM_INPUT_BINDING_L2:       s_keyboardMapping.kc_l2 = scancode; break;
-	case PLATFORM_INPUT_BINDING_L3:       s_keyboardMapping.kc_l3 = scancode; break;
-	case PLATFORM_INPUT_BINDING_R1:       s_keyboardMapping.kc_r1 = scancode; break;
-	case PLATFORM_INPUT_BINDING_R2:       s_keyboardMapping.kc_r2 = scancode; break;
-	case PLATFORM_INPUT_BINDING_R3:       s_keyboardMapping.kc_r3 = scancode; break;
-	case PLATFORM_INPUT_BINDING_START:    s_keyboardMapping.kc_start = scancode; break;
-	case PLATFORM_INPUT_BINDING_SELECT:   s_keyboardMapping.kc_select = scancode; break;
-	case PLATFORM_INPUT_BINDING_DPAD_UP:    s_keyboardMapping.kc_dpad_up = scancode; break;
-	case PLATFORM_INPUT_BINDING_DPAD_DOWN:  s_keyboardMapping.kc_dpad_down = scancode; break;
-	case PLATFORM_INPUT_BINDING_DPAD_LEFT:  s_keyboardMapping.kc_dpad_left = scancode; break;
-	case PLATFORM_INPUT_BINDING_DPAD_RIGHT: s_keyboardMapping.kc_dpad_right = scancode; break;
-	default: return 0;
-	}
+	field = NativeInput_GetKeyboardField(playerIndex, actionIndex);
+	if (field == NULL)
+		return 0;
+
+	*field = scancode;
 	return 1;
 }
 
@@ -904,11 +934,13 @@ const char *Platform_InputGetActionName(int actionIndex)
 	return s_keyBindingNames[actionIndex];
 }
 
-void Platform_InputResetKeyboardMappings(void)
+void Platform_InputResetKeyboardMappings(int playerIndex)
 {
 	int i;
+	if (playerIndex < 0 || playerIndex >= PLATFORM_INPUT_PLAYER_COUNT)
+		return;
 	for (i = 0; i < PLATFORM_INPUT_BINDING_COUNT; i++)
-		Platform_InputSetKeyBinding(i, s_keyBindingDefaults[i]);
+		Platform_InputSetKeyBinding(playerIndex, i, s_keyBindingDefaults[i]);
 }
 
 int Platform_InputIsKeyDown(int scancode)
@@ -928,4 +960,322 @@ int Platform_InputGetScancodeCount(void)
 const char *Platform_InputGetScancodeName(int scancode)
 {
 	return SDL_GetScancodeName(scancode);
+}
+
+// ============================================================
+// Gamepad binding API (per-player)
+// ============================================================
+
+static s32 *NativeInput_GetControllerField(int playerIndex, int actionIndex)
+{
+	struct NativeInputControllerMapping *m;
+	if (playerIndex < 0 || playerIndex >= PLATFORM_INPUT_PLAYER_COUNT)
+		return NULL;
+	if (actionIndex < 0 || actionIndex >= PLATFORM_INPUT_BINDING_COUNT)
+		return NULL;
+	m = &s_controllerMappings[playerIndex];
+	switch (actionIndex)
+	{
+	case PLATFORM_INPUT_BINDING_SQUARE:   return &m->gc_square;
+	case PLATFORM_INPUT_BINDING_CIRCLE:   return &m->gc_circle;
+	case PLATFORM_INPUT_BINDING_TRIANGLE: return &m->gc_triangle;
+	case PLATFORM_INPUT_BINDING_CROSS:    return &m->gc_cross;
+	case PLATFORM_INPUT_BINDING_L1:       return &m->gc_l1;
+	case PLATFORM_INPUT_BINDING_L2:       return &m->gc_l2;
+	case PLATFORM_INPUT_BINDING_L3:       return &m->gc_l3;
+	case PLATFORM_INPUT_BINDING_R1:       return &m->gc_r1;
+	case PLATFORM_INPUT_BINDING_R2:       return &m->gc_r2;
+	case PLATFORM_INPUT_BINDING_R3:       return &m->gc_r3;
+	case PLATFORM_INPUT_BINDING_START:    return &m->gc_start;
+	case PLATFORM_INPUT_BINDING_SELECT:   return &m->gc_select;
+	case PLATFORM_INPUT_BINDING_DPAD_UP:    return &m->gc_dpad_up;
+	case PLATFORM_INPUT_BINDING_DPAD_DOWN:  return &m->gc_dpad_down;
+	case PLATFORM_INPUT_BINDING_DPAD_LEFT:  return &m->gc_dpad_left;
+	case PLATFORM_INPUT_BINDING_DPAD_RIGHT: return &m->gc_dpad_right;
+	default: return NULL;
+	}
+}
+
+int Platform_InputGetGamepadBinding(int playerIndex, int actionIndex, int *binding)
+{
+	s32 *field;
+	if (binding == NULL)
+		return 1;
+	field = NativeInput_GetControllerField(playerIndex, actionIndex);
+	if (field == NULL)
+		return 0;
+	*binding = *field;
+	return 1;
+}
+
+int Platform_InputSetGamepadBinding(int playerIndex, int actionIndex, int binding)
+{
+	s32 *field;
+	field = NativeInput_GetControllerField(playerIndex, actionIndex);
+	if (field == NULL)
+		return 0;
+	*field = binding;
+	return 1;
+}
+
+void Platform_InputResetGamepadMappings(int playerIndex)
+{
+	int p = (playerIndex < 0 || playerIndex >= PLATFORM_INPUT_PLAYER_COUNT) ? 0 : playerIndex;
+	int i;
+
+	s_controllerMappings[p].gc_square = SDL_GAMEPAD_BUTTON_WEST;
+	s_controllerMappings[p].gc_circle = SDL_GAMEPAD_BUTTON_EAST;
+	s_controllerMappings[p].gc_triangle = SDL_GAMEPAD_BUTTON_NORTH;
+	s_controllerMappings[p].gc_cross = SDL_GAMEPAD_BUTTON_SOUTH;
+	s_controllerMappings[p].gc_l1 = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
+	s_controllerMappings[p].gc_l2 = SDL_GAMEPAD_AXIS_LEFT_TRIGGER | NATIVE_INPUT_MAP_FLAG_AXIS;
+	s_controllerMappings[p].gc_l3 = SDL_GAMEPAD_BUTTON_LEFT_STICK;
+	s_controllerMappings[p].gc_r1 = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
+	s_controllerMappings[p].gc_r2 = SDL_GAMEPAD_AXIS_RIGHT_TRIGGER | NATIVE_INPUT_MAP_FLAG_AXIS;
+	s_controllerMappings[p].gc_r3 = SDL_GAMEPAD_BUTTON_RIGHT_STICK;
+	s_controllerMappings[p].gc_dpad_up = SDL_GAMEPAD_BUTTON_DPAD_UP;
+	s_controllerMappings[p].gc_dpad_down = SDL_GAMEPAD_BUTTON_DPAD_DOWN;
+	s_controllerMappings[p].gc_dpad_left = SDL_GAMEPAD_BUTTON_DPAD_LEFT;
+	s_controllerMappings[p].gc_dpad_right = SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
+	s_controllerMappings[p].gc_select = SDL_GAMEPAD_BUTTON_BACK;
+	s_controllerMappings[p].gc_start = SDL_GAMEPAD_BUTTON_START;
+	s_controllerMappings[p].gc_axis_left_x = SDL_GAMEPAD_AXIS_LEFTX | NATIVE_INPUT_MAP_FLAG_AXIS;
+	s_controllerMappings[p].gc_axis_left_y = SDL_GAMEPAD_AXIS_LEFTY | NATIVE_INPUT_MAP_FLAG_AXIS;
+	s_controllerMappings[p].gc_axis_right_x = SDL_GAMEPAD_AXIS_RIGHTX | NATIVE_INPUT_MAP_FLAG_AXIS;
+	s_controllerMappings[p].gc_axis_right_y = SDL_GAMEPAD_AXIS_RIGHTY | NATIVE_INPUT_MAP_FLAG_AXIS;
+
+	for (i = 0; i < PLATFORM_INPUT_BINDING_COUNT; i++)
+		s_controllerMappings[p].id = 0;
+}
+
+const char *Platform_InputGetGamepadActionName(int actionIndex)
+{
+	return Platform_InputGetActionName(actionIndex);
+}
+
+// ============================================================
+// Gamepad state query (for rebinding UI)
+// ============================================================
+
+int Platform_InputIsGamepadButtonDown(int playerIndex, int sdlButton)
+{
+	if (playerIndex < 0 || playerIndex >= PLATFORM_INPUT_PAD_COUNT)
+		return 0;
+	if (s_controllers[playerIndex].controller == NULL)
+		return 0;
+	if (!SDL_GamepadConnected(s_controllers[playerIndex].controller))
+		return 0;
+	return SDL_GetGamepadButton(s_controllers[playerIndex].controller, (SDL_GamepadButton)sdlButton) ? 1 : 0;
+}
+
+int Platform_InputIsGamepadAxisActive(int playerIndex, int sdlAxis, int threshold)
+{
+	s32 value;
+	if (playerIndex < 0 || playerIndex >= PLATFORM_INPUT_PAD_COUNT)
+		return 0;
+	if (s_controllers[playerIndex].controller == NULL)
+		return 0;
+	if (!SDL_GamepadConnected(s_controllers[playerIndex].controller))
+		return 0;
+	value = SDL_GetGamepadAxis(s_controllers[playerIndex].controller, (SDL_GamepadAxis)sdlAxis);
+	if (value < -threshold) return -1;
+	if (value > threshold) return 1;
+	return 0;
+}
+
+int Platform_InputGetGamepadDeviceCount(void)
+{
+	int count = 0;
+	SDL_JoystickID *gamepads = SDL_GetGamepads(&count);
+	if (gamepads != NULL)
+		SDL_free(gamepads);
+	return count;
+}
+
+int Platform_InputGetGamepadDeviceId(int deviceIndex)
+{
+	int count = 0;
+	SDL_JoystickID *gamepads = SDL_GetGamepads(&count);
+	int id = -1;
+	if (deviceIndex >= 0 && deviceIndex < count)
+		id = gamepads[deviceIndex];
+	if (gamepads != NULL)
+		SDL_free(gamepads);
+	return id;
+}
+
+const char *Platform_InputGetGamepadDeviceName(int instanceId)
+{
+	int slot;
+	const char *name = "None";
+
+	// Check if this gamepad is already opened in a slot
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		if (s_controllerToSlotMapping[slot] == instanceId && s_controllers[slot].controller != NULL)
+			return SDL_GetGamepadName(s_controllers[slot].controller);
+	}
+
+	// Not opened — open temporarily to get name
+	{
+		SDL_Gamepad *gp = SDL_OpenGamepad(instanceId);
+		if (gp != NULL)
+		{
+			name = SDL_GetGamepadName(gp);
+			SDL_CloseGamepad(gp);
+		}
+	}
+	return name;
+}
+
+// ============================================================
+// Device assignment API
+// ============================================================
+
+void Platform_InputSetKeyboardSlot(int keyboardSlot)
+{
+	s32 slot;
+
+	if (keyboardSlot < 0)
+	{
+		s_activeKeyboardControllers = 0;
+		return;
+	}
+
+	if (keyboardSlot < 0 || keyboardSlot >= NATIVE_INPUT_MAX_CONTROLLERS)
+		return;
+
+	s_activeKeyboardControllers = (1 << keyboardSlot);
+
+	// Clear disabled flag for this slot since we're explicitly assigning keyboard
+	s_disabledSlots &= ~(1 << keyboardSlot);
+
+	// Evict any gamepad from the keyboard slot so it doesn't double-control
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		if (s_controllerToSlotMapping[slot] >= 0 && slot == keyboardSlot)
+		{
+			s_controllerToSlotMapping[slot] = -1;
+			NativeInput_CloseController(slot);
+			break;
+		}
+	}
+}
+
+int Platform_InputGetKeyboardSlot(void)
+{
+	int slot;
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		if ((s_activeKeyboardControllers & (1 << slot)) != 0)
+			return slot;
+	}
+	return -1;
+}
+
+void Platform_InputSetGamepadToPlayer(int instanceId, int playerSlot)
+{
+	s32 oldSlot;
+	s32 slot;
+
+	if (instanceId < 0)
+		return;
+
+	if (playerSlot < 0 || playerSlot >= NATIVE_INPUT_MAX_CONTROLLERS)
+	{
+		// Disconnect: find and remove this device from any slot
+		for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+		{
+			if (s_controllerToSlotMapping[slot] == instanceId)
+			{
+				s_controllerToSlotMapping[slot] = -1;
+				NativeInput_CloseController(slot);
+				break;
+			}
+		}
+		return;
+	}
+
+	// Remove any device currently in the target slot
+	oldSlot = s_controllerToSlotMapping[playerSlot];
+	if (oldSlot >= 0 && oldSlot != instanceId)
+	{
+		s_controllerToSlotMapping[playerSlot] = -1;
+		NativeInput_CloseController(playerSlot);
+	}
+
+	// Remove this device from its old slot
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		if (s_controllerToSlotMapping[slot] == instanceId)
+		{
+			s_controllerToSlotMapping[slot] = -1;
+			NativeInput_CloseController(slot);
+			break;
+		}
+	}
+
+	s_controllerToSlotMapping[playerSlot] = instanceId;
+	// Clear disabled flag since we're explicitly assigning a device to this slot
+	s_disabledSlots &= ~(1 << playerSlot);
+	NativeInput_CloseController(playerSlot);
+	NativeInput_OpenController(instanceId, playerSlot);
+}
+
+int Platform_InputGetGamepadPlayer(int instanceId)
+{
+	s32 slot;
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		if (s_controllerToSlotMapping[slot] == instanceId)
+			return slot;
+	}
+	return -1;
+}
+
+void Platform_InputSetMaxPlayers(int maxPlayers)
+{
+	if (maxPlayers < 1) maxPlayers = 1;
+	if (maxPlayers > NATIVE_INPUT_MAX_CONTROLLERS) maxPlayers = NATIVE_INPUT_MAX_CONTROLLERS;
+	s_maxActivePlayers = maxPlayers;
+}
+
+void Platform_InputClearPlayerSlot(int playerSlot)
+{
+	if (playerSlot < 0 || playerSlot >= NATIVE_INPUT_MAX_CONTROLLERS)
+		return;
+
+	// Clear keyboard if assigned to this slot
+	if (Platform_InputGetKeyboardSlot() == playerSlot)
+		Platform_InputSetKeyboardSlot(-1);
+
+	// Clear any gamepad assigned to this slot
+	if (s_controllerToSlotMapping[playerSlot] >= 0)
+	{
+		s_controllerToSlotMapping[playerSlot] = -1;
+		NativeInput_CloseController(playerSlot);
+	}
+
+	// Mark slot as disabled (NONE) to prevent auto-assignment
+	s_disabledSlots |= (1 << playerSlot);
+
+	// Also clear the gamepad buffer to ensure no stale input
+	if (sdata && sdata->gGamepads)
+	{
+		struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[playerSlot];
+		gb->buttonsHeldCurrFrame = 0;
+		gb->buttonsHeldPrevFrame = 0;
+		gb->buttonsTapped = 0;
+		gb->buttonsReleased = 0;
+		gb->stickLX = 0x80;
+		gb->stickLY = 0x80;
+		gb->stickRX = 0x80;
+		gb->stickRY = 0x80;
+	}
+}
+
+void Platform_InputRefreshGamepadLinks(void)
+{
+	// Force all gamepad buffers to re-link to current slot buffer state
+	GAMEPAD_GetNumConnected(sdata->gGamepads);
 }

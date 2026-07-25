@@ -43,6 +43,27 @@ static void NativeConfig_Trim(char *str)
 	*(end + 1) = '\0';
 }
 
+static int NativeConfig_ParseActionKey(const char *key)
+{
+	if (strcmp(key, "square") == 0) return PLATFORM_INPUT_BINDING_SQUARE;
+	if (strcmp(key, "circle") == 0) return PLATFORM_INPUT_BINDING_CIRCLE;
+	if (strcmp(key, "triangle") == 0) return PLATFORM_INPUT_BINDING_TRIANGLE;
+	if (strcmp(key, "cross") == 0) return PLATFORM_INPUT_BINDING_CROSS;
+	if (strcmp(key, "l1") == 0) return PLATFORM_INPUT_BINDING_L1;
+	if (strcmp(key, "l2") == 0) return PLATFORM_INPUT_BINDING_L2;
+	if (strcmp(key, "l3") == 0) return PLATFORM_INPUT_BINDING_L3;
+	if (strcmp(key, "r1") == 0) return PLATFORM_INPUT_BINDING_R1;
+	if (strcmp(key, "r2") == 0) return PLATFORM_INPUT_BINDING_R2;
+	if (strcmp(key, "r3") == 0) return PLATFORM_INPUT_BINDING_R3;
+	if (strcmp(key, "start") == 0) return PLATFORM_INPUT_BINDING_START;
+	if (strcmp(key, "select") == 0) return PLATFORM_INPUT_BINDING_SELECT;
+	if (strcmp(key, "dpad_up") == 0) return PLATFORM_INPUT_BINDING_DPAD_UP;
+	if (strcmp(key, "dpad_down") == 0) return PLATFORM_INPUT_BINDING_DPAD_DOWN;
+	if (strcmp(key, "dpad_left") == 0) return PLATFORM_INPUT_BINDING_DPAD_LEFT;
+	if (strcmp(key, "dpad_right") == 0) return PLATFORM_INPUT_BINDING_DPAD_RIGHT;
+	return -1;
+}
+
 void NativeConfig_Load(void)
 {
 	char path[512];
@@ -121,28 +142,61 @@ void NativeConfig_Load(void)
 			else if (strcmp(key, "chaos_rng") == 0)
 				g_cfg_chaosRng = intVal != 0 ? 1 : 0;
 		}
-		else if (strcmp(section, "keyboard") == 0)
+		else if (strcmp(section, "controls") == 0)
 		{
-			int actionIndex = -1;
-			if (strcmp(key, "square") == 0) actionIndex = 0;
-			else if (strcmp(key, "circle") == 0) actionIndex = 1;
-			else if (strcmp(key, "triangle") == 0) actionIndex = 2;
-			else if (strcmp(key, "cross") == 0) actionIndex = 3;
-			else if (strcmp(key, "l1") == 0) actionIndex = 4;
-			else if (strcmp(key, "l2") == 0) actionIndex = 5;
-			else if (strcmp(key, "l3") == 0) actionIndex = 6;
-			else if (strcmp(key, "r1") == 0) actionIndex = 7;
-			else if (strcmp(key, "r2") == 0) actionIndex = 8;
-			else if (strcmp(key, "r3") == 0) actionIndex = 9;
-			else if (strcmp(key, "start") == 0) actionIndex = 10;
-			else if (strcmp(key, "select") == 0) actionIndex = 11;
-			else if (strcmp(key, "dpad_up") == 0) actionIndex = 12;
-			else if (strcmp(key, "dpad_down") == 0) actionIndex = 13;
-			else if (strcmp(key, "dpad_left") == 0) actionIndex = 14;
-			else if (strcmp(key, "dpad_right") == 0) actionIndex = 15;
+			if (strcmp(key, "keyboard_slot") == 0)
+				Platform_InputSetKeyboardSlot(intVal);
+			else if (strncmp(key, "gamepad", 7) == 0 && key[7] >= '0' && key[7] <= '3' && strcmp(key + 8, "_slot") == 0)
+			{
+				int devIdx = key[7] - '0';
+				int joyId = Platform_InputGetGamepadDeviceId(devIdx);
+				if (joyId >= 0)
+					Platform_InputSetGamepadToPlayer(joyId, intVal);
+			}
+		}
+		else
+		{
+			// Parse per-player keyboard sections: keyboard, keyboard_p0..keyboard_p3
+			// Also legacy "keyboard" section maps to player 0
+			int targetPlayer = -1;
+			int isKeyboard = 0;
+			int isGamepad = 0;
 
-			if (actionIndex >= 0)
-				Platform_InputSetKeyBinding(actionIndex, intVal);
+			if (strcmp(section, "keyboard") == 0)
+			{
+				targetPlayer = 0;
+				isKeyboard = 1;
+			}
+			else
+			{
+				char *endp;
+				if (strncmp(section, "keyboard_p", 10) == 0)
+				{
+					targetPlayer = strtol(section + 10, &endp, 10);
+					if (*endp != '\0' || targetPlayer < 0 || targetPlayer >= PLATFORM_INPUT_PLAYER_COUNT)
+						targetPlayer = -1;
+					isKeyboard = 1;
+				}
+				else if (strncmp(section, "gamepad_p", 9) == 0)
+				{
+					targetPlayer = strtol(section + 9, &endp, 10);
+					if (*endp != '\0' || targetPlayer < 0 || targetPlayer >= PLATFORM_INPUT_PLAYER_COUNT)
+						targetPlayer = -1;
+					isGamepad = 1;
+				}
+			}
+
+			if (targetPlayer >= 0)
+			{
+				int actionIndex = NativeConfig_ParseActionKey(key);
+				if (actionIndex >= 0)
+				{
+					if (isKeyboard)
+						Platform_InputSetKeyBinding(targetPlayer, actionIndex, intVal);
+					else if (isGamepad)
+						Platform_InputSetGamepadBinding(targetPlayer, actionIndex, intVal);
+				}
+			}
 		}
 	}
 
@@ -159,7 +213,7 @@ void NativeConfig_Save(void)
 	char path[512];
 	FILE *f;
 	int bindings[16];
-	int i;
+	int i, p;
 
 	NativeConfig_BuildPath(path, sizeof(path));
 	f = fopen(path, "w");
@@ -186,15 +240,49 @@ void NativeConfig_Save(void)
 	fprintf(f, "cpu_item_chaos=%d\n", g_cfg_cpuItemChaos);
 	fprintf(f, "chaos_rng=%d\n", g_cfg_chaosRng);
 
-	NativeConfig_WriteLine(f, "keyboard");
-	for (i = 0; i < 16; i++)
+	// Device assignment
+	NativeConfig_WriteLine(f, "controls");
+	fprintf(f, "keyboard_slot=%d\n", Platform_InputGetKeyboardSlot());
 	{
-		const char *keyName = Platform_InputGetActionName(i);
-		if (keyName == NULL)
-			continue;
+		int gpCount = Platform_InputGetGamepadDeviceCount();
+		for (i = 0; i < gpCount && i < 4; i++)
+		{
+			int joyId = Platform_InputGetGamepadDeviceId(i);
+			int slot = (joyId >= 0) ? Platform_InputGetGamepadPlayer(joyId) : -1;
+			fprintf(f, "gamepad%d_slot=%d\n", i, slot);
+		}
+	}
 
-		Platform_InputGetKeyBinding(i, &bindings[i]);
-		fprintf(f, "%s=%d\n", keyName, bindings[i]);
+	// Per-player keyboard bindings
+	for (p = 0; p < PLATFORM_INPUT_PLAYER_COUNT; p++)
+	{
+		char sectionName[32];
+		snprintf(sectionName, sizeof(sectionName), "keyboard_p%d", p);
+		NativeConfig_WriteLine(f, sectionName);
+		for (i = 0; i < PLATFORM_INPUT_BINDING_COUNT; i++)
+		{
+			const char *keyName = Platform_InputGetActionName(i);
+			if (keyName == NULL)
+				continue;
+			Platform_InputGetKeyBinding(p, i, &bindings[i]);
+			fprintf(f, "%s=%d\n", keyName, bindings[i]);
+		}
+	}
+
+	// Per-player gamepad bindings
+	for (p = 0; p < PLATFORM_INPUT_PLAYER_COUNT; p++)
+	{
+		char sectionName[32];
+		snprintf(sectionName, sizeof(sectionName), "gamepad_p%d", p);
+		NativeConfig_WriteLine(f, sectionName);
+		for (i = 0; i < PLATFORM_INPUT_BINDING_COUNT; i++)
+		{
+			const char *keyName = Platform_InputGetGamepadActionName(i);
+			if (keyName == NULL)
+				continue;
+			Platform_InputGetGamepadBinding(p, i, &bindings[i]);
+			fprintf(f, "%s=%d\n", keyName, bindings[i]);
+		}
 	}
 
 	fclose(f);

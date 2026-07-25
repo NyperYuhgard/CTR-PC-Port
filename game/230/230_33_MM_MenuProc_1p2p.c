@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_input.h>
 
 // NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 230 0x800ad560-0x800ad5e8.
 void MM_MenuProc_1p2p(struct RectMenu *menu)
@@ -28,6 +29,26 @@ void MM_MenuProc_1p2p(struct RectMenu *menu)
 		{
 			// row 0 is 1P, row 1 is 2P
 			gGT->numPlyrNextGame = menu->rowSelected + 1;
+
+#ifdef CTR_NATIVE
+			Platform_InputSetMaxPlayers(gGT->numPlyrNextGame);
+#endif
+
+			// Adventure mode: skip difficulty, go directly to garage or character select
+			if ((gGT->gameMode1 & ADVENTURE_MODE) != 0)
+			{
+				gGT->gameMode2 &= ~COOPERATIVE_ADVENTURE;
+
+				if (menu->rowSelected == 1)
+				{
+					gGT->gameMode2 |= COOPERATIVE_ADVENTURE;
+				}
+
+				D230.desiredMenuIndex = 0;
+				D230.MM_State = 2;
+				menu->state |= 4;
+				return;
+			}
 
 			// go to difficulty box
 			menu->ptrNextBox_InHierarchy = &D230.menuDifficulty;

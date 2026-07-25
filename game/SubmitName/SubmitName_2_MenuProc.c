@@ -40,9 +40,20 @@ void SubmitName_MenuProc(struct RectMenu *menu)
 		// if hit CANCEL
 		if (selection < 0)
 		{
-			// Change active Menu back to Adv char select
-			sdata->ptrDesiredMenu = CS_Garage_GetMenuPtr();
-			CS_Garage_ZoomOut(1);
+#ifdef CTR_NATIVE
+			// Cooperative adventure: return to character select instead of garage
+			if ((gGT->gameMode2 & COOPERATIVE_ADVENTURE) != 0)
+			{
+				sdata->ptrDesiredMenu = &D230.menuCharacterSelect;
+				MM_Characters_RestoreIDs();
+			}
+			else
+#endif
+			{
+				// Change active Menu back to Adv char select
+				sdata->ptrDesiredMenu = CS_Garage_GetMenuPtr();
+				CS_Garage_ZoomOut(1);
+			}
 		}
 		else
 		{

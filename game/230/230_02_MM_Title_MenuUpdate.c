@@ -143,6 +143,16 @@ void MM_Title_MenuUpdate(void)
 
 		sdata->advProfileIndex = 0xffff;
 
+#ifdef CTR_NATIVE
+		// Cooperative adventure: skip garage, go to 2P character select
+		if ((gGT->gameMode2 & COOPERATIVE_ADVENTURE) != 0)
+		{
+			sdata->ptrDesiredMenu = &D230.menuCharacterSelect;
+			MM_Characters_RestoreIDs();
+			break;
+		}
+#endif
+
 		// go to adventure character select screen
 		sdata->mainMenuState = 4;
 
@@ -184,7 +194,7 @@ void MM_Title_MenuUpdate(void)
 		MM_Title_KillThread();
 
 		gGT->gameMode1 &= ~(BATTLE_MODE | ADVENTURE_MODE | TIME_TRIAL | ADVENTURE_ARENA | ARCADE_MODE | ADVENTURE_CUP);
-		gGT->gameMode2 &= ~(CUP_ANY_KIND | TEAM_RACE_MODE);
+		gGT->gameMode2 &= ~(CUP_ANY_KIND | TEAM_RACE_MODE | COOPERATIVE_ADVENTURE);
 
 		// enable Arcade Mode
 		gGT->gameMode1 |= ARCADE_MODE;

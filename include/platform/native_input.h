@@ -4,6 +4,7 @@
 #include <macros.h>
 
 #define PLATFORM_INPUT_PAD_COUNT 4
+#define PLATFORM_INPUT_PLAYER_COUNT 4
 
 struct PlatformInputPadSnapshot
 {
@@ -32,7 +33,7 @@ int Platform_InputGetStateSize(void);
 int Platform_InputCaptureState(void *dst, int dstSize);
 int Platform_InputRestoreState(const void *src, int srcSize);
 
-// Key binding API
+// Binding constants (shared between keyboard and gamepad)
 #define PLATFORM_INPUT_BINDING_COUNT 16
 
 #define PLATFORM_INPUT_BINDING_SQUARE  0
@@ -52,14 +53,51 @@ int Platform_InputRestoreState(const void *src, int srcSize);
 #define PLATFORM_INPUT_BINDING_DPAD_LEFT  14
 #define PLATFORM_INPUT_BINDING_DPAD_RIGHT 15
 
-int  Platform_InputGetKeyBinding(int actionIndex, int *scancode);
-int  Platform_InputSetKeyBinding(int actionIndex, int scancode);
+// Keyboard binding API (per-player)
+int  Platform_InputGetKeyBinding(int playerIndex, int actionIndex, int *scancode);
+int  Platform_InputSetKeyBinding(int playerIndex, int actionIndex, int scancode);
+void Platform_InputResetKeyboardMappings(int playerIndex);
 const char *Platform_InputGetActionName(int actionIndex);
-void Platform_InputResetKeyboardMappings(void);
+
+// Gamepad binding API (per-player)
+// Returns the SDL button/axis value for an action (with NATIVE_INPUT_MAP_FLAG_AXIS etc)
+int  Platform_InputGetGamepadBinding(int playerIndex, int actionIndex, int *binding);
+int  Platform_InputSetGamepadBinding(int playerIndex, int actionIndex, int binding);
+void Platform_InputResetGamepadMappings(int playerIndex);
+const char *Platform_InputGetGamepadActionName(int actionIndex);
 
 // Raw keyboard state for keybinding UI
 int Platform_InputIsKeyDown(int scancode);
 int Platform_InputGetScancodeCount(void);
 const char *Platform_InputGetScancodeName(int scancode);
+
+// Gamepad state for gamepad binding UI
+int Platform_InputIsGamepadButtonDown(int playerIndex, int sdlButton);
+int Platform_InputIsGamepadAxisActive(int playerIndex, int sdlAxis, int threshold);
+int Platform_InputGetGamepadCount(void);
+const char *Platform_InputGetGamepadName(int slot);
+
+// Device assignment API
+// keyboardSlot: which player slot the keyboard feeds (0-3), or -1 for none
+void Platform_InputSetKeyboardSlot(int keyboardSlot);
+int  Platform_InputGetKeyboardSlot(void);
+// instanceId: SDL_JoystickID from SDL_GetGamepads(), playerSlot: which player (0-3), or -1 to disconnect
+void Platform_InputSetGamepadToPlayer(int instanceId, int playerSlot);
+int  Platform_InputGetGamepadPlayer(int instanceId);
+// Disconnect all devices from a player slot
+void Platform_InputClearPlayerSlot(int playerSlot);
+
+// Max active players for multitap gating (call when numPlyrNextGame changes)
+void Platform_InputSetMaxPlayers(int maxPlayers);
+
+// Refresh gamepad-to-slot links (call every frame)
+void Platform_InputRefreshGamepadLinks(void);
+
+// Utility: convert device list index (0..N-1) to SDL_JoystickID, or -1 if invalid
+int  Platform_InputGetGamepadDeviceId(int deviceIndex);
+// Count of connected SDL gamepads
+int  Platform_InputGetGamepadDeviceCount(void);
+// Get name of a gamepad by SDL_JoystickID
+const char *Platform_InputGetGamepadDeviceName(int instanceId);
 
 #endif

@@ -66,6 +66,12 @@ void LOAD_Robots1P(int characterID)
 			if (newCharacterID == characterID)
 				newCharacterID++;
 
+#ifdef CTR_NATIVE
+			// Cooperative adventure: skip overwriting P2's character
+			if ((gGT->gameMode2 & COOPERATIVE_ADVENTURE) != 0 && i == 1)
+				continue;
+#endif
+
 			data.characterIDs[i] = newCharacterID;
 		}
 	}

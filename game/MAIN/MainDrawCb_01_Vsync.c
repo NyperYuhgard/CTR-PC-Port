@@ -31,6 +31,27 @@ void MainDrawCb_Vsync()
 	// NOTE(aalhendi): Native owns host input and writes PSX-shaped pad
 	// snapshots before retail GAMEPAD_PollVsync consumes them.
 	Platform_PollInput();
+	// Refresh gamepad-to-slot links so menus/races see current assignments
+	GAMEPAD_GetNumConnected(sdata->gGamepads);
+
+	// Zero out gamepad buffers for disabled (NONE) players to prevent stale input
+	// s_disabledSlots is in native_input.c, check via Platform_InputGetKeyboardSlot logic
+	// Instead, just ensure any unplugged gamepads have zeroed buffers
+	for (int i = 0; i < 4; i++)
+	{
+		struct ControllerPacket *pkt = sdata->gGamepads->gamepad[i].ptrControllerPacket;
+		if (pkt == NULL || pkt->plugged != PLUGGED)
+		{
+			sdata->gGamepads->gamepad[i].buttonsHeldCurrFrame = 0;
+			sdata->gGamepads->gamepad[i].buttonsHeldPrevFrame = 0;
+			sdata->gGamepads->gamepad[i].buttonsTapped = 0;
+			sdata->gGamepads->gamepad[i].buttonsReleased = 0;
+			sdata->gGamepads->gamepad[i].stickLX = 0x80;
+			sdata->gGamepads->gamepad[i].stickLY = 0x80;
+			sdata->gGamepads->gamepad[i].stickRX = 0x80;
+			sdata->gGamepads->gamepad[i].stickRY = 0x80;
+		}
+	}
 #endif
 
 	GAMEPAD_PollVsync(sdata->gGamepads);

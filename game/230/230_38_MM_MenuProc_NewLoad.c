@@ -17,6 +17,17 @@ void MM_MenuProc_NewLoad(struct RectMenu *menu)
 	if ((row < 0) || (row > 1))
 		return;
 
+#ifdef CTR_NATIVE
+	// If "New" was chosen, show 1P/2P menu (reused from Arcade/VS)
+	if (row == 0)
+	{
+		menu->state |= ONLY_DRAW_TITLE | DRAW_NEXT_MENU_IN_HIERARCHY;
+		menu->ptrNextBox_InHierarchy = &D230.menuPlayers1P2P;
+		D230.characterSelect_transitionState = 1;
+		return;
+	}
+#endif
+
 	// if Load was chosen
 	D230.desiredMenuIndex = row;
 

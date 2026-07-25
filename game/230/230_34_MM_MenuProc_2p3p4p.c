@@ -27,6 +27,10 @@ void MM_MenuProc_2p3p4p(struct RectMenu *menu)
 			// row 0 is 2P, row 1 is 3P, row 2 is 4P
 			gGT->numPlyrNextGame = menu->rowSelected + 2;
 
+#ifdef CTR_NATIVE
+			Platform_InputSetMaxPlayers(gGT->numPlyrNextGame);
+#endif
+
 			D230.MM_State = 2;
 			D230.desiredMenuIndex = 2;
 

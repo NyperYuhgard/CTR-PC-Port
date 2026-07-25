@@ -30,7 +30,7 @@ void MM_MenuProc_SingleCup(struct RectMenu *menu)
 	if ((row >= 0) && (row < 2))
 	{
 		// disable Cup mode and Team Race
-		gGT->gameMode2 &= ~(CUP_ANY_KIND | TEAM_RACE_MODE);
+		gGT->gameMode2 &= ~(CUP_ANY_KIND | TEAM_RACE_MODE | COOPERATIVE_ADVENTURE);
 
 		// if you choose cup mode
 		if (menu->rowSelected != 0)

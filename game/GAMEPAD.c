@@ -192,19 +192,41 @@ int GAMEPAD_GetNumConnected(struct GamepadSystem *gGamepads)
 	numSlots = 2;
 	numPortsPerSlot = 1;
 
-	if (
-	    // multitap detected
-	    (gGamepads->slotBuffer[0].plugged == PLUGGED) && (gGamepads->slotBuffer[0].controllerData == (PAD_ID_MULTITAP << 4)))
+	// Check for multitap - but ignore if we're in 2-player mode with only 2 slots
+	bool isMultitap = false;
+	if ((gGamepads->slotBuffer[0].plugged == PLUGGED) && (gGamepads->slotBuffer[0].controllerData == (PAD_ID_MULTITAP << 4)))
+	{
+		// Only trust multitap detection if slotBuffer[1] also looks like multitap data
+		// (slotBuffer[1] should be disconnected in multitap mode)
+		if (gGamepads->slotBuffer[1].plugged == PLUGGED)
+		{
+			isMultitap = true;
+		}
+	}
+
+	if (isMultitap)
 	{
 		// 4 players, with multitap
 		numSlots = 1;
 		numPortsPerSlot = 4;
+	}
+	else
+	{
+		// Force non-multitap 2-player mode
+		numSlots = 2;
+		numPortsPerSlot = 1;
 	}
 
 	padIndex = 0;
 	bitwiseConnected = 0;
 	gGamepads->numGamepadsConnected = 0;
 	padCurr = &gGamepads->gamepad[0];
+
+	// Clear all ptrControllerPacket upfront to avoid stale pointers from previous frames
+	for (int i = 0; i < 8; i++)
+	{
+		gGamepads->gamepad[i].ptrControllerPacket = 0;
+	}
 
 	// TODO: Rename to match PollVsync
 	// should be ports and padsPerPort
@@ -237,6 +259,21 @@ int GAMEPAD_GetNumConnected(struct GamepadSystem *gGamepads)
 		}
 	}
 
+	// HARDENED: In non-multitap 2P mode, explicitly force gamepad[1] to slotBuffer[1] (or NULL if unplugged)
+	if (!isMultitap)
+	{
+		if (gGamepads->slotBuffer[1].plugged == PLUGGED)
+		{
+			gGamepads->gamepad[1].ptrControllerPacket = (struct ControllerPacket *)&gGamepads->slotBuffer[1];
+			gGamepads->gamepad[1].gamepadID = 0x10;
+		}
+		else
+		{
+			gGamepads->gamepad[1].ptrControllerPacket = 0;
+		}
+	}
+
+	// while loop at end is now redundant since we pre-cleared all, but keep for safety
 	while (padCurr < &gGamepads->gamepad[8])
 	{
 		// pad is now unplugged
@@ -873,6 +910,9 @@ int GAMEPAD_ProcessAnyoneVars(struct GamepadSystem *gGamepads)
 {
 	int heldAny;
 	struct GamepadBuffer *pad;
+
+	// Refresh gamepad-to-slot links before reading buttons
+	GAMEPAD_GetNumConnected(gGamepads);
 
 	// process gamepads
 	heldAny = GAMEPAD_ProcessHold(gGamepads);

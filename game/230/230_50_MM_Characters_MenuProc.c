@@ -120,6 +120,16 @@ void MM_Characters_MenuProc(struct RectMenu *unused)
 			}
 #endif
 
+#ifdef CTR_NATIVE
+			// Cooperative adventure: after character select, go to SubmitName
+			if ((gGT->gameMode2 & COOPERATIVE_ADVENTURE) != 0)
+			{
+				SubmitName_RestoreName(0);
+				sdata->ptrDesiredMenu = &data.menuSubmitName;
+				return;
+			}
+#endif
+
 			// if you are in a cup
 			if ((gGT->gameMode2 & CUP_ANY_KIND) != 0)
 			{
