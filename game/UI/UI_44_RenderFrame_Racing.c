@@ -475,10 +475,10 @@ playerStruct->BattleHUD.cooldown--;
 				if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
 				{
 					int teammateDriverID = -1;
-					for (int j = 0; j < gGT->numPlyrCurrGame; j++)
+					for (int j = 0; j < 8; j++)
 					{
-						if (j != playerStruct->driverID && gGT->drivers[j] != NULL &&
-						    gGT->drivers[j]->BattleHUD.teamID == playerStruct->BattleHUD.teamID)
+						struct Driver *d = gGT->drivers[j];
+						if (d != NULL && d != playerStruct && d->BattleHUD.teamID == playerStruct->BattleHUD.teamID)
 						{
 							teammateDriverID = j;
 							break;
