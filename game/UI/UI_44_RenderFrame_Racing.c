@@ -471,10 +471,23 @@ playerStruct->BattleHUD.cooldown--;
                                         UI_DrawLapCount(hudStructPtr[1].x, hudStructPtr[1].y, (u32)hudStructPtr[1].scale, playerStruct);
 
 #ifdef CTR_NATIVE
-					// Team Race: show teammate icon below lap counter
-					if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+				// Team Race: show teammate icon below lap counter
+				if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+				{
+					int teammateDriverID = -1;
+					for (int j = 0; j < gGT->numPlyrCurrGame; j++)
 					{
-						int teammateChar = data.characterIDs[1];
+						if (j != playerStruct->driverID && gGT->drivers[j] != NULL &&
+						    gGT->drivers[j]->BattleHUD.teamID == playerStruct->BattleHUD.teamID)
+						{
+							teammateDriverID = j;
+							break;
+						}
+					}
+
+					if (teammateDriverID >= 0)
+					{
+						int teammateChar = data.characterIDs[teammateDriverID];
 						struct Icon *teammateIcon = gGT->ptrIcons[data.MetaDataCharacters[teammateChar].iconID];
 						if (teammateIcon != NULL)
 						{
@@ -600,6 +613,7 @@ playerStruct->BattleHUD.cooldown--;
 							}
 						}
 					}
+				}
 #endif
                                 }
                         }

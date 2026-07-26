@@ -161,21 +161,20 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
                                 sdata->mainMenuState = 4;
                         }
                 }
-			else if (strncmp(gGT->levelName, sdata->s_hub, 3) == 0)
-			{
+		else if (strncmp(gGT->levelName, sdata->s_hub, 3) == 0)
+		{
+			gGT->numPlyrCurrGame = 1;
 #ifdef CTR_NATIVE
-				// Cooperative adventure: keep numPlyrNextGame=2 for races
-				if ((gGT->gameMode2 & COOPERATIVE_ADVENTURE) == 0)
-				{
-					gGT->numPlyrNextGame = 1;
-				}
-#else
+			if ((gGT->gameMode2 & COOPERATIVE_ADVENTURE) != 0)
+				gGT->numPlyrNextGame = 2;
+			else
 				gGT->numPlyrNextGame = 1;
+#else
+			gGT->numPlyrNextGame = 1;
 #endif
-				gGT->numPlyrCurrGame = 1;
-				gGT->gameMode1 |= ADVENTURE_ARENA;
-				gGT->gameMode2 |= LEV_SWAP;
-			}
+			gGT->gameMode1 |= ADVENTURE_ARENA;
+			gGT->gameMode2 |= LEV_SWAP;
+		}
                 else if (strncmp(gGT->levelName, sdata->s_credit, 6) == 0)
                 {
                         gGT->numPlyrNextGame = 1;

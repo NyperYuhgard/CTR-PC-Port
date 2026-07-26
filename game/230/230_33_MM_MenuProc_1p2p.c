@@ -42,6 +42,7 @@ void MM_MenuProc_1p2p(struct RectMenu *menu)
 				if (menu->rowSelected == 1)
 				{
 					gGT->gameMode2 |= COOPERATIVE_ADVENTURE;
+					gGT->gameMode2 |= TEAM_RACE_MODE;
 				}
 
 				D230.desiredMenuIndex = 0;

@@ -3038,7 +3038,10 @@ struct Driver *BOTS_Driver_Init(int driverID)
 #ifdef CTR_NATIVE
 	if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0)
 	{
-		d->BattleHUD.teamID = driverID / 2;
+		if ((sdata->gGT->gameMode2 & COOPERATIVE_ADVENTURE) != 0)
+			d->BattleHUD.teamID = 1;
+		else
+			d->BattleHUD.teamID = driverID / 2;
 		d->teamBarCharge = 0;
 		d->teamBarEffect = 0;
 		d->teamBarTimer = 0;

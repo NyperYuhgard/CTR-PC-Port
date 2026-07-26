@@ -9,7 +9,7 @@ void LOAD_Robots1P(int characterID)
 
 #ifdef CTR_NATIVE
 	struct GameTracker *gGT = sdata->gGT;
-	if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0)
+	if ((gGT->gameMode2 & TEAM_RACE_MODE) != 0 && (gGT->gameMode2 & COOPERATIVE_ADVENTURE) == 0)
 	{
 		// Team Race: random teammate from 8 main characters (0-7)
 		// Main 8: Crash(0), Cortex(1), Tiny(2), Coco(3), N.Gin(4), Dingodile(5), Polar(6), Pura(7)

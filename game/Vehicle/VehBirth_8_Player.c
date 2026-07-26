@@ -14,7 +14,12 @@ struct Driver *VehBirth_Player(int index)
 
 #ifdef CTR_NATIVE
 	if ((sdata->gGT->gameMode2 & TEAM_RACE_MODE) != 0)
-		d->BattleHUD.teamID = index / 2;
+	{
+		if ((sdata->gGT->gameMode2 & COOPERATIVE_ADVENTURE) != 0)
+			d->BattleHUD.teamID = 0;
+		else
+			d->BattleHUD.teamID = index / 2;
+	}
 	else
 #endif
 	d->BattleHUD.teamID = sdata->gGT->battleSetup.teamOfEachPlayer[index];

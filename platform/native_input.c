@@ -453,7 +453,7 @@ internal void NativeInput_ApplyKeyboard(s32 slot, u16 keyboardButtons)
 	struct PlatformInputPadSnapshot *snapshot = &s_controllers[slot].snapshot;
 	u16 buttons;
 
-	if (((s_activeKeyboardControllers & (1 << slot)) == 0) || (keyboardButtons == 0xffff))
+	if (((s_activeKeyboardControllers & (1 << slot)) == 0))
 		return;
 
 	snapshot->connected = 1;
@@ -520,6 +520,7 @@ internal void NativeInput_OpenController(SDL_JoystickID instanceId, s32 slot)
 
 	joystick = SDL_GetGamepadJoystick(controller->controller);
 	controller->instanceId = joystick != NULL ? SDL_GetJoystickID(joystick) : instanceId;
+	s_controllerToSlotMapping[slot] = controller->instanceId;
 	controller->analogEnabled = 1;
 	controller->switchingAnalog = 0;
 }
