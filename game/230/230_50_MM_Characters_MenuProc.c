@@ -127,6 +127,8 @@ void MM_Characters_MenuProc(struct RectMenu *unused)
 			// Cooperative adventure: after character select, go to SubmitName
 			if ((gGT->gameMode2 & COOPERATIVE_ADVENTURE) != 0)
 			{
+				sdata->advProgress.characterID = data.characterIDs[0];
+				sdata->advProgress.flags |= ADV_FLAG_COOP;
 				SubmitName_RestoreName(0);
 				sdata->ptrDesiredMenu = &data.menuSubmitName;
 				return;

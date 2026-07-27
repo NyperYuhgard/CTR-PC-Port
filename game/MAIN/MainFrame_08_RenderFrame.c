@@ -208,6 +208,21 @@ void DrawUnpluggedMsg(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
         RECT window;
         int i;
 
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+        // F1 toggles suppression of unplugged messages in dev builds
+        {
+                static int suppressed = 0;
+                const Uint8 *ks = SDL_GetKeyboardState(NULL);
+                static int ins_prev = 0;
+                int ins_curr = ks[SDL_SCANCODE_INSERT];
+                if (ins_curr && !ins_prev)
+                        suppressed = !suppressed;
+                ins_prev = ins_curr;
+                if (suppressed)
+                        return;
+        }
+#endif
+
         skipMainMenuTopLevel = 0;
 
         if (LOAD_IsOpen_MainMenu() != 0)

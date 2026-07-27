@@ -29,7 +29,12 @@
 #define OPTION_ROW_FULLSCREEN 8
 #define OPTION_ROW_CONTROLS  9
 #define OPTION_ROW_GAMETWEAKS 10
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+#define OPTION_ROW_DEVTOOLS  11
+#define OPTION_ROW_COUNT     12
+#else
 #define OPTION_ROW_COUNT     11
+#endif
 
 #define ASPECT_4_3     0
 #define ASPECT_16_9    1
@@ -247,6 +252,14 @@ static void MM_Options_HandleMainInput(void)
 			RECTMENU_ClearInput();
 			sdata->ptrDesiredMenu = MM_GameplayTweaks_GetMenuPtr();
 		}
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+		else if (s_optionsSelectedIndex == OPTION_ROW_DEVTOOLS)
+		{
+			MM_DevTools_Init();
+			RECTMENU_ClearInput();
+			sdata->ptrDesiredMenu = MM_DevTools_GetMenuPtr();
+		}
+#endif
 	}
 
 	if (BTN_TAP_PLAYER0 & (BTN_TRIANGLE | BTN_SQUARE))
@@ -407,6 +420,15 @@ static void Options_DrawMain(struct GameTracker *gGT, u_long *ot)
 				DecalFont_DrawLineOT(anyOn ? "ON" : ">", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, anyOn ? TINY_GREEN : WHITE, ot);
 				break;
 			}
+
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+			case OPTION_ROW_DEVTOOLS:
+			{
+				DecalFont_DrawLineOT("DEV TOOLS", OPTIONS_MENU_NAME_X, y, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(">", OPTIONS_MENU_VALUE_X, y, FONT_SMALL, TINY_GREEN, ot);
+				break;
+			}
+#endif
 		}
 
 		y += OPTIONS_MENU_ROW_HEIGHT;

@@ -5,6 +5,11 @@ void MM_TimeTrialMode_MenuProc(struct RectMenu *menu);
 void MM_TimeTrialMode_Init(void);
 void MM_Online_Init(void);
 void MM_Online_MenuProc(struct RectMenu *menu);
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+void MM_DevTools_Init(void);
+void MM_DevTools_MenuProc(struct RectMenu *menu);
+struct RectMenu *MM_DevTools_GetMenuPtr(void);
+#endif
 #endif
 
 #include "230_00_MM_Battle_DrawIcon_Character.c"
@@ -69,6 +74,9 @@ void MM_Online_MenuProc(struct RectMenu *menu);
 #include "230_87_MM_Options_Menu.c"
 #include "230_88_MM_TimeTrialMode_MenuProc.c"
 #include "230_89_MM_GameplayTweaks_Menu.c"
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+#include "230_91_MM_DevTools_Menu.c"
+#endif
 #endif
 
 // NOTE(aalhendi): Native track previews use platform/native_str.c; the retail

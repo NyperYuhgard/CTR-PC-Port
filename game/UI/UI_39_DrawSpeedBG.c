@@ -1,4 +1,7 @@
 #include <common.h>
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+#include <platform/native_hud_editor.h>
+#endif
 
 #ifdef _MSC_VER
 
@@ -28,8 +31,24 @@ void UI_DrawSpeedBG(void)
 	Point *vertexes = (Point *)&data.speedometerBG_vertData[0];
 	Point *vertexesExtLine = (Point *)&data.speedometerBG_vertData[1];
 	int pointCount = sizeof(data.speedometerBG_vertData) / (sizeof(Point) * 2);
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+	s16 xOffset;
+	s16 yOffset;
+	if (HudEditor_IsActive())
+	{
+		struct UiElement2D *editorOff = HudEditor_GetOffsets();
+		xOffset = editorOff[7].x + 5;
+		yOffset = editorOff[7].y + 26;
+	}
+	else
+	{
+		xOffset = 480;
+		yOffset = 190;
+	}
+#else
 	const s16 xOffset = 480;
 	const s16 yOffset = 190;
+#endif
 
 	/* Draw the horizontal lines - they're a bit wider than the speedometer width */
 	for (int i = 0; i < pointCount; i += 2)

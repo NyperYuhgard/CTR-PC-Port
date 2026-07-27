@@ -18,7 +18,8 @@ cmake -S . -B build \
   -DCMAKE_C_FLAGS="-msse -fno-strict-aliasing -fno-inline-functions" \
   -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
   -DCTR_NATIVE_DEV_GHOST=ON \
-  -DCTR_ONLINE=ON
+  -DCTR_ONLINE=ON \
+  -DCTR_NATIVE_DEV_HUD_EDITOR=ON
 cmake --build build -j2
 
 echo ""

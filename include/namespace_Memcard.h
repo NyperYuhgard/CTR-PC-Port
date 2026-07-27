@@ -316,7 +316,12 @@ struct AdvProgress
 	s16 characterID;
 
 	// 8FBD0
+#ifdef CTR_NATIVE
+	s16 flags;
+	#define ADV_FLAG_COOP 0x1
+#else
 	s16 unk;
+#endif
 
 	// 8FBD2
 	s16 HubLevYouSavedOn;

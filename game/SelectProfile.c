@@ -727,6 +727,11 @@ static void SelectProfile_LoadAdvProfile(int slot)
 	sdata->advProgress = memcard->advProgress[slot];
 	data.characterIDs[0] = sdata->advProgress.characterID;
 	memmove(gGT->prevNameEntered, sdata->advProgress.name, sizeof(gGT->prevNameEntered));
+
+#ifdef CTR_NATIVE
+	if (sdata->advProgress.flags & ADV_FLAG_COOP)
+		gGT->gameMode2 |= COOPERATIVE_ADVENTURE | TEAM_RACE_MODE;
+#endif
 }
 
 static void SelectProfile_SaveAdvProfile(int slot)

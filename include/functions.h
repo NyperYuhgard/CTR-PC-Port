@@ -790,6 +790,11 @@ void MM_Mods_MenuProc(struct RectMenu *menu);
 void MM_GameplayTweaks_Init(void);
 void MM_GameplayTweaks_MenuProc(struct RectMenu *menu);
 struct RectMenu *MM_GameplayTweaks_GetMenuPtr(void);
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+void MM_DevTools_Init(void);
+void MM_DevTools_MenuProc(struct RectMenu *menu);
+struct RectMenu *MM_DevTools_GetMenuPtr(void);
+#endif
 struct RectMenu *MM_AdvNewLoad_GetMenuPtr(void);
 void MM_Characters_AnimateColors(u8 *colorData, s16 playerID, s16 flag);
 int MM_Characters_GetNextDriver(s16 dpad, char characterID);

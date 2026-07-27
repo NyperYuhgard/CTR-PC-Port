@@ -98,6 +98,9 @@ typedef enum
 #include "platform/native_mods.c"
 #include "platform/native_netplay.c"
 #include "platform/native_config.c"
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+#include "platform/native_hud_editor.c"
+#endif
 
 #ifndef CC
 #if __GNUC__

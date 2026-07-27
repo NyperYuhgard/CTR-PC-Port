@@ -54,8 +54,13 @@ void MainInit_Drivers(struct GameTracker *gGT)
 	        (numPlyrCurrGame < 3) &&
 
 	        // skip AIs for online netplay races
-	        !g_NetplayRacing) &&
-	    (
+	        !g_NetplayRacing
+
+#ifdef CTR_NATIVE
+	        // skip AIs for HUD editor quick race
+	        && ((gGT->gameMode2 & NO_AI_RACE) == 0)
+#endif
+	    ) && (
 	        // in Arcade or Adventure
 	        (gameMode & (ARCADE_MODE | ADVENTURE_MODE)) != 0))
 	{

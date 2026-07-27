@@ -1,6 +1,9 @@
 #include <common.h>
 #ifdef CTR_NATIVE
 #include <platform/native_netplay.h>
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+#include <platform/native_hud_editor.h>
+#endif
 #endif
 
 // To do: add a header
@@ -55,6 +58,18 @@ void UI_RenderFrame_Racing()
 
         // Get pointer to array of HUD structs
         hudStructPtr = (struct UiElement2D *)data.hudStructPtr[numPlyr - 1];
+
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+        struct UiElement2D editorOffsets[4 * 0x14];
+        if (HudEditor_IsActive())
+        {
+                struct UiElement2D *srcOffsets = HudEditor_GetOffsets();
+                // Copy all players' offsets from editor state
+                for (int p = 0; p < numPlyr; p++)
+                        memcpy(&editorOffsets[p * 0x14], &srcOffsets[p * 0x14], 0x14 * sizeof(struct UiElement2D));
+                hudStructPtr = editorOffsets;
+        }
+#endif
 
         levPtrMap = 0;
 
@@ -485,27 +500,81 @@ playerStruct->BattleHUD.cooldown--;
 						}
 					}
 
-					if (teammateDriverID >= 0)
+					// Use editor team offsets when editor is active
+					int teamIconX, teamIconY, teamTextX, teamTextY, teamBarX, teamBarY;
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+					if (HudEditor_IsActive())
 					{
-						int teammateChar = data.characterIDs[teammateDriverID];
+						s16 iconOff[2], textOff[2], barOff[2], barSizeArr[2];
+						HudEditor_GetTeamOffsets(iconOff, textOff, barOff, barSizeArr);
+						teamIconX = hudStructPtr[1].x + iconOff[0];
+						teamIconY = hudStructPtr[1].y + iconOff[1];
+						teamTextX = hudStructPtr[1].x + textOff[0];
+						teamTextY = hudStructPtr[1].y + textOff[1];
+						teamBarX = hudStructPtr[1].x + barOff[0];
+						teamBarY = hudStructPtr[1].y + barOff[1];
+					}
+					else
+#endif
+					{
+						teamIconX = hudStructPtr[1].x - 48;
+						teamIconY = hudStructPtr[1].y - 40;
+						teamTextX = hudStructPtr[1].x - 29;
+						teamTextY = hudStructPtr[1].y - 47;
+						teamBarX = hudStructPtr[1].x - 94;
+						teamBarY = hudStructPtr[1].y - 37;
+					}
+
+					if (teammateDriverID >= 0
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+						|| HudEditor_IsActive()
+#endif
+						)
+					{
+						int teammateChar = data.characterIDs[teammateDriverID >= 0 ? teammateDriverID : 0];
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+						if (HudEditor_IsActive())
+							teammateChar = CRASH_BANDICOOT;
+#endif
 						struct Icon *teammateIcon = gGT->ptrIcons[data.MetaDataCharacters[teammateChar].iconID];
 						if (teammateIcon != NULL)
 						{
-							UI_DrawDriverIcon(teammateIcon, hudStructPtr[1].x - 40, hudStructPtr[1].y + 24,
+							UI_DrawDriverIcon(teammateIcon, teamIconX, teamIconY,
 											  &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
 											  1, 0x1000, MakeColor(0x80, 0x80, 0x80).self);
 						}
-						DecalFont_DrawLine("TEAM", hudStructPtr[1].x - 32, hudStructPtr[1].y + 48, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
-
-						// Team Bar HUD - vertical bar with charge level
-						if ((playerStruct->actionsFlagSet & 0x100000) == 0)
+					}
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+					else if (HudEditor_IsActive())
+					{
+						// Draw placeholder icon (colored circle) for positioning
+						POLY_G4 *ph = (POLY_G4 *)gGT->backBuffer->primMem.curr;
+						if ((int)ph < (int)gGT->backBuffer->primMem.endMin100)
 						{
-							int charge = playerStruct->teamBarCharge;
-							// Vertical bar positioned below TEAM text
-							int barX = hudStructPtr[1].x - 38;
-							int barY = hudStructPtr[1].y + 54;
-							int barW = 12;
-							int barH = 60;
+							gGT->backBuffer->primMem.curr += sizeof(POLY_G4);
+							setPolyG4(ph);
+							ph->x0 = teamIconX - 8; ph->y0 = teamIconY - 8;
+							ph->x1 = teamIconX + 8; ph->y1 = teamIconY - 8;
+							ph->x2 = teamIconX - 8; ph->y2 = teamIconY + 8;
+							ph->x3 = teamIconX + 8; ph->y3 = teamIconY + 8;
+							ph->r0 = 0x40; ph->g0 = 0x40; ph->b0 = 0x80;
+							ph->r1 = 0x40; ph->g1 = 0x40; ph->g1 = 0x80;
+							ph->r2 = 0x20; ph->g2 = 0x20; ph->b2 = 0x60;
+							ph->r3 = 0x20; ph->g3 = 0x20; ph->b3 = 0x60;
+							addPrim(gGT->pushBuffer_UI.ptrOT, ph);
+						}
+					}
+#endif
+
+					DecalFont_DrawLine("TEAM", teamTextX, teamTextY, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+
+					// Team Bar HUD - vertical bar with charge level
+					{
+						int charge = (teammateDriverID >= 0) ? playerStruct->teamBarCharge : 500;
+						int barW = 12;
+						int barH = 60;
+						int barX = teamBarX;
+							int barY = teamBarY;
 
 							// Background (dark with border)
 							POLY_G4 *bg = (POLY_G4 *)gGT->backBuffer->primMem.curr;
@@ -608,9 +677,8 @@ playerStruct->BattleHUD.cooldown--;
 							{
 								const char *effectNames[] = {"", "TURBO", "MASK", "BOOST", "JUMP"};
 								char effectStr[16];
-								sprintf(effectStr, "%s!", effectNames[playerStruct->teamBarEffect]);
-								DecalFont_DrawLine(effectStr, barX + barW/2, barY + barH + 14, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
-							}
+							sprintf(effectStr, "%s!", effectNames[playerStruct->teamBarEffect]);
+							DecalFont_DrawLine(effectStr, barX + barW/2, barY + barH + 2, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
 						}
 					}
 				}
@@ -1126,4 +1194,12 @@ playerStruct->BattleHUD.cooldown--;
                 // disable the randomizing effect in the HUD
                 gGT->gameMode1 &= ~ROLLING_ITEM;
         }
+
+#ifdef CTR_NATIVE_DEV_HUD_EDITOR
+        if (HudEditor_IsActive())
+        {
+                HudEditor_HandleInput();
+                HudEditor_Render();
+        }
+#endif
 }

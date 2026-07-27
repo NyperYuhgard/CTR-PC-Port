@@ -119,6 +119,7 @@ add_executable(ctr_native main.c)
 target_include_directories(ctr_native PRIVATE ${GAME_INCLUDES})
 option(CTR_NATIVE_DEV_GHOST "Enable Save Dev Ghost menu option (developer-only)" OFF)
 option(CTR_ONLINE "Enable Online menu (developer-only)" OFF)
+option(CTR_NATIVE_DEV_HUD_EDITOR "Enable HUD Layout Editor in Dev Tools (developer-only)" OFF)
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
     BUILD=926
@@ -131,6 +132,9 @@ if(CTR_NATIVE_DEV_GHOST)
 endif()
 if(CTR_ONLINE)
     target_compile_definitions(ctr_native PRIVATE CTR_ONLINE)
+endif()
+if(CTR_NATIVE_DEV_HUD_EDITOR)
+    target_compile_definitions(ctr_native PRIVATE CTR_NATIVE_DEV_HUD_EDITOR)
 endif()
 target_compile_options(ctr_native PRIVATE -O2)
 target_link_libraries(ctr_native SDL3::SDL3 lua enet)
