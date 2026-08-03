@@ -992,6 +992,38 @@ SkyboxGlow:
                 CAM_SkyboxGlow((s16 *)&level1->glowGradient[0], pushBuffer, &gGT->backBuffer->primMem, &pushBuffer->ptrOT[0x3ff]);
         }
 
+#ifdef CTR_NATIVE
+        {
+                const Uint8 *ks = SDL_GetKeyboardState(NULL);
+                static int dbg_prev_delete = 0;
+                int dbg_curr = ks[SDL_SCANCODE_DELETE];
+                if (dbg_curr && !dbg_prev_delete)
+                {
+                        struct VisMem *v = gGT->visMem1;
+                        for (int i = 0; i < NUM_LOCAL_PLAYERS(gGT); i++)
+                        {
+                                struct PushBuffer *pb = &gGT->pushBuffer[i];
+                                struct CameraDC *c = &gGT->cameraDC[i];
+                                struct Driver *d = gGT->drivers[i];
+                                printf("--- P%d ---\n", i + 1);
+                                printf(" pos: %d %d %d  rot: %d %d %d\n", pb->pos[0], pb->pos[1], pb->pos[2], pb->rot[0], pb->rot[1], pb->rot[2]);
+                                printf(" camQB: %p  camQuadIdx: %d\n  drvQB: %p\n",
+                                        (void *)c->ptrQuadBlock,
+                                        c->ptrQuadBlock && gGT->level1 && gGT->level1->ptr_mesh_info
+                                                ? (int)(c->ptrQuadBlock - gGT->level1->ptr_mesh_info->ptrQuadBlockArray)
+                                                : -1,
+                                        (void *)(d ? d->underDriver : NULL));
+                                printf(" visLeafSrc(cam):%p (vmem):%p  visFaceSrc(cam):%p (vmem):%p\n",
+                                        (void *)c->visLeafSrc, (void *)(v ? v->visLeafSrc[i] : NULL),
+                                        (void *)c->visFaceSrc, (void *)(v ? v->visFaceSrc[i] : NULL));
+                                printf(" camFlags:0x%08x  camMode:%d  bspLeafsDrawn:%d\n",
+                                        c->flags, c->cameraMode, gGT->bspLeafsDrawn);
+                        }
+                }
+                dbg_prev_delete = dbg_curr;
+        }
+#endif
+
         return;
 }
 

@@ -87,6 +87,10 @@ static void Ovr227_SeedSharedHelperThresholdScratch(void)
 	*CTR_SCRATCHPAD_PTR(u32, 0x20) = 0x800;
 	*CTR_SCRATCHPAD_PTR(u32, 0x24) = 0x600;
 	*CTR_SCRATCHPAD_PTR(u32, 0x28) = 0x300;
+	// 0x2c used by Ovr226_800a1408_AdjustFullDynamicMidVertex as
+	// full-dynamic depth threshold; formula follows 1P 0x2c = 0x18 + 0x140,
+	// where 2P hardcodes 0x1540 in RenderLists_Walk1P2P for the LOD distance.
+	*CTR_SCRATCHPAD_PTR(u32, 0x2c) = 0x1540 + 0x140; // 0x1680
 }
 
 static const struct DrawLevelOvr1PBucket *Ovr227_800a0ddc_FindBucketByHandler(u32 handlerAddress)
@@ -182,6 +186,11 @@ static int Ovr227_800a0d9c_DispatchBucketTable(struct DrawLevelOvr1PRenderList *
 {
 	for (s32 renderListOffset = 0x28; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
 	{
+		// Re-seed shared thresholds each bucket type iteration so handlers
+		// that overwrite them (e.g. DrawLevelOvr1P_SetSplitGroundThresholdScratch
+		// in the 4x1 path) don't corrupt subsequent bucket types.
+		Ovr227_SeedSharedHelperThresholdScratch();
+
 		void *viewport0BucketValue = DrawLevelOvr1P_GetRenderListField(&renderLists[0], renderListOffset);
 
 		*CTR_SCRATCHPAD_PTR(u32, 0x34) = (u32)renderListOffset;
@@ -249,11 +258,57 @@ static int Ovr227_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, str
 	*CTR_SCRATCHPAD_PTR(u32, 0x0) = (u32)(uintptr_t)clipCursors[0];
 	*CTR_SCRATCHPAD_PTR(u32, 0x4) = (u32)(uintptr_t)clipCursors[1];
 
+#ifdef CTR_NATIVE
+	{
+		u32 usedBeforeP1 = (u32)((u8 *)primMem->curr - (u8 *)primMem->start);
+		u32 totalMem = (u32)((u8 *)primMem->end - (u8 *)primMem->start);
+		u32 clipRec0 = (u32)(clipCursors[0] - (u8 *)data.PtrClipBuffer[0]);
+		u32 clipRec1 = (u32)(clipCursors[1] - (u8 *)data.PtrClipBuffer[1]);
+		printf("[2P] post-bucket: primMem %u/%u  clip(P1)=%u P2=%u\n",
+			usedBeforeP1, totalMem, clipRec0, clipRec1);
+	}
+#endif
+
 	if (!Ovr227_ConsumeClipRecordsForViewport(&pb[0], primMem, clipCursors[0], 0))
+	{
+#ifdef CTR_NATIVE
+		{
+			u32 used = (u32)((u8 *)primMem->curr - (u8 *)primMem->start);
+			u32 total = (u32)((u8 *)primMem->end - (u8 *)primMem->start);
+			printf("[2P] P1 CLIP CONSUME FAILED! primMem %u/%u\n", used, total);
+		}
+#endif
 		return 0;
+	}
+
+#ifdef CTR_NATIVE
+	{
+		u32 usedAfterP1 = (u32)((u8 *)primMem->curr - (u8 *)primMem->start);
+		u32 total = (u32)((u8 *)primMem->end - (u8 *)primMem->start);
+		u32 clipRec1 = (u32)(clipCursors[1] - (u8 *)data.PtrClipBuffer[1]);
+		printf("[2P] after-P1: primMem %u/%u  P2-clip=%u\n", usedAfterP1, total, clipRec1);
+	}
+#endif
 
 	if (!Ovr227_ConsumeClipRecordsForViewport(&pb[1], primMem, clipCursors[1], 1))
+	{
+#ifdef CTR_NATIVE
+		{
+			u32 used = (u32)((u8 *)primMem->curr - (u8 *)primMem->start);
+			u32 total = (u32)((u8 *)primMem->end - (u8 *)primMem->start);
+			printf("[2P] P2 CLIP CONSUME FAILED! primMem %u/%u\n", used, total);
+		}
+#endif
 		return 0;
+	}
+
+#ifdef CTR_NATIVE
+	{
+		u32 used = (u32)((u8 *)primMem->curr - (u8 *)primMem->start);
+		u32 total = (u32)((u8 *)primMem->end - (u8 *)primMem->start);
+		printf("[2P] done: primMem %u/%u\n", used, total);
+	}
+#endif
 
 	return 1;
 }
